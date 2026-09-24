@@ -32,13 +32,13 @@
 
   /* ---- 読書テーマ別トークン（金＝構造／森緑＝世界。段はテーマごとに彫り分け）---- */
   .t-dark{ --bg:#0F1712; --ink:#E4E9DE; --soft:#8E998C; --ruby:#A2AC9C; --accent:#E2C878; --rule:#9FCFA9;
-           --panel:#16211A; --panel-bd:#25332A; --bar:#101913; --bar-line:#22301F;
+           --panel:#16211A; --panel-bd:#25332A; --bar:#101913; --bar-rgb:16,25,19; --bar-line:#22301F;
            --amb1:rgba(214,196,120,.22); --amb2:rgba(39,64,48,.72); --glyph:rgba(233,240,228,.06); }
   .t-light{ --bg:#FAFBF8; --ink:#171E18; --soft:#6C746B; --ruby:#5A6257; --accent:#2E5B3E; --rule:#7BA986;
-            --panel:#F1F4EE; --panel-bd:#E2E7DE; --bar:#FAFBF8; --bar-line:#E7ECE4;
+            --panel:#F1F4EE; --panel-bd:#E2E7DE; --bar:#FAFBF8; --bar-rgb:250,251,248; --bar-line:#E7ECE4;
             --amb1:rgba(197,168,74,.14); --amb2:rgba(120,150,110,.18); --glyph:rgba(28,40,28,.06); }
   .t-sepia{ --bg:#F3E8CF; --ink:#332918; --soft:#8A7B5B; --ruby:#6C5D40; --accent:#5E4A1C; --rule:#A88B4E;
-            --panel:#EBDEBE; --panel-bd:#DBCB9E; --bar:#EDE1C3; --bar-line:#E0D3B0;
+            --panel:#EBDEBE; --panel-bd:#DBCB9E; --bar:#EDE1C3; --bar-rgb:237,225,195; --bar-line:#E0D3B0;
             --amb1:rgba(180,140,60,.18); --amb2:rgba(120,130,80,.2); --glyph:rgba(60,48,20,.07); }
   .phone{background:var(--bg)}
 
@@ -71,9 +71,39 @@
   .block .lbl{font-family:var(--gothic);font-size:11px;color:var(--accent);font-weight:700;margin-bottom:8px;letter-spacing:.1em}
   .block p{font-size:14.5px;line-height:2.1;text-indent:1em;margin:0;color:var(--soft)}
 
+  /* ---- 上下バーの面は α.92（2026-09-07 裁定・比較モック candidates/reading-bars-translucency-J-candidates.html 案B）----
+     2026-09-04 の D/K 裁定と**同じ値をそのまま当てた**（J 固有の値は作らない）。
+     なぜ透かすか: ライトは --bar #FAFBF8 と --bg #FAFBF8 が**完全に同値**で、境界を語るのは 1px の --bar-line
+     だけ＝面としてのバーが見えない（D/K が「境界が読めない」と報せた構図と同一）。
+     ⚠️ **J はダークも同じクラス**＝--bar #101913 と --bg #0F1712 が Δrgb=(1,2,1) でほぼ同値。D/K のダークは
+        Δ(4,5,6) で「もともと面が薄く見えている」状態だったので「ライトとは効き方が逆」と注記したが、
+        **J にその注意は当てはまらない**（3テーマとも同じ向きに効く＝α はテーマ共通の1値でよい）。
+     .92 は効く最小値＝本文が真下を通った箇所のバー面がライト #FAFBF8 → #E8E9E6／ダーク #101913 → #212A23 へ
+     動く（.96 は差 約4% で動いて初めて気づく／.86 はダークでバーが灰へ寄り森緑が抜ける・章頭では巨大 glyph の
+     画がバーの下端に透けて「本文が流れる」以外のものが混じる）。3ピル（復帰ヒント／続きに戻る／最上部へ）と
+     クローム面が同じ数に揃うので**新しい数を1つも増やさない**。
+     ⚠️ セピアだけ --bar #EDE1C3 が --bg #F3E8CF と別値（バーが暗い）だが、合成相手が近い素地なので
+        「素のバー面」は .92 で 1 階調しか動かない（#EDE1C3 → #EDE2C4）＝**既存の差は薄まらない**。
+     ⚠️ システム帯（上＝ステータス／下＝ナビ inset）は**不透明のまま**＝〈面＝半透明／帯＝不透明〉の2段塗り。
+        素朴に面ぜんぶへ α を掛けると帯まで透け、ボタン行の下の無地部分で本文が覗く（2026-07-29 実機・
+        上下バー非対称の真因＝旧 containerColor .copy(alpha=0.95f)）。--bar-rgb は --bar と同値の RGB 三つ組で、
+        片方だけ動かすと腐るので必ず対で直す。
+     ⚠️ ヘアライン（--bar-line）は触っていない。「境界が読めない」にはヘアラインを濃くする別解もあるが、
+        同時に2軸動かすと効いた方が分からない＝線は次の別裁定に回す（D/K の裁定と同じ規律）。
+     ⚠️ 章頭では大気（--amb1 金／--amb2 森緑）が .chap-h 上端から 300px＝**上バーをまるごと覆う位置**に居るので、
+        透かすと金と森緑が上バーへ**囁く程度**滲む。これは J だけに起きる効き（D/K の版面に大気は無い）で、
+        「扉をくぐる瞬間」が題字の地にも触れる＝**意図として採る**。題字 --ink は最悪面でも 13.9:1（ライト）で濁らない。
+     ⚠️ **この頁の4パネルでは透けが1つも見えない。それで正しい**——4つとも「バーの下に本文が無い」状態だから:
+        ①②は章頭＝本文の上クリアランス（実装 Insets.ReadingBodyTopExtra＝64dp／モックは .chap-h の
+        padding-top 92px）がバー高 50px を上回り上バーの真下に本文が無く、本文も下バーまで届いていない。
+        ③は没入＝バーごと退避。④は章末（.tail）＝章末印の下に 60px 空けるので下バーの真下も空く。
+        透けが立つのは**章の途中をスクロールしている間**で、その姿は上記の比較モック（§2/§4/§5）にある。
+        ⚠️ ここを「効いていない＝入れ損ね」と読んで α を戻さないこと（値は 3 テーマとも .92 で正しい）。
+     ⚠️ 没入（.immersive）には効かない＝バーごと退避するので、これは**クローム表示中の定常の地**だけの話
+        （J は没入が既定＝効くのはトグル中）。出没はスライドのままでフェードへは戻さない。 */
   /* ---- トップバー（オーバーレイ・chrome時のみ。本棚＝ポータルデッキへ戻る）---- */
   .topbar{position:absolute;left:0;right:0;top:34px;z-index:4;height:50px;display:flex;align-items:center;gap:4px;
-    padding:0 14px;background:var(--bar);border-bottom:1px solid var(--bar-line)}
+    padding:0 14px;background:rgba(var(--bar-rgb),.92);border-bottom:1px solid var(--bar-line)}
   .topbar .ib{width:38px;height:38px;border:none;background:transparent;border-radius:10px;display:grid;
     place-items:center;color:var(--ink);cursor:pointer}
   .topbar .ib svg{width:21px;height:21px;stroke:currentColor;fill:none;stroke-width:1.6}
@@ -82,17 +112,25 @@
 
   /* ---- ボトムバー（オーバーレイ・chrome時のみ。前章/目次/表示設定/次章）。表示設定だけ金＝画面唯一の強調 ---- */
   .bottombar{position:absolute;left:0;right:0;bottom:0;z-index:4;height:62px;display:flex;align-items:center;
-    background:var(--bar);border-top:1px solid var(--bar-line)}
+    background:rgba(var(--bar-rgb),.92);border-top:1px solid var(--bar-line)}
   .bottombar button{flex:1;height:100%;border:none;background:transparent;display:flex;flex-direction:column;
     align-items:center;justify-content:center;gap:4px;color:var(--ink);cursor:pointer}
   .bottombar svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.5}
   .bottombar .bl{font-family:var(--gothic);font-size:9.5px;color:var(--soft);letter-spacing:.02em}
+  /* ⚠️ 表示設定アイコンの2つの円は `fill="var(--bar)"`（**不透明**）のまま。円は線を抜くための
+     モック固有の描き方で、実装は Icons.Filled.Tune の単一ベクタ＝抜き円が存在しない。バーを透かしても
+     ここを rgba へ揃えると「バーの上にもう一枚バー地を重ねる」形になって実装と別物になるので触らない。 */
   .bottombar .set svg{stroke:var(--accent)}
   .bottombar .set .bl{color:var(--accent);font-weight:600}
 
   /* ---- 没入（chrome非表示・J既定）: バーを消し本文のみ。中央タップで復帰するヒントだけ残す ---- */
   .immersive .topbar,.immersive .bottombar{display:none}
-  .hint{position:absolute;left:50%;bottom:26px;transform:translateX(-50%);z-index:6;font-family:var(--gothic);
+  /* 最小高 48px＝Material の最小タップ標的（2026-09-03 裁定・案A と同便）。
+     実装（NativeReadingScreen.kt）はこの文言を丸ピルの器に載せて描いており、器の根拠が実装だけに
+     在った状態の是正としてここへ書き戻す。字面 11px × 1.6 は 33.6px にしかならず、字面をいくら
+     動かしても 48 には届かない＝**器側**に持たせるほかない（display:flex＋align-items:center は
+     最小高の中で字面を中央に置くため）。地色・角丸はスキンごとに別値なので最小高だけを正本化する。 */
+  .hint{position:absolute;left:50%;bottom:26px;display:flex;align-items:center;min-height:48px;transform:translateX(-50%);z-index:6;font-family:var(--gothic);
     font-size:11px;color:var(--soft);letter-spacing:.08em;opacity:.85}
 
   /* ===== 遊び心（J2 次の扉が呼ぶ）: 章末まで読み切ると右端に「次の章の扉」の敷居の光が滲み出て次章を静かに誘う =====
@@ -111,14 +149,65 @@
     font-family:var(--gothic);font-size:11px;letter-spacing:.28em;color:var(--accent);text-shadow:0 1px 8px rgba(0,0,0,.6)}
   @keyframes breathe{0%,100%{opacity:.55}50%{opacity:1}}
   /* 章末＝この扉をくぐり終えた印 */
-  .chapend{position:relative;z-index:1;text-align:center;margin-top:34px;padding-top:8px}
+  /* ---- 印の下のクリアランス＝60px（2026-09-05 裁定・実機 NG の是正）---------------------------
+     章末印は本文の**最終要素**なので、最大スクロールでは必ず本文領域の下端へ着地する。一方
+     「最上部へ」ピル（値の正本＝reading-backtotop-D `.toppill`）は下端バーからの距離で位置が決まる。
+     **両者の位置は独立に決まる**ので、章を読み切るとピルが印の上に重なる（2026-09-05 実機 PGEM10・
+     ダーク＝ヘアライン枠が印の字を横切り α.78 の地が字を沈める。2回別々に到達して同一値で再現＝決定的）。
+     ⚠️ **この重なりはモックでは構造上見えなかった**——印を出しているのが③没入（バー非表示＝ピルも
+        出ない）だけで、ピルと印が同居する面が正本に無かった。④を足したのはその穴を塞ぐため。
+     **なぜピルでなく印を動かすか**: ピルは章のどこでも・どのスキンでも下端バー直上の同じ場所に居ること
+     自体が取り柄の器（読者が場所を覚える）で、動かせば J 以外の全場面へ影響が出る。印は J だけに・章末に
+     だけ出る一点物なので、退くのは印の側でよい。
+     **値の導き方＝ピルが占める帯の全高**。バー上端からの浮き 12px ＋ **透明なタップ標的 48px** ＝ 60px。
+     ⚠️ **見える器 32px ではなく標的 48px を基準にする**。理由は2つ:
+       ①器は**下限であって固定寸ではない**（通算初回の語つきは実測 36px＝reading-backtotop-D の器の節）。
+         32px を基準にすると初回表示のときだけ 4px 食い込む。48px は器を包む外箱なので器が伸びても崩れない。
+       ②標的は透明で見えないが**押せる**。印は押す対象ではないのに、印の上のタップが章頭へのジャンプに
+         なる（本文タップのクローム・トグルも奪われる）＝見えないぶん説明のつかない挙動になる。
+       結果として器との間に 8px（＝(48−32)/2）の呼吸も自動で付く。32px 基準だと器の枠と sill2 が 0px で
+       接し、意図しない二重線として見える。
+     ⚠️ 印が**最終要素でないとき**（最終章＝了マークの後に継続カードが続く／正本 discovery/reading-continuation-D）
+        はこの空きを置かない。カードが印を押し上げるので避ける相手が居らず、置くと「了マークの後にカード」
+        の間合いだけが広がる。 */
+  .chapend{position:relative;z-index:1;text-align:center;margin-top:34px;padding-top:8px;margin-bottom:60px}
   .chapend .mark{font-family:var(--gothic);font-size:10.5px;letter-spacing:.34em;color:var(--soft)}
   .chapend .sill2{width:96px;height:2px;margin:14px auto 0;background:linear-gradient(90deg,transparent,var(--rule),transparent);opacity:.7}
+  /* ---- 「最上部へ」ピル（**逆同期**＝実装が先行して J にも出していた要素を 2026-09-05 に正本へ書き戻す）----
+     器・字・枠・α の**値の正本は reading-backtotop-D `.toppill`**。ここはトークンを J へ差し替えた写しで、
+     J 固有の意匠はひとつも足していない（地＝--bar の α.78／枠＝--bar-line／字とアイコン＝--ink）。
+     ⚠️ 影は D の `rgba(0,0,0,.08)` のまま。**暗面専用の濃さは正本が値を持たない**（比較モック
+        candidates/reading-toppill-occlusion-candidates.html の J 列 .45 は比較頁の値）＝実装も全スキンで
+        .08 を敷いている。暗面の影が要るなら先に比較モックを起こすこと。
+     位置は**実装の構造**で書く: 透明な標的（48px）の下端がバー上端＋12px ＝ 器（32px）の下端はバー上端＋20px。
+     バーが 62px なので器の bottom は 82px。
+     ⚠️ D 正本は `.toppill{bottom:74px}`（バー 60px ＝ 器がバー上端＋14px）で、実装（＋20dp）と **6px ずれている**。
+        ここは実機で測った実装側の値を書く（上のクリアランス 60px はこの差を呑み込む上側の値なので、
+        どちらへ寄せても重ならない）。差そのものの是非は未裁定＝**この注記が受け皿**。 */
+  .toppill{position:absolute;left:50%;bottom:82px;transform:translateX(-50%);z-index:6;
+    display:flex;align-items:center;justify-content:center;gap:6px;min-height:32px;min-width:32px;padding:0 8px;
+    font-family:var(--gothic);font-size:11px;color:var(--ink);letter-spacing:.08em;
+    border:1px solid var(--bar-line);border-radius:999px;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.08)}
+  /* 地＝各テーマの --bar に α.78（reading-backtotop-D の 2026-09-04 裁定・案D）。α は**テーマ共通**で
+     色だけがテーマ追従＝--bar-rgb（--bar と同値の RGB 三つ組）越しに掛ける。
+     ⚠️ 旧記述「CSS 変数に α を掛ける手段が無いので rgb 実値で展開する」は 2026-09-07 に解消済み＝上下バーの
+        透過裁定で --bar-rgb を宣言したので、テーマごとの rgb 実値を三重に書き写す必要はなくなった
+        （同じ三つ組が2箇所に在ると片方だけ動いて腐る）。値は 1 も変えていない。
+     ⚠️ ピルは**バーの上ではなく本文の上に浮く**別の器＝上下バーの α.92 とは別値（.78）で正しい。 */
+  .toppill{background:rgba(var(--bar-rgb),.78)}
+  /* 透明なタップ標的＝48px（2026-09-03 裁定の下限。器を縮めてもここは縮めない）。
+     見えないので目視では確かめられない＝Compose 側は NativeReadingScreenTopPillTest が両寸法を機械固定する。 */
+  .toppill::after{content:"";position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+    width:max(100%,48px);height:48px;border-radius:999px}
+  .toppill svg{width:14px;height:14px;stroke:var(--ink);fill:none;stroke-width:1.8}
+  /* ④の「章末（最大スクロール）」を静止画で作るための組み方＝本文を領域の下端へ寄せる。
+     実装で LazyColumn を末尾まで送った状態に当たる（意匠の規定ではなくパネルの再現手段）。 */
+  .reader.tail{display:flex;flex-direction:column;justify-content:flex-end}
   @media (prefers-reduced-motion:reduce){ .nextdoor .edge{animation:none;opacity:.8} }
 </style>
 </head>
 <body>
-  <p class="cap"><b>J. ポータル・デッキ — 読書</b> ／ 章頭を「扉をくぐる瞬間」として演出（大気＋大象徴文字＋敷居の光）。読み進めると演出はスクロールで去り、その下は組版だけの静かな版面。没入が既定・中央タップで対称トグル・バーはオーバーレイ（版面不動）。ルビは親文字上付き。読書テーマ3面併記。</p>
+  <p class="cap"><b>J. ポータル・デッキ — 読書</b> ／ 章頭を「扉をくぐる瞬間」として演出（大気＋大象徴文字＋敷居の光）。読み進めると演出はスクロールで去り、その下は組版だけの静かな版面。没入が既定・中央タップで対称トグル・バーはオーバーレイ（版面不動）。ルビは親文字上付き。読書テーマ3面併記＋④章末（最大スクロール・クローム表示）＝章末印と「最上部へ」ピルが同居する唯一の面。</p>
   <p class="wcag">WCAG 本文×背景コントラスト（目安）：ライト #171E18/#FAFBF8 ≈ 15:1 ／ セピア #332918/#F3E8CF ≈ 11:1 ／ ダーク #E4E9DE/#0F1712 ≈ 12:1（意味を運ぶ本文はいずれも 4.5:1 以上。ルビは補助として約 5:1）</p>
   <div class="stage">
 
@@ -198,6 +287,45 @@
       <!-- 遊び心（J2）: 章末に到達したので次の章の扉の敷居が灯る（.show）。章途中では非表示 -->
       <div class="nextdoor show" aria-hidden="true"><span class="edge"></span><span class="spine"></span><span class="call">次の章へ</span></div>
       <div class="hint">画面をタップでメニュー</div>
+    </div></div>
+
+    <!-- ④ ダーク（クローム表示・章末＝最大スクロール）
+         2026-09-05 追加。ここだけが〈章末印〉と〈最上部へピル〉の同居面で、①〜③には存在しない
+         （①②は章頭でまだ印まで届かない・③は没入＝ピルが出ない）。実機 NG（印にピルが重なる）を
+         裁定した面なので、以後の目視はこのパネルで行う。ピルは「章の3割以上＋クローム表示＋
+         スクロール停止中」で出る＝章末はこの3条件を全て満たす。 -->
+    <div class="wrap"><span class="mode">ダーク ／ クローム表示・章末（最大スクロール）</span>
+    <div class="phone t-dark" role="img" aria-label="J案 読書 ダーク 章末 クローム表示">
+      <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+      <div class="topbar">
+        <button class="ib" aria-label="本棚に戻る"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+        <div class="ct">第百二十七話　雨上がりの城門にて、彼女は静かに剣を置いた</div>
+      </div>
+      <!-- .tail＝本文を下端へ寄せる（最大スクロールの再現）。印の下の 60px が空いていること、
+           ピルの器・枠がその空きの中に収まって印の字へ一切掛からないことをここで見る。
+           ⚠️ **実機写真より空きが広く見えるのは正しい**＝このモックの `.reader` は padding-bottom:100px で
+              本文下端がバー上端の 38px 上に居るのに対し、実装の contentPadding.bottom は下端バーの実高
+              ちょうど（80dp）＝本文下端がバー上端に接する。この 38px ぶんだけモックが広い。
+              **どちらでも重ならない**（60px は接する側＝実装の geometry で導いた値）ので裁定に影響しないが、
+              モックと実機の見えを 1:1 で比べるときはこの差を差し引くこと。差の是非は未裁定＝この注記が受け皿。 -->
+      <div class="reader tail">
+        <p><ruby>彼女<rt>かのじょ</rt></ruby>はそう<ruby>呟<rt>つぶや</rt></ruby>くと、<ruby>腰<rt>こし</rt></ruby>の<ruby>剣<rt>つるぎ</rt></ruby>をそっと<ruby>地<rt>じ</rt></ruby>に<ruby>置<rt>お</rt></ruby>いた。</p>
+        <p><ruby>翌朝<rt>よくあさ</rt></ruby>、<ruby>鳥<rt>とり</rt></ruby>の<ruby>声<rt>こえ</rt></ruby>で<ruby>目<rt>め</rt></ruby>を<ruby>覚<rt>さ</rt></ruby>ますと、<ruby>窓辺<rt>まどべ</rt></ruby>には<ruby>昨夜<rt>ゆうべ</rt></ruby>の<ruby>雨<rt>あめ</rt></ruby>の<ruby>名残<rt>なごり</rt></ruby>が<ruby>雫<rt>しずく</rt></ruby>となって<ruby>光<rt>ひか</rt></ruby>っていた。</p>
+        <!-- 遊び心（J2）: 章末＝この扉をくぐり終えた印。下の 60px がピルの帯（浮き12＋標的48） -->
+        <div class="chapend"><div class="mark">— 第百二十七話 了 —</div><div class="sill2"></div></div>
+      </div>
+      <!-- 遊び心（J2）: 章末に到達したので次の章の扉の敷居が灯る（.show） -->
+      <div class="nextdoor show" aria-hidden="true"><span class="edge"></span><span class="spine"></span><span class="call">次の章へ</span></div>
+      <!-- 「最上部へ」＝通算初回だけ語つき・以後はアイコンのみ（reading-backtotop-D 案S4）。
+           ここは以後の姿＝アイコンのみで置く（器がいちばん小さく、クリアランスの検分に最も厳しい向き
+           ではないが、実機で重なったのがこの姿だったため）。 -->
+      <button class="toppill" aria-label="最上部へ"><svg viewBox="0 0 24 24"><line x1="6" y1="5" x2="18" y2="5"/><polyline points="7 13 12 8 17 13"/><line x1="12" y1="8" x2="12" y2="20"/></svg></button>
+      <div class="bottombar">
+        <button aria-label="前章"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg><span class="bl">前章</span></button>
+        <button aria-label="目次"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/><circle cx="4" cy="6" r="1" fill="currentColor" stroke="none"/><circle cx="4" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="4" cy="18" r="1" fill="currentColor" stroke="none"/></svg><span class="bl">目次</span></button>
+        <button class="set" aria-label="表示設定"><svg viewBox="0 0 24 24"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="9" cy="8" r="2.4" fill="var(--bar)"/><circle cx="15" cy="16" r="2.4" fill="var(--bar)"/></svg><span class="bl">表示設定</span></button>
+        <button aria-label="次章"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg><span class="bl">次章</span></button>
+      </div>
     </div></div>
 
   </div>

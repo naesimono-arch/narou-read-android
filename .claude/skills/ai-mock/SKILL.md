@@ -10,7 +10,7 @@ description: AI裁定モック作成の型。監督（Claude）自らモック�
 
 ## 流れ（1ラウンド）
 
-1. **接地**: `/visual-language` ゲート → UX正本（`/mnt/c/Users/qingj/Desktop/project/UX`）→ 現行実装の機能・導線棚卸し（委譲可）。
+1. **接地**: `/visual-language` ゲート → UX正本（`/mnt/c/Users/naesimono/Desktop/project/knowledge/ux/UX`）→ 現行実装の機能・導線棚卸し（委譲可）。
    競合の実機目視＝`adb shell monkey -p <pkg> … 1` 起動 → `adb exec-out screencap -p` → Read で自分の眼で見る。
    **裁定: 課題は「装飾」か「構造」か**——真因が構造なら回答も構造で（色いじりでは直らない）。
 2. **確定事項を書く**: plan（`.claude/plans/`・冒頭に対象ブランチ）へ根拠つきで明文化。書かない委譲は逸脱の温床。

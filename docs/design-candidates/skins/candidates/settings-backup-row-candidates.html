@@ -1,0 +1,483 @@
+<!-- @dsCard group="UI-n / 一時ドラフト（裁定用）" name="設定 バックアップ行 — 3案比較（2026-08-26）" -->
+<!--
+  ⚠️ 一時ドラフト（複数案比較）＝正本ではない。裁定が付いたら採用案だけを正本
+     docs/design-candidates/skins/settings-K.html（＋ D/M/P/J の同節）へ差分反映し、本ファイルを削除する
+     （/visual-language「複数案比較のみ一時ドラフト」）。設定画面の実装は全スキン共通の SettingsScreenK 1本
+     ＝行構成・文言は5枚とも同一が正しい（意匠だけがスキンごとに違う）。
+
+  【何を決めるための紙か】
+  設計ドラフト .claude/plans/auto-backup-design-2026-08-26.md の §6 案B／案C に UI を与えた比較。
+  ⚠️ **案A（トグルも説明も置かない＝現状維持）は UI を持たないので、この紙には現れない。**
+     3案が並んでいることは「置く」の決定を意味しない——まず案A を含めた4択が §8-1 の裁定。
+
+  【下敷き】docs/design-candidates/skins/settings-K.html（設定の正本モック）。
+     CSS・トークン実値・ボトムナビ・既存3節（表示／通知／このアプリ）はそこから一字も変えずに写した。
+     変えたのは「データ」節の中身だけ＝差分が読める形にしてある。
+
+  【下敷きを描く前にコードで確認した実装の事実】
+  ・「データ」節は現状 `if (BuildConfig.DEBUG)`（SettingsScreenK.kt:245）＝**release では節ごと出ない**。
+    どの案を採っても、この行が「データ」節を release で初めて表に出す1本目になる。
+    節に同居する「取り込み状態の診断」は debug 限定のまま（副文が自ら「開発版のみ」と言っている）＝
+    release ではこの新しい行だけが残る。3枚とも診断行を残したのは下敷きへの忠実さを優先したため。
+  ・実装には正本モックに無い節がさらに2つある（「開発」＝debug 限定・「つかいかた」＝release でも出る）。
+    **これは既知のモック逆同期漏れ**＝本紙の所有範囲外なので触らない。位置関係だけ注記しておく：
+    実装の節順は 表示 → 通知 → データ → 開発 → つかいかた → このアプリ。
+  ・トグルの意匠は既存「新着話の通知」行と同一部品（M3 Switch・ON＝藍）＝新しい部品は発明していない。
+
+  【3枚で変えている軸は1つだけ＝行の形】
+  ① 情報行1本（案B）／② トグル行1本（案C-1）／③ トグル行＋説明行の2本（案C-2）
+  節見出しを「データ」のままにするか「引き継ぎ」等を新設するかは**別の軸**＝3枚とも「データ」で揃えてある
+  （裁定が要るなら §8 に足す）。
+
+  【文言で守った制約（設計ドラフト §4.2）】
+  ・「OFF にすれば消えます」と書けない——既にサーバー上にあるデータセットの扱いはトランスポート依存で
+    公式ガイドに記載が無い。よって OFF 側の説明は「これ以降は保存されません」までに留めてある。
+  ・「本文は引き継がれません」を必ず書く——機種変更で PDF 本の本文が戻らないのは事実（設計ドラフト §3.3 結論②）で、
+    事故の前に伝えられる唯一の場所がここ。
+-->
+<!--
+  ═══ 2026-09-03 裁定と実装（この紙の役目は終わり・以下は逆同期の注記）═══════════════════
+  設計ドラフト §8-1 の4択は **案C（トグルを置く）** で決着し、**案C-2（トグル行＋説明行の2本）**を実装した。
+  ⚠️ ただし **既定は OFF**（人間裁定）＝この紙の3枚とも既定 ON の絵で描かれており、**トグルの初期状態だけが紙と食い違う**。
+     行の形・部品・余白・アイコンは紙のとおりで、意匠の逸脱ではない。
+
+  実装で紙から動かした点（すべて既定 OFF 裁定に由来する事実の訂正・意匠ではない）:
+   ①「データ」節の行順 … 紙は〈引き継ぎ2行 → 取り込み状態の診断〉の2〜3行だったが、実装には
+      2026-09-02 に〈診断の記録〉行（release でも出る）が入った。紙の順序規則「引き継ぎが先・診断が後」を
+      そのまま当てはめ、〈引き継ぎ〉〈引き継がれるもの〉〈診断の記録〉〈取り込み状態の診断(debug)〉の4行にした。
+      ⚠️ 紙の冒頭にある「データ節は debug 限定（SettingsScreenK.kt:245）」という前提は**すでに古い**
+      （ゲートは行単位へ掛け替え済み＝節と〈診断の記録〉は release でも出る）。
+   ② 説明ダイアログ「引き継がれるもの」の一文 …「新しい端末で本アプリを入れ直したとき、自動で戻ります」は
+      既定 ON を前提にした無条件の記述で、OFF の利用者には嘘になる。実装は「**この設定が ON のとき**、
+      新しい端末で本アプリを入れ直すと自動で戻ります」と条件づけた。
+   ③ 説明ダイアログ「保存先」 … 止め方の案内に**アプリ内トグル**が加わったので「OFF にすると、これ以降は
+      保存されません」を足した。⚠️「すでに保存されたものが消える」とは書けない制約（設計ドラフト §4.2）は
+      そのまま守っており、既存データの削除は端末設定／Google アカウント側へ送っている。
+
+  実装の所在: SettingsScreenK.kt の BackupOptInRowK / KBackupInfoDialog。
+  ⚠️ この紙は複数案比較の一時ドラフト＝**採用案（案C-2）を正本 skins/settings-K.html（＋ D/M/P/J の同節）へ
+     差分反映し、本ファイルを削除する**のが後始末（/visual-language「複数案比較のみ一時ドラフト」）。
+     監督の所掌なのでこの便では触っていない。
+-->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>設定 バックアップ行 — 3案比較</title>
+<style>
+  :root{
+    /* === settings-K.html から実値をそのまま写した（変更なし） === */
+    --base:#FBFAF8;        /* 和紙地 */
+    --ink:#1C1F26;         /* 主文字 */
+    --ink-soft:#7C808B;    /* 装飾補助（OnSurfaceVariantLight 実値） */
+    --line:#ECEAE4;        /* ヘアライン */
+    --ai:#1C3D5A;          /* 藍アクセント（トグルON/選択中のみ） */
+    --ai-tint:rgba(28,61,90,.10);
+    --seiji-ink:#50685C;
+    --mincho:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
+    --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#E4E3DD;min-height:100vh;padding:28px 24px 48px;
+    font-family:var(--gothic);-webkit-font-smoothing:antialiased;color:var(--ink)}
+
+  /* === 紙の頭（比較紙の説明・スマホ枠の外＝意匠の一部ではない） === */
+  .sheet{max-width:1360px;margin:0 auto}
+  .sheet h1{font-size:19px;font-weight:700;letter-spacing:.04em;margin-bottom:6px}
+  .sheet .lead{font-size:13px;line-height:1.75;color:#4A4E58;max-width:960px}
+  .sheet .lead b{color:var(--ink)}
+  .sheet .warn{margin-top:10px;padding:10px 14px;border-left:3px solid #A6543F;background:#F3EFEC;
+    font-size:12.5px;line-height:1.7;color:#4A4E58;max-width:960px}
+
+  .rack{display:flex;gap:28px;flex-wrap:wrap;justify-content:center;margin-top:26px}
+  .cell{width:412px}
+
+  /* === スマホ画面枠（settings-K.html と同一） === */
+  .phone{width:412px;height:915px;background:var(--base);border-radius:40px;overflow:hidden;
+    position:relative;display:flex;flex-direction:column;box-shadow:0 24px 60px rgba(0,0,0,.30)}
+
+  .sb{height:40px;flex-shrink:0;display:flex;align-items:center;justify-content:space-between;
+    padding:0 24px;font-size:11px;color:var(--ink-soft);letter-spacing:.02em}
+  .sb .r{display:flex;gap:6px;align-items:center}
+
+  .head{flex-shrink:0;padding:6px 20px 14px}
+  .head h1{font-family:var(--gothic);font-size:22px;font-weight:700;color:var(--ink);letter-spacing:.04em}
+
+  .scroll{flex:1;overflow-y:auto;overflow-x:hidden;padding:2px 20px 24px;scrollbar-width:none}
+  .scroll::-webkit-scrollbar{display:none}
+
+  .gh{font-size:12px;color:var(--ink-soft);letter-spacing:.14em;margin:20px 4px 8px;font-weight:600}
+  .gh:first-child{margin-top:4px}
+
+  .group{border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--base)}
+
+  .row{display:flex;align-items:center;gap:14px;padding:15px 16px;border-bottom:1px solid var(--line)}
+  .row:last-child{border-bottom:none}
+  .ri{width:24px;height:24px;flex-shrink:0;color:var(--ink-soft)}
+  .ri svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+  .rt{flex:1;min-width:0}
+  .rl{font-family:var(--gothic);font-size:15px;color:var(--ink);letter-spacing:.02em}
+  .rd{font-size:12.5px;color:var(--ink-soft);line-height:1.5;margin-top:4px;letter-spacing:.01em}
+  .rr{flex-shrink:0;display:flex;align-items:center;gap:8px}
+  .rv{font-size:13px;color:var(--ink-soft);letter-spacing:.02em}
+  .chev{width:18px;height:18px;fill:none;stroke:var(--ink-soft);stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+  .chev-hole{width:18px;height:18px;flex-shrink:0}
+
+  .row.disabled{opacity:.5}
+
+  .toggle{width:46px;height:28px;border-radius:14px;background:#D6D4CD;position:relative}
+  .toggle.on{background:var(--ai)}
+  .toggle .knob{position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;
+    background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.25)}
+  .toggle.on .knob{left:21px}
+
+  /* 候補行の在り処を裁定時に見失わないための一時マーカー（採用時は消える＝意匠ではない） */
+  .newrow{position:relative}
+  .newrow::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--seiji-ink);opacity:.55}
+
+  /* ===== 共通ボトムナビ（settings-K.html と完全同一） ===== */
+  .tabbar{flex-shrink:0;height:64px;display:flex;border-top:1px solid var(--line);background:var(--base)}
+  .tab{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+    text-decoration:none;cursor:pointer;color:var(--ink-soft)}
+  .tab.on{color:var(--ai)}
+  .tab .ic{position:relative;width:56px;height:32px;display:grid;place-items:center}
+  .tab .ic .pill{position:absolute;inset:0;border-radius:16px;background:transparent}
+  .tab.on .ic .pill{background:var(--ai-tint)}
+  .tab .ic svg{position:relative;width:24px;height:24px;fill:none;stroke:currentColor;
+    stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+  .tab .lb{font-family:var(--gothic);font-size:11px;letter-spacing:.04em}
+  .tab.on .lb{font-weight:700}
+
+  /* === 各枠の注記（スマホ枠の外） === */
+  .note{margin-top:14px;font-size:12.5px;line-height:1.75;color:#4A4E58}
+  .note h2{font-size:14px;font-weight:700;color:var(--ink);letter-spacing:.03em;margin-bottom:6px}
+  .note .tag{display:inline-block;font-size:11px;letter-spacing:.08em;font-weight:700;
+    padding:2px 8px;border-radius:10px;margin-bottom:8px}
+  .note .tag.b{background:rgba(80,104,92,.14);color:var(--seiji-ink)}
+  .note .tag.c{background:var(--ai-tint);color:var(--ai)}
+  .note ul{margin:6px 0 0 16px}
+  .note li{margin-bottom:4px}
+  .note .no{color:#8A4A38}
+
+  /* === 説明ダイアログ（案B/C の「開いた先」＝どの案でも中身は同じ） === */
+  .dlgwrap{max-width:960px;margin:34px auto 0}
+  .dlgwrap h2{font-size:15px;font-weight:700;letter-spacing:.03em;margin-bottom:4px}
+  .dlgwrap .sub{font-size:12.5px;line-height:1.7;color:#4A4E58;margin-bottom:14px}
+  .dlg{width:360px;background:var(--base);border-radius:16px;padding:22px 22px 12px;
+    box-shadow:0 18px 44px rgba(0,0,0,.24)}
+  .dlg .dt{font-size:17px;font-weight:700;letter-spacing:.03em;margin-bottom:12px}
+  .dlg .db{font-size:13px;line-height:1.85;color:#3A3E48}
+  .dlg .db .lbl{display:block;font-size:11.5px;letter-spacing:.1em;font-weight:700;
+    color:var(--ink-soft);margin:14px 0 2px}
+  .dlg .db .lbl:first-child{margin-top:0}
+  .dlg .acts{display:flex;justify-content:flex-end;margin-top:16px}
+  .dlg .acts .btn{font-size:14px;font-weight:700;color:var(--ai);padding:8px 10px}
+</style>
+</head>
+<body>
+<div class="sheet">
+  <h1>設定「データ」節 — バックアップ行の3案比較</h1>
+  <p class="lead">
+    設計ドラフト <b>.claude/plans/auto-backup-design-2026-08-26.md</b> §6 のうち、<b>UI を持つ案だけ</b>を描いた紙。
+    下敷きは設定の正本モック <b>settings-K.html</b>（CSS・既存3節は一字も変えていない。変えたのは「データ」節の中身だけ）。
+    3枚で変えている軸は<b>行の形ひとつ</b>で、節見出しは3枚とも「データ」で揃えてある。
+    緑の縦線は候補行の在り処を示す一時マーカー＝意匠ではない。
+  </p>
+  <div class="warn">
+    ⚠️ <b>案A（トグルも説明も置かない＝現状維持）は UI を持たないのでこの紙には現れない。</b>
+    3案が並んでいることは「置く」の決定を意味しない——案A を含めた4択が設計ドラフト §8-1 の裁定。<br>
+    ⚠️ <b>「データ」節は現状 debug 限定</b>（SettingsScreenK.kt:245）＝どの案を採ってもこの行が release で節を初めて表に出す1本目になる。
+    同居する「取り込み状態の診断」は debug 限定のままなので、release ではこの新しい行だけが残る。
+  </div>
+
+  <div class="rack">
+
+    <!-- ============================================================
+         ① 案B: 情報行1本（トグルなし・タップで説明）
+         ============================================================ -->
+    <div class="cell">
+      <div class="phone">
+        <div class="sb"><span>9:41</span><span class="r">5G ▾ ▮▮▮</span></div>
+        <div class="head"><h1>設定</h1></div>
+        <div class="scroll">
+
+          <div class="gh">表示</div>
+          <div class="group">
+            <div class="row">
+              <span class="ri"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor" stroke="none"/></svg></span>
+              <div class="rt"><div class="rl">テーマ</div></div>
+              <div class="rr"><span class="rv">システムに従う</span><svg class="chev" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></div>
+            </div>
+            <div class="row disabled">
+              <span class="ri"><svg viewBox="0 0 24 24"><path d="M5 6.5h14M12 6.5V19"/></svg></span>
+              <div class="rt"><div class="rl">文字と組版</div><div class="rd">文字サイズ・行間・余白は、読書中の「表示設定」から変えられます</div></div>
+            </div>
+            <div class="row">
+              <span class="ri"><svg viewBox="0 0 24 24"><path d="M12 4a8 8 0 0 0 0 16c1 0 1.5-.8 1.5-1.6 0-1 .8-1.4 1.6-1.4H17a3 3 0 0 0 3-3c0-4.4-3.6-8-8-8z"/><circle cx="8.2" cy="11" r=".9" fill="currentColor" stroke="none"/><circle cx="12" cy="8.4" r=".9" fill="currentColor" stroke="none"/><circle cx="15.6" cy="11" r=".9" fill="currentColor" stroke="none"/></svg></span>
+              <div class="rt"><div class="rl">きせかえ</div><div class="rd">本棚や画面の装いを変える</div></div>
+              <div class="rr"><span class="rv">明快</span><svg class="chev" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></div>
+            </div>
+          </div>
+
+          <div class="gh">通知</div>
+          <div class="group">
+            <div class="row">
+              <span class="ri"><svg viewBox="0 0 24 24"><path d="M6 9a6 6 0 0 1 12 0c0 5 2 6 2 6H4s2-1 2-6z"/><path d="M10 19a2 2 0 0 0 4 0"/></svg></span>
+              <div class="rt"><div class="rl">新着話の通知</div><div class="rd">Web作品の新しい話を1日1回確認して通知します</div></div>
+              <div class="rr"><span class="toggle on"><span class="knob"></span></span></div>
+            </div>
+          </div>
+
+          <div class="gh">データ</div>
+          <div class="group">
+            <!-- 候補行（案B）: 操作部品を持たない情報行。右端は山括弧＝タップで説明が開く。
+                 主ラベルを「バックアップ」にしないのは、利用者が実際に困る場面の名前で呼ぶため
+                 （＝機種変更のとき）。「バックアップ」は手段の名前で、何が起きるかを言っていない。 -->
+            <div class="row newrow">
+              <span class="ri"><svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 4v4h-4"/><path d="M12 8v4.3l3 1.8"/></svg></span>
+              <div class="rt"><div class="rl">端末を替えたときの引き継ぎ</div><div class="rd">本の情報と読書位置は引き継がれます。本文は引き継がれません</div></div>
+              <div class="rr"><svg class="chev" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></div>
+            </div>
+            <div class="row">
+              <span class="ri"><svg viewBox="0 0 24 24"><path d="M3 12h4l2.5-6 4 13 2.5-7H21"/></svg></span>
+              <div class="rt"><div class="rl">取り込み状態の診断</div><div class="rd">Web取込の健全性を確認（開発版のみ）</div></div>
+              <div class="rr"><svg class="chev" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></div>
+            </div>
+          </div>
+
+          <div class="gh">このアプリ</div>
+          <div class="group">
+            <div class="row">
+              <span class="ri"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.2"/><path d="M12 11.2v5"/><path d="M12 8.2h.01"/></svg></span>
+              <div class="rt"><div class="rl">バージョン</div></div>
+              <div class="rr"><span class="rv">1.0</span><span class="chev-hole" aria-hidden="true"></span></div>
+            </div>
+          </div>
+
+        </div>
+        <nav class="tabbar">
+          <a class="tab"><span class="ic"><span class="pill"></span><svg viewBox="0 0 24 24"><path d="M6 4h11a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/><path d="M4 18a2 2 0 0 1 2-2h12"/></svg></span><span class="lb">本棚</span></a>
+          <a class="tab"><span class="ic"><span class="pill"></span><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.4 4.4"/></svg></span><span class="lb">さがす</span></a>
+          <a class="tab on"><span class="ic"><span class="pill"></span><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span><span class="lb">設定</span></a>
+        </nav>
+      </div>
+
+      <div class="note">
+        <span class="tag b">案B ／ 情報行1本</span>
+        <h2>説明だけ置く（選ばせない）</h2>
+        <ul>
+          <li>バックアップ機構に<b>一切触れない</b>＝表示だけ。案A の安全性（動くコードゼロ）をそのまま保つ。</li>
+          <li>行の形が「テーマ」「きせかえ」と同じ<b>既存の型</b>＝新しい語彙を1つも増やさない。</li>
+          <li>「本文は引き継がれません」を副文で<b>事故の前に</b>言える。これが案A に無い唯一の価値。</li>
+          <li class="no">止める手段はアプリ内に無い（説明ダイアログ内で端末設定を案内する）。「言われたが止められない」と受け取られうる。</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- ============================================================
+         ② 案C-1: トグル行1本（副文に説明を同居）
+         ============================================================ -->
+    <div class="cell">
+      <div class="phone">
+        <div class="sb"><span>9:41</span><span class="r">5G ▾ ▮▮▮</span></div>
+        <div class="head"><h1>設定</h1></div>
+        <div class="scroll">
+
+          <div class="gh">表示</div>
+          <div class="group">
+            <div class="row">
+              <span class="ri"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor" stroke="none"/></svg></span>
+              <div class="rt"><div class="rl">テーマ</div></div>
+              <div class="rr"><span class="rv">システムに従う</span><svg class="chev" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></div>
+            </div>
+            <div class="row disabled">
+              <span class="ri"><svg viewBox="0 0 24 24"><path d="M5 6.5h14M12 6.5V19"/></svg></span>
+              <div class="rt"><div class="rl">文字と組版</div><div class="rd">文字サイズ・行間・余白は、読書中の「表示設定」から変えられます</div></div>
+            </div>
+            <div class="row">
+              <span class="ri"><svg viewBox="0 0 24 24"><path d="M12 4a8 8 0 0 0 0 16c1 0 1.5-.8 1.5-1.6 0-1 .8-1.4 1.6-1.4H17a3 3 0 0 0 3-3c0-4.4-3.6-8-8-8z"/><circle cx="8.2" cy="11" r=".9" fill="currentColor" stroke="none"/><circle cx="12" cy="8.4" r=".9" fill="currentColor" stroke="none"/><circle cx="15.6" cy="11" r=".9" fill="currentColor" stroke="none"/></svg></span>
+              <div class="rt"><div class="rl">きせかえ</div><div class="rd">本棚や画面の装いを変える</div></div>
+              <div class="rr"><span class="rv">明快</span><svg class="chev" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></div>
+            </div>
+          </div>
+
+          <div class="gh">通知</div>
+          <div class="group">
+            <div class="row">
+              <span class="ri"><svg viewBox="0 0 24 24"><path d="M6 9a6 6 0 0 1 12 0c0 5 2 6 2 6H4s2-1 2-6z"/><path d="M10 19a2 2 0 0 0 4 0"/></svg></span>
+              <div class="rt"><div class="rl">新着話の通知</div><div class="rd">Web作品の新しい話を1日1回確認して通知します</div></div>
+              <div class="rr"><span class="toggle on"><span class="knob"></span></span></div>
+            </div>
+          </div>
+
+          <div class="gh">データ</div>
+          <div class="group">
+            <!-- 候補行（案C-1）: トグル1本に説明を同居させる。「新着話の通知」と完全に同じ形＝
+                 設定を縦に読む人にとって「トグル行はこう読む」という規則が1つで済む。
+                 既定 ON＝現状の挙動を変えない（設計ドラフト §6 案C）。 -->
+            <div class="row newrow">
+              <span class="ri"><svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 4v4h-4"/><path d="M12 8v4.3l3 1.8"/></svg></span>
+              <div class="rt"><div class="rl">読書記録の引き継ぎ</div><div class="rd">本の情報・読書位置・しおりを、端末を替えたときに引き継げるよう保存します（本文は保存されません）</div></div>
+              <div class="rr"><span class="toggle on"><span class="knob"></span></span></div>
+            </div>
+            <div class="row">
+              <span class="ri"><svg viewBox="0 0 24 24"><path d="M3 12h4l2.5-6 4 13 2.5-7H21"/></svg></span>
+              <div class="rt"><div class="rl">取り込み状態の診断</div><div class="rd">Web取込の健全性を確認（開発版のみ）</div></div>
+              <div class="rr"><svg class="chev" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></div>
+            </div>
+          </div>
+
+          <div class="gh">このアプリ</div>
+          <div class="group">
+            <div class="row">
+              <span class="ri"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.2"/><path d="M12 11.2v5"/><path d="M12 8.2h.01"/></svg></span>
+              <div class="rt"><div class="rl">バージョン</div></div>
+              <div class="rr"><span class="rv">1.0</span><span class="chev-hole" aria-hidden="true"></span></div>
+            </div>
+          </div>
+
+        </div>
+        <nav class="tabbar">
+          <a class="tab"><span class="ic"><span class="pill"></span><svg viewBox="0 0 24 24"><path d="M6 4h11a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/><path d="M4 18a2 2 0 0 1 2-2h12"/></svg></span><span class="lb">本棚</span></a>
+          <a class="tab"><span class="ic"><span class="pill"></span><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.4 4.4"/></svg></span><span class="lb">さがす</span></a>
+          <a class="tab on"><span class="ic"><span class="pill"></span><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span><span class="lb">設定</span></a>
+        </nav>
+      </div>
+
+      <div class="note">
+        <span class="tag c">案C-1 ／ トグル行1本</span>
+        <h2>選ばせる（説明はトグルの副文に同居）</h2>
+        <ul>
+          <li>「新着話の通知」と<b>完全に同じ形</b>＝トグル行の読み方が設定内で1種類に保たれる。</li>
+          <li>行が1本で済む＝節が太らない。</li>
+          <li class="no">副文が3行に伸びる（実機 360dp では確実に折り返す）＝<b>行の高さが節内で突出する</b>。実機で要検分。</li>
+          <li class="no">OFF にしたときの代償（機種変更で棚・読書位置・しおりが全損する）を、この副文の長さでは書き切れない。
+            OFF 操作時の確認ダイアログが実質必須になる。</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- ============================================================
+         ③ 案C-2: トグル行＋説明行の2本
+         ============================================================ -->
+    <div class="cell">
+      <div class="phone">
+        <div class="sb"><span>9:41</span><span class="r">5G ▾ ▮▮▮</span></div>
+        <div class="head"><h1>設定</h1></div>
+        <div class="scroll">
+
+          <div class="gh">表示</div>
+          <div class="group">
+            <div class="row">
+              <span class="ri"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor" stroke="none"/></svg></span>
+              <div class="rt"><div class="rl">テーマ</div></div>
+              <div class="rr"><span class="rv">システムに従う</span><svg class="chev" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></div>
+            </div>
+            <div class="row disabled">
+              <span class="ri"><svg viewBox="0 0 24 24"><path d="M5 6.5h14M12 6.5V19"/></svg></span>
+              <div class="rt"><div class="rl">文字と組版</div><div class="rd">文字サイズ・行間・余白は、読書中の「表示設定」から変えられます</div></div>
+            </div>
+            <div class="row">
+              <span class="ri"><svg viewBox="0 0 24 24"><path d="M12 4a8 8 0 0 0 0 16c1 0 1.5-.8 1.5-1.6 0-1 .8-1.4 1.6-1.4H17a3 3 0 0 0 3-3c0-4.4-3.6-8-8-8z"/><circle cx="8.2" cy="11" r=".9" fill="currentColor" stroke="none"/><circle cx="12" cy="8.4" r=".9" fill="currentColor" stroke="none"/><circle cx="15.6" cy="11" r=".9" fill="currentColor" stroke="none"/></svg></span>
+              <div class="rt"><div class="rl">きせかえ</div><div class="rd">本棚や画面の装いを変える</div></div>
+              <div class="rr"><span class="rv">明快</span><svg class="chev" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></div>
+            </div>
+          </div>
+
+          <div class="gh">通知</div>
+          <div class="group">
+            <div class="row">
+              <span class="ri"><svg viewBox="0 0 24 24"><path d="M6 9a6 6 0 0 1 12 0c0 5 2 6 2 6H4s2-1 2-6z"/><path d="M10 19a2 2 0 0 0 4 0"/></svg></span>
+              <div class="rt"><div class="rl">新着話の通知</div><div class="rd">Web作品の新しい話を1日1回確認して通知します</div></div>
+              <div class="rr"><span class="toggle on"><span class="knob"></span></span></div>
+            </div>
+          </div>
+
+          <div class="gh">データ</div>
+          <div class="group">
+            <!-- 候補行（案C-2）: トグル（操作）と説明（読み物）を別の行に割る。
+                 なぜ割るか: OFF の代償は1行の副文に収まらない＝収めようとすると副文が3〜4行になる（案C-1 の弱点）。
+                 説明を山括弧つきの独立行にすれば、トグルの副文は「何をするか」の一文で済む。 -->
+            <div class="row newrow">
+              <span class="ri"><svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 4v4h-4"/><path d="M12 8v4.3l3 1.8"/></svg></span>
+              <div class="rt"><div class="rl">読書記録の引き継ぎ</div><div class="rd">端末を替えたときに引き継げるよう保存します</div></div>
+              <div class="rr"><span class="toggle on"><span class="knob"></span></span></div>
+            </div>
+            <div class="row newrow">
+              <!-- アイコン列は空けて「直上の行の続き」に見せる（節内に2つ目のアイコンを立てると別件に見える）。 -->
+              <span class="ri" aria-hidden="true"></span>
+              <div class="rt"><div class="rl">引き継がれるもの</div><div class="rd">本の情報・読書位置・しおり・設定。本文は引き継がれません</div></div>
+              <div class="rr"><svg class="chev" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></div>
+            </div>
+            <div class="row">
+              <span class="ri"><svg viewBox="0 0 24 24"><path d="M3 12h4l2.5-6 4 13 2.5-7H21"/></svg></span>
+              <div class="rt"><div class="rl">取り込み状態の診断</div><div class="rd">Web取込の健全性を確認（開発版のみ）</div></div>
+              <div class="rr"><svg class="chev" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></div>
+            </div>
+          </div>
+
+          <div class="gh">このアプリ</div>
+          <div class="group">
+            <div class="row">
+              <span class="ri"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.2"/><path d="M12 11.2v5"/><path d="M12 8.2h.01"/></svg></span>
+              <div class="rt"><div class="rl">バージョン</div></div>
+              <div class="rr"><span class="rv">1.0</span><span class="chev-hole" aria-hidden="true"></span></div>
+            </div>
+          </div>
+
+        </div>
+        <nav class="tabbar">
+          <a class="tab"><span class="ic"><span class="pill"></span><svg viewBox="0 0 24 24"><path d="M6 4h11a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/><path d="M4 18a2 2 0 0 1 2-2h12"/></svg></span><span class="lb">本棚</span></a>
+          <a class="tab"><span class="ic"><span class="pill"></span><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.4 4.4"/></svg></span><span class="lb">さがす</span></a>
+          <a class="tab on"><span class="ic"><span class="pill"></span><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span><span class="lb">設定</span></a>
+        </nav>
+      </div>
+
+      <div class="note">
+        <span class="tag c">案C-2 ／ トグル行＋説明行</span>
+        <h2>選ばせる（説明を独立行に割る）</h2>
+        <ul>
+          <li>トグルの副文が<b>一文で収まる</b>＝行の高さが節内で突出しない（案C-1 の弱点の解）。</li>
+          <li>「引き継がれるもの」を独立行にすると、<b>OFF の人にも情報として残る</b>（トグルを切っても消えない行）。</li>
+          <li>案B の情報行をそのまま内包している＝案B→案C-2 は<b>追加だけの移行</b>（後から足せる形）。</li>
+          <li class="no">節が3行になり「データ」節が設定の中で最も重くなる。他節が1〜3行なので<b>重心が下寄りに動く</b>。実機で要検分。</li>
+          <li class="no">2行目のアイコン列を空けるのは設定画面に<b>前例が無い型</b>＝新しい語彙を1つ増やしている。</li>
+        </ul>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ============================================================
+       説明ダイアログ（案B の遷移先／案C-2 の2行目の遷移先。中身はどちらでも同じ）
+       ============================================================ -->
+  <div class="dlgwrap">
+    <h2>説明ダイアログ（案B・案C-2 の遷移先／案C-1 では副文に畳む内容）</h2>
+    <p class="sub">
+      器は既存の <b>NovelReaderAlertDialog</b>（テーマ選択ダイアログと同じ）。新しい部品は使っていない。<br>
+      ⚠️ 文言の制約（設計ドラフト §4.2）:「すでに保存されたものが消える」とは<b>書けない</b>——
+      トランスポート依存で公式ガイドに記載が無いため。だから止め方の案内は<b>端末の設定へ送る</b>形にしてある。
+    </p>
+    <div class="dlg">
+      <div class="dt">端末を替えたときの引き継ぎ</div>
+      <div class="db">
+        <span class="lbl">引き継がれるもの</span>
+        本棚に入れた本の情報・読書位置・しおり・アプリの設定。<br>
+        新しい端末で本アプリを入れ直したとき、自動で戻ります。
+
+        <span class="lbl">引き継がれないもの</span>
+        取り込んだ作品の<b>本文</b>。<br>
+        端末を替えたあとは、同じ PDF を取り込み直すと<b>続きから読めます</b>（読書位置は残っています）。
+
+        <span class="lbl">保存先</span>
+        Android の標準機能（自動バックアップ）で、お使いの Google アカウントに保存されます。<br>
+        この機能は端末の「設定 &gt; システム &gt; バックアップ」からいつでも止められます。
+      </div>
+      <div class="acts"><span class="btn">閉じる</span></div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

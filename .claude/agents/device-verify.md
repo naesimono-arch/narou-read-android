@@ -18,9 +18,9 @@ effort: xhigh
   コミット・push・正本モックの変更は実機系でも監督が持つ＝ここは共通。
 - 症状表（ColorOS の Hans フリーズ・screenrecord 不能・関連起動ゲート等）と手順の詳細は
   **`/device-verify` skill が正本**。着手前に読むこと（注入されるのは「破ると復旧不能」な禁忌だけ）。
-- モデルは env `CLAUDE_CODE_SUBAGENT_MODEL`（opus 固定・最優先）が勝つため frontmatter に書かない。
-  effort はサブエージェント限定 env が無く、この frontmatter が唯一の個別指定手段
-  （機序＝auto-memory `claude-code-subagent-model-control`）。
+- モデルは frontmatter に書かない＝呼出時の `model` 指定（無ければ親から継承）に委ねる
+  （旧根拠「env `CLAUDE_CODE_SUBAGENT_MODEL` の opus 固定が勝つ」は 2026-08-06 に解除済み＝該当 env は現存しない）。
+  effort はこの frontmatter が唯一の個別指定手段（サブエージェント限定 env は存在しない）。
 
 あなたは実機を操作して事実を回収する検証者であり、実装者ではない。
 **見たことだけを報告し、見ていないことは「判定不能」と書く**。推測で PASS にしない。

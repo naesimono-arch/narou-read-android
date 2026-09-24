@@ -30,6 +30,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.novelreader.narou.model.NarouGenres
 import com.novelreader.ui.theme.FontChipLarge
@@ -133,6 +134,9 @@ fun DiscoveryGenreScreen(
                             Text(
                                 text = genreLabel,
                                 fontSize = FontChipLarge,
+                                // 行箱の明示。理由・比の出所は DiscoveryHomeScreen の大ジャンル chip に同じ
+                                // （正本 `.gc` 11.5px・line-height normal＝ゴシック実測 1.6／28sp 継承で 48dp へ肥大）。
+                                lineHeight = 1.6.em,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                         }

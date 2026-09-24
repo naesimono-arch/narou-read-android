@@ -1,0 +1,1581 @@
+<!-- @dsCard group="UI-n / 教示（初出オンボーディング）" name="はじめに ─ 案A のカード列（明快K）＋本文初回のヒント＋取っ手" -->
+<!--
+  採用案の設計モック（2026-08-21 第4便）。実装は別便＝Compose 未着手。
+
+  下敷き: 読書面＝docs/design-candidates/reading-D.html（K の読書は D へ委譲＝CURRENT.md）
+          設定面＝docs/design-candidates/skins/settings-K.html ／ 空棚＝skins/bookshelf-K.html
+  色・書体・phone 枠・ルビ様式・行様式・空棚のボタン寸法はすべて上記から実値継承（新意匠を発明しない）。
+
+  ================================================================================
+  【2026-08-21 裁定 ─ 説明の本体は「案A のカード列」で確定】
+  ================================================================================
+  ユーザーの言葉:
+    「扉型　どちらも認知負荷がひどい　そのまま案Aのものでよいのになぜそこから変えるのかい？」
+
+  ・入口＝**扉カードで確定**（前便の案どおり）。ただし扉は独立した部品ではなく**カード列の1枚目**。
+  ・説明の本体＝**案A の形（数枚のカードをめくる）で確定**。
+  ・**却下: 全画面の説明画面（前便の「目次型」「読み物型」）** ← 下に理由を抽出した。
+
+  ■ 却下した「全画面型」の理由（消える前に抽出＝知識ごと消さない）
+    ▶ **全画面は、開いた瞬間に全体量が見えてしまう。** これがそのまま認知負荷になる。
+      ・目次型（節を畳んで置く）＝畳んでも**見出し 6 行が一度に目に入る**。「6 つ読む必要がある」と読める。
+      ・読み物型（最初から全展開）＝**長さがそのまま見える**。スクロールバーが短ければ短いほど閉じられる。
+      ・前便は「畳めば読む量を見せない」と考えたが、**隠したのは中身であって量ではなかった**。
+        見出しの本数がそのまま量の予告になっていた。
+    ▶ **案A の価値は〈軽さ〉だった。** 1 枚 1 メッセージ・めくれば終わる・今どこにいるかが点で分かる。
+      前便は案A の弱点（蔵書ゼロで読書画面を見ていない）を回避することに集中し、
+      **回避と引き換えに軽さを捨てていた**ことを見ていなかった。弱点は別の方法で回避できる（下記 §3）。
+    ▶ 一般化した判断軸（この画面群すべてに効かせる）:
+      **説明の分量を減らせないなら、〈一度に見せる量〉を減らす。**
+      全体量を見せないこと自体が認知負荷を下げる。分割して逐次に出すのは、遠回りではなく本手。
+
+  ================================================================================
+  【2026-08-21 追加裁定 ─ 文言の基準】
+  ================================================================================
+  ユーザーの言葉:
+    「教示の方は文言を見直して　過剰に手取り足取りになってない？　対象年齢が比較的若者向けなので、
+      読み進める『左へなぞります。指をはなすと、そこで止まります。』みたいな文言は丁寧あるいは冗長すぎる」
+
+  ▶ **一般的なジェスチャの挙動は書かない。書くのは、このアプリ固有の割り当てだけ。**
+    ・書かない＝「なぞります」「指をはなすと止まります」「タップすると開きます」「下へスクロールします」
+      ＝**スマホを日常的に使う人が既に知っていること**。対象読者はスワイプもタップも知っている。
+    ・書く＝〈縦書きでは横スワイプが章送りではなく**読み進め**である〉〈なろうで読むではアプリの操作が効かない〉
+      〈本文タップでメニューが出る〉＝**知らなければ推測できない割り当て**。
+  ▶ 言い換えると **「操作の手順」ではなく「何がどこに割り当たっているか」を書く。** 手順を書くから冗長になる。
+  ▶ ⚠️ **削りすぎ禁止＝動作の説明は削り、割り当ての事実は残す。**
+    「左へスワイプ」まで消して〈縦書きでどう読み進めるか〉が伝わらなくなるなら削りすぎ。
+    短くすること自体は目的ではない——曖昧になるくらいなら長くてよい。
+  ▶ **文体**: ですます自体は保つ（丁寧さは削る対象ではない）。断つのは「〜します。〜します。」の連なりで、
+    **手取り足取り感の実体は語尾の反復**にある。割り当てそのものは体言止めで置き、
+    状態や結果だけ ですます にすると、丁寧さを落とさずに反復が消える。
+  ▶ この基準を適用した結果は §4（改訂の記録）。削った実物と判定を 1 行ずつ残してある。
+
+  ================================================================================
+  【2026-08-21 追加裁定 ─ 出すタイミングを 3 系統へ分ける】
+  ================================================================================
+  ユーザーの言葉:
+    「章2の1.2のフラグは初めて本文を開いたら、3は初めて検索画面を開いたら っていうフラグを追加すべきでは？」
+
+  ▶ **その画面に初めて来た瞬間に、その画面の説明だけを出す。**
+    案A の死因は「読む前の説明は実感と結びつかない」だった。前版は「初回は章1で終わらせ章2へ送らない」で
+    回避したが、**章2 をいつ見るかが〈設定へ行くかどうか〉任せ**になっていた。
+    3 系統へ分けると**実感と説明が同時に来る**ので、死因が構造的に解ける（前版のような回避策が要らなくなる）。
+  ▶ この裁定で**組は「章」から「出す単位」へ意味が変わった**（§3）。列は 1 本のまま・実装も 1 つのまま。
+  ▶ **却下: 「1 起動につき 1 組まで」（連続した割り込みを間引く案）**
+    〈扉 → ［作品をさがす］ → 検索画面〉で組A と組C が数秒で連続することを気にして設計したが、
+    **裁定は「制限なし＝その場で出す」**。理由 =**連続した割り込みを避けるより、実感と説明が同時に来ることを優先する**
+    （初回起動の数分で 2 回割り込むことは受け入れる）。**条件が満たされた組は、その場でそのまま出す。**
+
+  ■ ⚠️ 覆った判定の記録: 「検索の初出は出さない」→ **出す**
+    前版は規則1〈知らずに触ると壊れて見えるか〉で「いいえ」＝出さない、と判定していた
+    （既定が 4 つ ON へ直れば 0 件事故は消える／チップの文字がそのまま説明になっている）。
+    **0 件事故が消えるのは今も事実**だが、判定の観点が足りていなかった——
+    チップは**見えて**いても、それが〈**入力した言葉をどこに当てるかを決めている**〉とは読めない。
+    チップの行は「分類の見出し」にも見えるので、**見えていることと意味が分かることは別**だった。
+    ▶ よって規則1 に **規則1b〈見えていても、それが何を決めているか推測できるか〉** を足す（§1）。
+      規則1 が拾うのは〈壊れて見える〉ものだけで、〈**見えているのに意味が分からない**〉ものを取りこぼしていた。
+
+  ■ 前便の規則の訂正（§1 に反映済み）
+    前便は「**面倒さを生むのは分量ではなく割り込み**」と書いた。これは**半分だけ正しかった**——
+    割り込まなくても、**一度に見える量**が負荷を生む。よって規則3（落としたものは層③へ送る）は生きているが、
+    層③ の置きかたは「全部を 1 画面に置く」ではなく「**1 枚 1 メッセージで逐次に置く**」。
+
+  ■ 前便から引き継ぐ裁定（変えない）
+    ・却下 C-3「表示設定シートへの常設入口」＝恒常的に見え続けるものは、理解した後にコストへ変わる。
+    ・「なろうで読む」の初出教示は不要。
+      ⚠️ **同じ行に併記していた「検索の初出教示も不要」は 2026-09-07 に削除**＝§2 が 2026-08-21 に
+      「出す」へ覆っている（組C＝実装済み）のに、ここだけ旧判定のまま残っていた**掃き残しの3箇所目**。
+      §8 は「2 箇所に分かれていた」と書いていたが、否定形の掃き残しは**このヘッダを含めて3箇所**あった。
+    ・設定の「操作の説明」は採用＝新規グループ「つかいかた」・ラベル「操作の説明」。
+    ・案D の取っ手は採用＝実測値は §6 のまま動かさない（ユーザーが目視裁定中）。
+    ・没入ヒントのピルは **触らない**（実装済み・c772de3 で消費バグ修正済み）。
+    ・旧フラグ IMMERSIVE_HINT_SHOWN は流用。扉の消費は「閉じたとき」・出す条件は「未消費 かつ 本棚が空」。
+
+  ================================================================================
+  【実装の現在値（2026-08-21 実測）】
+  ================================================================================
+  ・フラグ  PrefKeys.IMMERSIVE_HINT_SHOWN = "immersive_hint_shown"（FILE_APP_PREFS）
+  ・判定    ImmersiveChromeHint.kt — awaitImmersiveHintSeen()。
+            canBeSeen =〔topAppBarState.collapsedFraction > 0.9f〕AND〔Lifecycle >= RESUMED〕が
+            **連続 2600ms**（IMMERSIVE_HINT_VISIBLE_MS）続いたときだけ消費。途中で崩れたらタイマーごと破棄。
+  ・結線    ChapterScreen.kt:389-406（prefs の読み書きと表示状態だけを持つ）
+  ・描画    NativeReadingScreen.kt:1463-1487 — 丸ピル・navBackground α0.92・「画面をタップでメニュー」・
+            Insets.ChromeHintBottom = 96.dp・タップを奪わない純表示・fade は MotionDurationCrossfade。
+  ▶ 本ファイルはこの 1 本を**置き換えない**。この上に「はじめに」のカード列を足す設計。
+-->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>はじめに ─ 案A のカード列（明快K）</title>
+<style>
+  /*==harness==*/
+  :root{
+    /* === K/D トークン実値（bookshelf-K / settings-K / reading-D と同一） === */
+    --base:#FBFAF8; --ink:#1C1F26; --ink-soft:#7C808B; --line:#ECEAE4;
+    --ai:#1C3D5A; --ai-tint:rgba(28,61,90,.10);
+    /* ▼ 2026-08-25 Compose 翻訳からの逆同期（値を決めたのは実装側・理由は §8「翻訳で変わった色」）。
+       --info = Compose の役割トークン InfoText（Color.kt InfoTextLight #5C606D／素地 6.01:1）。
+       --dot-off = colorScheme.outline #9CA0A8 を素地の上に α.45 で置いた実効値。 */
+    --info:#5C606D; --dot-off:#D0D2D4;
+    /* 読書ライトテーマ（reading-D .t-light と同値） */
+    --bg:#FBFAF8; --soft:#7C808B; --ruby:#616C77; --rule:#1C3D5A;
+    --blk-bg:#F1F0EC; --blk-bd:#E4E2DB; --bar:#FBFAF8; --bar-line:#ECEAE4; --accent:#1C3D5A;
+    --mincho:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
+    --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#E4E3DD;min-height:100vh;padding:30px 20px 60px;font-family:var(--gothic);
+    -webkit-font-smoothing:antialiased;color:#2A2C28}
+  .doc{max-width:1180px;margin:0 auto}
+  h1{font-size:20px;letter-spacing:.06em;margin-bottom:10px}
+  .lead{font-size:13px;line-height:1.9;color:#4A4C47;max-width:900px}
+  .lead b{color:#2A2C28}
+
+  .sec{margin-top:44px;border-top:2px solid #C9C7BE;padding-top:18px}
+  .sec h2{font-size:17px;letter-spacing:.05em;margin-bottom:8px}
+  .sec h2 .tag{font-size:11px;background:var(--ai);color:#fff;padding:2px 9px;border-radius:10px;
+    margin-left:10px;letter-spacing:.08em;vertical-align:3px;font-weight:400}
+  .sec h2 .tag.g{background:#50685C}
+  .sec h2 .tag.r{background:#8A4B44}
+  .sec p.body{font-size:13px;color:#4A4C47;line-height:1.9;max-width:900px;margin-bottom:6px}
+  .sec p.body b{color:#2A2C28}
+  .rule{font-size:12.5px;line-height:1.95;max-width:900px;margin-top:12px;
+    background:#F1EFE9;border-left:3px solid var(--ai);padding:11px 14px}
+  .rule b{color:#1C3D5A}
+  .note{font-size:11.5px;color:#6A6C67;line-height:1.8;margin-top:10px;max-width:920px}
+
+  table.mx{border-collapse:collapse;margin:16px 0 6px;background:#F7F6F2;font-size:12.5px;width:100%;max-width:1060px}
+  table.mx th,table.mx td{border:1px solid #D3D1C9;padding:8px 11px;text-align:left;line-height:1.65;vertical-align:top}
+  table.mx th{background:#EDEBE4;font-weight:700;letter-spacing:.04em}
+  table.mx td.o{color:#1C3D5A;font-weight:700;white-space:nowrap}
+  table.mx td.x{color:#7A7168;font-weight:700;white-space:nowrap}
+
+  /* 文言のフル記載ブロック（絵ではなく文字で裁定してもらうための場所） */
+  .copy{max-width:1060px;margin-top:16px;background:#F7F6F2;border:1px solid #D3D1C9;padding:16px 18px}
+  .copy h4{font-size:13px;letter-spacing:.06em;color:#1C3D5A;margin:18px 0 7px;padding-bottom:5px;
+    border-bottom:1px solid #DEDCD4}
+  .copy h4:first-child{margin-top:0}
+  .copy h4 .ch{font-size:11px;color:#6A6C67;font-weight:400;letter-spacing:.1em;margin-left:8px}
+  .copy dl{font-size:12.5px;line-height:1.85}
+  .copy dt{color:#6A6C67;letter-spacing:.05em;margin-top:8px;font-size:11.5px}
+  .copy dt:first-child{margin-top:0}
+  .copy dd{color:#2A2C28;margin-left:0}
+  .copy dd b{color:#1C3D5A}
+
+  .stage{display:flex;gap:26px;flex-wrap:wrap;margin-top:18px}
+  .wrap{display:flex;flex-direction:column;align-items:center;gap:8px}
+  .wrap .mode{font-size:11.5px;letter-spacing:.12em;color:#6A6C67;text-align:center;max-width:372px;line-height:1.65}
+  .wrap .mode b{color:#1C3D5A;letter-spacing:.06em}
+
+  /* === スマホ枠 === */
+  .phone{width:372px;height:800px;background:var(--bg);border-radius:38px;overflow:hidden;position:relative;
+    display:flex;flex-direction:column;box-shadow:0 20px 50px rgba(0,0,0,.28);font-family:var(--mincho)}
+  .phone.k{background:var(--base);font-family:var(--gothic)}
+  .sb{height:34px;flex-shrink:0;display:flex;align-items:center;justify-content:space-between;padding:0 24px;
+    font-size:11px;color:var(--soft);font-family:var(--gothic)}
+  .phone.k .sb{height:40px;color:var(--ink-soft)}
+
+  /* === 読書本文（reading-D 実値。本ファイルの読書パネルは没入＝クローム非表示のみなので topbar は持たない） === */
+  .reader{flex:1;overflow:auto;position:relative;z-index:1;padding:32px 24px 40px}
+  .reader p{font-size:16.5px;line-height:2.4;color:var(--ink);text-indent:1em;margin-bottom:.3em}
+  ruby rt{font-size:.5em;color:var(--ruby);font-weight:400;letter-spacing:.04em}
+  .blank{height:1.5em}
+  .reader hr{border:none;height:1px;width:42%;margin:16px auto;background:var(--rule);opacity:.5}
+
+  /* === 本文初回ヒント＝**実装どおりの丸ピル**（NativeReadingScreen.kt:1463-1487 の実値を写した） ===
+     角丸フル・navBackground を α0.92・下端 96dp・タップを奪わない純表示・連続 2.6 秒で消える。
+     ⚠️ 本ファイルはこれを再設計しない（c772de3 で消費バグが直っており、触る理由が無い）。 */
+  .pillhint{position:absolute;left:50%;transform:translateX(-50%);z-index:22;bottom:96px;
+    background:rgba(251,250,248,.92);color:var(--ink);border-radius:999px;padding:8px 16px;
+    font-family:var(--mincho);font-size:13px;letter-spacing:.02em;white-space:nowrap}
+
+  /* === 案D 取っ手（没入中の常設・文言なし） === */
+  .handle{position:absolute;left:50%;transform:translateX(-50%);z-index:6;bottom:16px;
+    width:46px;height:3px;border-radius:2px;background:var(--ai);opacity:.30}
+
+  /* === 「はじめに」カード列（案A の様式をそのまま復元＝f83372c の .scrim/.ocard/.odots/.obtn） ===
+     1 枚 1 メッセージ・点で現在地・めくれば終わる。**全体量を見せないための形**なので、
+     カードを大きくして中身を増やす方向へ育てないこと（育てた瞬間に読み物型へ退化する）。 */
+  .scrim{position:absolute;inset:0;z-index:24;background:rgba(28,31,38,.74);display:flex;
+    flex-direction:column;align-items:center;justify-content:center;padding:26px}
+  /* ⚠️ 実装（Compose）ではカードの**本文域（.obody）だけ**が縦スクロールする。組C は 3 項目＋再訪導線で
+     最も高く、既定画面／fontScale を上げた端末では ［とじる］ が画面外へ落ちて到達手段が消えた（2026-08-25 実測）。
+     非スクロール面の溢れは画素に痕跡を残さず golden でも捕まらないため、カードを高くする改稿は
+     「入るかどうか」を目視で保証せず、必ずスクロール前提で考えること。
+     ⚠️ 2026-09-07 に**スクロールの器を .ocard 全体から .obody へ狭めた**＝点とボタンは器の外（下端）に
+     留まるので、溢れても ［とじる］ が画面外へ出ない（到達手段が消える経路そのものを閉じた）。 */
+  .ocard{width:100%;background:var(--base);border-radius:16px;padding:26px 22px 18px;
+    display:flex;flex-direction:column;overflow:hidden}
+
+  /* ================================================================
+     2026-09-07 ユーザー実機所見の是正
+       「チュートリアルが『次へ』をタップするたびにパッと切り替わる」「カードの大きさもバラバラ」
+     ================================================================
+     ■ 寸法の統一（.obody の min-height）
+       旧: .ocard に高さ指定が無く**中身の量でそのまま伸縮**していた（枚ごとに固定値が違ったのではない）。
+           組A は 1 枚目 257px → 3 枚目 380px ＝ 1 枚めくるだけで枠が 1.5 倍に伸びる。
+       新: **その回（＝その回で出うるカード）の中で最も高い 1 枚**に本文域を揃え、点とボタンは下端へ留め置く。
+       ⚠️ 揃える単位を「列 7 枚」にしない——組A 単独の回で組D（503px）の高さまで伸ばすと 1 枚目に
+          246px の空白が空き、「全体量を見せないための形」（このブロック冒頭）を自分で壊す。
+       ⚠️ 下の px は**この phone 枠・カード幅 320px での実測値**。HTML は兄弟の最大値を採れないので
+          直書きしているだけで、**Compose 側は実行時に測る**（SubcomposeLayout）。
+          fontScale・端末幅で最大値は動くので、翻訳先でこの数値を定数化してはいけない。
+
+     ■ めくりの遷移（@keyframes oslide）
+       旧: 遷移が**無い**（差し替えるだけ）＝「パッと切り替わる」。
+       新: 横スライド（shared axis X）。**32px の横移動＋フェードスルー**で、全体の尺は 250ms。
+       ⚠️ カード幅ぶんの押し出し（full push）にはしない——320px を 250ms で走らせると小さな面の中では
+          騒がしく、原則5「静謐＝フィードバックのための motion」から外れる。移動は**方向を語るだけ**にし、
+          入れ替わりはフェードが担う。
+       ⚠️ 動くのは **.obody だけ**。点とボタンは動かさない＝押した指の下でボタンが横に逃げないし、
+          遷移中に「前のカードのボタン」がもう一度押せる状態にもならない。 */
+  /* ⚠️ margin-bottom は**点の有無に関わらず**本文域の下に入れる間隔（2026-09-07）。
+     本文域はスクロール器なので、溢れた行は下端で断ち切られる。ここが 0 だと**半分に切れた行が
+     ［とじる］ に直接くっつく**（fontScale 2.0・点の無い組C/組D で実測）。下の .odots の上マージンを
+     20px→6px へ減らして合計 20px を保つので、点がある回の見えは 1px も動かない。 */
+  .ocard .obody{flex:1 1 auto;min-height:0;overflow-y:auto;margin-bottom:14px;
+    animation:oslide .25s cubic-bezier(0,0,.58,1) both}
+  .stage.ga .ocard .obody{min-height:380px}  /* 組A 3 枚の実測 257/327/380 の最大 */
+  .stage.gb .ocard .obody{min-height:381px}  /* 組B 2 枚の実測 381/356 の最大 */
+  /* 組C・組D は 1 枚だけの回＝揃える相手が居ない（min-height を置いても空白が増えるだけ）。 */
+  @keyframes oslide{
+    0%{transform:translateX(32px);opacity:0}
+    40%{opacity:0}            /* 先行して退場する側のフェードアウト（100ms）ぶんだけ待つ */
+    100%{transform:none;opacity:1}
+  }
+  .ocard .fig{height:112px;display:grid;place-items:center;margin-bottom:18px}
+  .ocard .fig svg{stroke:var(--ai);fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+  .ocard .fig svg .soft{stroke:var(--ink-soft);opacity:.55}
+  .ocard h3{font-family:var(--gothic);font-size:17px;color:var(--ink);letter-spacing:.05em;margin-bottom:12px}
+  .ocard p{font-family:var(--gothic);font-size:13.5px;color:var(--info);line-height:1.95}
+  .ocard p+p{margin-top:9px}
+  .ocard p b{color:var(--ink)}
+  /* カード内の項目立て（組B・組C の操作カード用）。全画面の節と違い 1 カード 3〜4 項目までに抑える。 */
+  .ocard dl{font-family:var(--gothic)}
+  /* ⚠️ dt は旧 --ink-soft。実装で --info へ揃えた（§8）＝dd との階層は色でなく寸法（11.5 vs 13.5px）で作る。 */
+  .ocard dt{font-size:11.5px;color:var(--info);letter-spacing:.06em;margin-top:12px}
+  .ocard dt:first-child{margin-top:0}
+  .ocard dd{font-size:13.5px;color:var(--info);line-height:1.9;margin-top:2px}
+  .ocard dd em{font-style:normal;color:var(--ai);font-weight:700}
+  .ocard .later{margin-top:15px;padding-top:12px;border-top:1px solid var(--line);
+    font-size:12.5px;color:var(--info);line-height:1.7}
+  /* 現在地の点＝**章ごと**に打つ（列全体の 5 個ではない＝全体量を見せない設計の要） */
+  /* ocard 内の 2 択チップ（settings-D.html:65-67 の写経＝値を 1 つも動かさない）。
+     検索面の .rchips とは別クラスにする: あちらは複数選択の絞り込みで、こちらは**二者択一**＝
+     同じ見えにすると「両方 on にできる」と誤読される。 */
+  .ochips{display:flex;gap:12px;flex-wrap:wrap;margin-top:14px}
+  .ochip{flex:1;text-align:center;padding:12px 16px;border-radius:10px;font-family:var(--gothic);font-size:13.5px;
+    border:1px solid var(--line);color:var(--ink);background:transparent;cursor:pointer}
+  .ochip.on{background:var(--ai);border-color:var(--ai);color:#fff;font-weight:600}
+  .odots{display:flex;gap:7px;justify-content:center;margin:6px 0 14px}
+  .odots i{width:6px;height:6px;border-radius:50%;background:var(--dot-off)}
+  .odots i.on{background:var(--ai)}
+  .obtns{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:2px}
+  .obtns.r{justify-content:flex-end}
+  .obtn{font-family:var(--gothic);font-size:13.5px;border:none;background:transparent;color:var(--info);
+    padding:11px 10px;cursor:pointer;letter-spacing:.04em}
+  .obtn.pri{background:var(--ai);color:#fff;border-radius:10px;padding:11px 22px;font-weight:700}
+  .obtn.back{display:inline-flex;align-items:center;gap:5px}
+  .obtn.back svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:2;
+    stroke-linecap:round;stroke-linejoin:round}
+
+  /* === 空棚（bookshelf-K 実値） === */
+  .head{flex-shrink:0;padding:6px 20px 14px}
+  .head h1{font-family:var(--gothic);font-size:22px;font-weight:700;color:var(--ink);letter-spacing:.04em}
+  .empty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    text-align:center;padding:0 40px;overflow-y:auto}
+  .empty h2{font-family:var(--gothic);font-size:22px;font-weight:600;color:var(--ink);letter-spacing:.02em}
+  .empty p{margin-top:12px;font-size:14px;line-height:1.7;color:var(--ink-soft)}
+  .empty .ctas{margin-top:32px;display:flex;flex-wrap:wrap;gap:12px;justify-content:center}
+  /* M3 の既定寸法（高40dp・角丸フル・labelLarge 14sp）。K 独自トークンは発明しない */
+  .btn{height:40px;padding:0 24px;border-radius:20px;font-family:var(--gothic);font-size:14px;
+    font-weight:600;letter-spacing:.02em;cursor:pointer;display:inline-flex;align-items:center;border:none}
+  .btn.fill{background:var(--ai);color:#fff}
+  .btn.out{background:transparent;color:var(--ai);border:1px solid var(--line)}
+
+  /* === 検索画面の背景（組C 用・discovery/discovery-search-D.html から実値継承） ===
+     チップは4つとも on＝§7 の裁定「既定を4つとも ON にする」後の姿を描いている。
+     ［条件を調整］は有効条件0件の見え（--line 枠＋--ink-soft 字＝同モックの分岐どおり）。 */
+  .sback{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--ink-soft);
+    padding:4px 24px 0;flex-shrink:0;font-family:var(--gothic)}
+  .sback svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.5}
+  .sinputbox{padding:12px 24px 16px;flex-shrink:0}
+  .sinput{width:100%;border-bottom:1px solid var(--line);padding:8px 0;font-size:15px;
+    color:var(--ink-soft);font-family:var(--gothic);opacity:.8}
+  .ssec{font-size:10.5px;letter-spacing:.28em;color:var(--ink-soft);margin:24px 0 12px;font-family:var(--gothic)}
+  .rchips{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+  .rchip{font-size:11.5px;color:var(--ink-soft);border:1px solid var(--line);border-radius:2px;
+    padding:8px 12px;font-family:var(--gothic)}
+  .rchip.on{color:var(--ai);border-color:var(--ai);font-weight:600}
+  .condbtn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;margin-top:16px;
+    border:1px solid var(--line);border-radius:2px;padding:12px;color:var(--ink-soft);
+    font-size:12.5px;font-family:var(--gothic)}
+  .condbtn svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.6}
+
+  /* === 設定（settings-K 実値） === */
+  .scroll{flex:1;overflow-y:auto;overflow-x:hidden;padding:2px 20px 24px;scrollbar-width:none}
+  .scroll::-webkit-scrollbar{display:none}
+  .gh{font-size:12px;color:var(--ink-soft);letter-spacing:.14em;margin:20px 4px 8px;font-weight:600}
+  .gh:first-child{margin-top:4px}
+  .group{border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--base)}
+  .row{display:flex;align-items:center;gap:14px;padding:15px 16px;border-bottom:1px solid var(--line)}
+  .row:last-child{border-bottom:none}
+  .row.hi{background:var(--ai-tint)}
+  .ri{width:24px;height:24px;flex-shrink:0;color:var(--ink-soft)}
+  .ri svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+  .rt{flex:1;min-width:0}
+  .rl{font-family:var(--gothic);font-size:15px;color:var(--ink);letter-spacing:.02em}
+  .rd{font-size:12.5px;color:var(--ink-soft);line-height:1.5;margin-top:4px;letter-spacing:.01em}
+  .rr{flex-shrink:0;display:flex;align-items:center;gap:8px}
+  .chev{width:18px;height:18px;fill:none;stroke:var(--ink-soft);stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+  .tabbar{flex-shrink:0;height:64px;display:flex;border-top:1px solid var(--line);background:var(--base)}
+  .tab{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+    text-decoration:none;cursor:pointer;color:var(--ink-soft)}
+  .tab.on{color:var(--ai)}
+  .tab .ic{position:relative;width:56px;height:32px;display:grid;place-items:center}
+  .tab .ic .pill2{position:absolute;inset:0;border-radius:16px;background:transparent}
+  .tab.on .ic .pill2{background:var(--ai-tint)}
+  .tab .ic svg{position:relative;width:24px;height:24px;fill:none;stroke:currentColor;
+    stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+  .tab .lb{font-family:var(--gothic);font-size:11px;letter-spacing:.04em}
+  .tab.on .lb{font-weight:700}
+
+  /* === 組D の背景＝なろうの目次ページ（WebView 全面）。2026-09-04 に比較モックから差し戻し ===
+     ⚠️ **実データの色域を模す**（visual-language 恒久ルール4）。なろうのページは白地・黒字・青リンクで、
+     K の素地（#FBFAF8）より**明るい**面。ここを灰色の板でごまかすと、白い面の上にカードが載ったときの
+     見え（スクリム α.74 の効き）を裁定し損ねる。描いているのは自動送り（scrollIntoView block:"center"）の
+     **後**＝［縦書きPDF］ の枠が画面の中ほどに来た状態。
+     ⚠️ 枠内は**実物の写しではなく色域と密度の placeholder**。フォームの項目名とボタン語は
+     見出し「縦書きPDF」以外**推定**で、なろう側の実ラベルは一次確認していない
+     （＝§4 の文言が作成ボタンの語を断定していないのはこのため）。 */
+  .topbar{flex-shrink:0;height:56px;display:flex;align-items:center;gap:6px;padding:0 8px 0 4px;background:var(--base)}
+  .topbar .ib{width:44px;height:44px;border:none;background:transparent;display:grid;place-items:center;
+    color:var(--ink);cursor:pointer;flex:none}
+  .topbar .ib svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.8;
+    stroke-linecap:round;stroke-linejoin:round}
+  .topbar .ct{font-size:16px;color:var(--ink);letter-spacing:.03em}
+  .web{flex:1;overflow:hidden;background:#FFFFFF;color:#333;font-size:12px;line-height:1.8;padding:10px 12px;
+    font-family:var(--gothic)}
+  .web .ep{color:#3D6899;border-bottom:1px dotted #CFCFCF;padding:6px 2px;font-size:12px}
+  .web .ep .dt{float:right;color:#999;font-size:10.5px}
+  .web .ad{margin:10px 0;height:56px;border:1px solid #E2E2E2;background:#F4F4F4;display:grid;
+    place-items:center;color:#AAA;font-size:10.5px;letter-spacing:.2em}
+  .web .pdfbox{margin-top:12px;border:1px solid #CFCFCF;background:#FAFAFA;padding:10px}
+  .web .pdfbox h5{font-size:12.5px;color:#333;font-weight:700;margin-bottom:6px}
+  .web .pdfbox p{font-size:10.5px;color:#777;line-height:1.7}
+  .web .pdfbox .frow{display:flex;gap:6px;margin-top:8px}
+  .web .pdfbox .fsel{flex:1;border:1px solid #CFCFCF;background:#fff;padding:5px 7px;font-size:10.5px;color:#555}
+  .web .pdfbox .fbtn{margin-top:8px;background:#5C7FA8;color:#fff;text-align:center;padding:7px;
+    font-size:11.5px;border-radius:3px}
+  .web .foot{margin-top:10px;color:#999;font-size:10px;text-align:center}
+  /*==/harness==*/
+</style>
+</head>
+<body>
+<div class="doc">
+  <h1>「はじめに」 ─ 案A のカード列（既定スキン 明快K）</h1>
+  <p class="lead">
+    <b>2026-08-21 裁定の反映版</b>。説明の本体は<b>案A の形（数枚のカードをめくる）で確定</b>し、
+    前便が提案した<b>全画面の説明画面（目次型・読み物型）は却下</b>——理由は認知負荷で、
+    <b>全画面は開いた瞬間に全体量が見えてしまう</b>（冒頭コメントに抽出）。<br>
+    作るのは<b>カード列 1 本（7 枚）</b>だけ。<b>扉はその 1 枚目</b>で、独立した部品ではない。
+    <b>入口が 2 つ（初回の空棚／設定＞操作の説明）あっても、実装は 1 つ</b>——
+    入口が指定するのは<b>どの章から始めるか</b>だけ（§3）。<br>
+    <b>文言は 2026-08-21 の追加裁定で全 5 枚（当時の構成）を見直した</b>——基準は
+    <b>「一般的なジェスチャの挙動は書かない。書くのは、このアプリ固有の割り当てだけ」</b>。
+    手順を書くから冗長になるので、<b>「操作の手順」ではなく「何がどこに割り当たっているか」</b>を書く（§4 の改訂の記録）。
+  </p>
+
+  <!-- ============================================================ §1 -->
+  <div class="sec">
+    <h2>§1　規則 ─ 3 層と 4 規則　<span class="tag g">前便から 1 点だけ訂正</span></h2>
+    <p class="body">
+      教示を〈割り込むもの〉と〈読みに行くもの〉に分け、<b>その場で言わないことと、どこにも書かないことを区別する</b>のが軸。
+      前便で組んだこの骨格は<b>今回の裁定でも生きている</b>——変わったのは層③ の<b>置きかた</b>だけ。
+    </p>
+    <table class="mx">
+      <tr><th style="width:15%">層</th><th style="width:26%">なにか</th><th style="width:20%">恒常表示</th><th>いま該当するもの</th></tr>
+      <tr>
+        <td><b>① 教示</b></td>
+        <td>割り込んで<b>その場で言う</b>。読書や操作を一瞬止める。</td>
+        <td><b>しない</b>（一度出て消える）</td>
+        <td><b>組A</b>（初回の扉 3 枚）／<b>組B</b>（本文初回 2 枚）／<b>組C</b>（検索初回 1 枚）／
+          <b>組D</b>（PDF取り込み初回 1 枚）。<br>
+          <span style="color:#4A4C47">組D は 2026-09-04 に §2 で「置く」へ反転し、<b>層① のカード 1 枚（案A）で裁定・実装済み</b>
+          （中身は §3／§4 の 7 枚目）。比較に使った 3 案の一時ドラフトは、採用案を本ファイルへ差し戻した時点で削除した。</span><br>
+          <span style="color:#4A4C47">既存のピルは<b>組B が肩代わりする</b>ので、新規の人にはほぼ出ない（§8）。</span></td>
+      </tr>
+      <tr>
+        <td><b>② 手がかり</b></td>
+        <td><b>文言を持たず</b>、操作の存在だけを示す。</td>
+        <td><b>してよい</b></td>
+        <td>没入中の取っ手（案D）<b>1 件だけ</b></td>
+      </tr>
+      <tr>
+        <td><b>③ 説明</b></td>
+        <td>読みたい人が<b>読みに行く</b>。割り込まない。</td>
+        <td>入口だけ 1 か所（設定）</td>
+        <td><b>「はじめに」＝カード列 7 枚</b>（本ファイルの主題）</td>
+      </tr>
+    </table>
+    <p class="rule">
+      <b>規則1〈知らずに触ると、壊れているように見えるか？〉</b>　→ はい なら層① を置く。いいえ なら置かない。<br>
+      <b>規則1b〈見えていても、それが何を決めているか推測できるか？〉</b>　★2026-08-21 新設。
+      → いいえ なら層① を置く。<b>規則1 は〈壊れて見える〉ものしか拾わず、
+      〈見えているのに意味が分からない〉ものを取りこぼしていた</b>（検索範囲チップで実際に取りこぼした）。<br>
+      <b>規則2〈UI が既にその場で答えているか？〉</b>　→ はい なら層① を置かない（同じことを 2 回言わない）。
+      <span style="color:#4A4C47">⚠️ ただし規則2 の「答えている」は<b>意味まで届いているか</b>で見る＝規則1b が先に効く。</span><br>
+      <b>規則3〈規則1・2 で落としたものを、層③ へ送ったか？〉</b>
+      落とすのは「その場で言うこと」だけで、説明そのものは層③ に残す。<br>
+      <b>規則4〈読みたい人は、探さずに一度だけ層③ の在り処に出会えるか？〉</b>
+      いいえ なら<b>招待</b>を 1 つ置く（＝扉＝カード列の 1 枚目）。招待は説明しない。<br>
+      <span style="color:#4A4C47">共通の約束: <b>恒常的に見え続けるものは、理解した後にコストへ変わる</b>（却下 C-3 から）。</span>
+    </p>
+    <p class="rule" style="border-left-color:#8A4B44">
+      <b>★訂正（2026-08-21）</b>　前便は「<b>面倒さを生むのは分量ではなく割り込み</b>」と書き、
+      それを根拠に「層③ は割り込まないので項目を足してよい」と結論した。これは<b>半分だけ正しかった</b>——
+      <b>割り込まなくても、一度に見える量が負荷を生む</b>。<br>
+      よって規則3 に<b>置きかたの条件</b>を足す:
+      <b>層③ は「全部を 1 画面に置く」のではなく「1 枚 1 メッセージで逐次に置く」。</b>
+      これで規則3（落としたものを消さない）と認知負荷の両方が立つ。
+      <span style="color:#4A4C47">＝分量を減らせないなら、<b>一度に見せる量</b>を減らす。</span>
+    </p>
+  </div>
+
+  <!-- ============================================================ §2 -->
+  <div class="sec">
+    <h2>§2　階層ごとの判定　<span class="tag g">前便から変更なし</span></h2>
+    <p class="body">
+      層① を増やすほど「面倒なアプリ」に近づくので、<b>層① は本文初回の 1 件のまま</b>。
+      招待は<b>アプリ通算 1 つ</b>（初回の扉）。説明は<b>カード列 7 枚</b>に収める。
+    </p>
+    <table class="mx">
+      <tr>
+        <th style="width:19%">階層</th><th style="width:10%">① 教示</th><th style="width:10%">招待</th>
+        <th style="width:12%">③ 説明</th><th>理由</th>
+      </tr>
+      <tr>
+        <td><b>アプリを初めて開いたとき</b></td>
+        <td class="x">置かない</td><td class="o"><b>置く</b></td><td class="o">組A（3枚）</td>
+        <td>空棚が既に答えている——「まだ本がありません／読みたい作品をさがすか、お手元のPDFを追加して
+          読み始めましょう」＋ CTA 2 つ（<code>skins/bookshelf-K.html:420-427</code>）＝規則2。<br>
+          ただし空棚が答えていないことが 1 つある＝<b>「説明はどこにあるか」</b>。ここを逃すと、
+          読みたい人は設定を自力で走査するまで出会えない（規則4）＝<b>扉を置く</b>。</td>
+      </tr>
+      <tr>
+        <td><b>本文を初めて開いたとき</b></td>
+        <td class="o"><b>置く</b><br><span style="font-weight:400;color:#6A6C67">組B</span></td>
+        <td class="x">置かない</td><td class="o">組B（2枚）</td>
+        <td>規則1 に該当する。バーが消えた状態は<b>復帰手段が画面に一切見えない</b>ので、
+          知らないと「戻せない＝壊れた」になる。<br>
+          <span style="color:#8A4B44">⚠️ 2026-08-21 裁定で<b>ピルから組B へ移った</b>——同じことを言うので
+          <b>二重に出さない仕掛けが要る</b>（§8）。ピルの実装は触らず<b>教示側で黙らせる</b>。</span><br>
+          招待は置かない——読書中は割り込みのコストが最も高い面。</td>
+      </tr>
+      <tr>
+        <td><b>検索を初めて使うとき</b></td>
+        <td class="o"><b>置く</b><br><span style="font-weight:400;color:#6A6C67">組C</span></td>
+        <td class="x">置かない</td><td class="o">組C（1枚）</td>
+        <td><span style="color:#8A4B44"><b>⚠️ 2026-08-21 に判定が覆った</b>（前版は「置かない」）。</span>
+          既定が 4 つとも ON へ直れば<b>壊れて見えない</b>のは今も事実（規則1＝いいえ）。
+          覆ったのは<b>規則1b</b>で——チップは<b>見えて</b>いても、それが
+          〈<b>入力した言葉をどこに当てるかを決めている</b>〉とは読めない。
+          チップの行は「分類の見出し」にも見えるので、<b>見えていることと意味が分かることは別</b>だった。
+          ［条件を調整］ の存在も同じ（枠線ボタン 1 つでは中に何があるか分からない）。<br>
+          <b>出しかた</b>＝<b>検索画面を初めて開いた瞬間</b>に組C（1 枚）だけ（§3）。</td>
+      </tr>
+      <tr>
+        <td>「なろうで読む」を初めて開いたとき</td>
+        <td class="x">置かない</td><td class="x">置かない</td><td class="o">組Aに同梱</td>
+        <td>トップバーは「なろうで読む」（<code>WebReaderScreen.kt:123</code>）、中身はなろうのページそのもの。
+          押す前にも UI が答えている——詳細画面のボタン直下に
+          「なろう（syosetu.com）のページをそのまま表示します」（<code>NovelDetailScreen.kt:433</code>）。<br>
+          <b>専用カードは立てず、組A の「読みかたは 2 通り」へ畳んだ</b>（枚数を増やさないため＝§3）。</td>
+      </tr>
+      <tr>
+        <td>縦書きに初めて切り替えたとき</td>
+        <td class="x">置かない</td><td class="x">置かない</td><td class="o">組B（1枚）</td>
+        <td>自分で意図して切り替える操作で、切り替えた本人は縦書きだと知っている。左へなぞるのは紙の本と同じ向き。
+          横書きとの食い違い（T3）で詰まるのは両面を行き来する人だけなので、<b>カードで受ける</b>（規則3）。</td>
+      </tr>
+      <tr>
+        <td>検索範囲を最後の 1 つまで外そうとしたとき</td>
+        <td class="x">置かない</td><td class="x">置かない</td><td class="x">括弧書き1つ</td>
+        <td>UI が既に答えている——注記「検索範囲は1つ以上必要です」＋チップの揺れ（<code>RangeLockNudge</code>）。
+          <b>動いて見せているものを文章で重ねない</b>。</td>
+      </tr>
+      <tr>
+        <td>目次 ／ 装いの間</td>
+        <td class="x">置かない</td><td class="x">置かない</td><td class="x">ほぼ書かない</td>
+        <td>目次＝押せば飛ぶ・隠れた操作が無い。装いの間＝初回リリースは明快K のみ（M/P/J は課金アップデートへ温存）。<br>
+          <span style="color:#4A4C47">規則3 は「落としたもの全部を書け」ではなく「<b>説明として意味があるものを送れ</b>」
+          ——書くことが無い項目までカードにすると、枚数が増えて全体が重くなる。</span></td>
+      </tr>
+      <tr>
+        <td><b>PDF取り込みを初めて開いたとき</b><br><span style="color:#6A6C67">組D</span></td>
+        <td class="o"><b>置く</b><br><span style="font-weight:400;color:#6A6C67">組D</span></td>
+        <td class="x">置かない</td><td class="o">組D（1枚）</td>
+        <td><span style="color:#8A4B44"><b>⚠️ 2026-09-04 に判定が覆った</b>（前版は上の行に同居させて「置かない」）。</span><br>
+          <b>旧判定（2026-08-21・消さずに残す）</b>＝「<b>PDF取り込み＝目的を持って押して来る画面</b>。
+          <b>PDF は組C の 1 枚に 1 行だけ</b>」。つまり<b>押した動機がそのまま説明の代わりになる</b>と見ていた。<br>
+          <b>覆した根拠 ①実機</b>（2026-09-04 監督所感）＝「<b>取り込む際の…操作の仕方の説明がありません。
+          ページ遷移した後に、何をどうすればいいのかという説明が欲しい</b>」。
+          画面の文言は題「縦書きPDFを取り込む」<b>だけ</b>で、あとは<b>なろうの目次ページが全面</b>
+          （<code>PdfImportScreen.kt:177-288</code>）。<b>動機は「取り込みたい」までしか運ばず、
+          〈この面で自分が何を押すのか〉は運ばない</b>——旧判定はこの2つを同一視していた。<br>
+          <b>②規則1b</b>＝<b>見えていても、それが何を決めているか推測できるか</b>。
+          自動スクロール（<code>scrollIntoView(block:"center")</code>）で ［縦書きPDF］ の枠は<b>見えて</b>いるが、
+          それが<b>アプリの続きではなく、なろう側の生成フォームだ</b>とは読めない。
+          <b>この画面のボタンはすべてなろうのもので、アプリのものは題と戻るだけ</b>——
+          <b>見えていることと意味が分かることは別</b>という、組C（検索範囲チップ）を反転させたのと同じ取りこぼし。<br>
+          <span style="color:#4A4C47">▶ <b>組C の前例と同型である</b>ことが、ここでは判定の一貫性そのもの。
+          規則1（壊れて見えるか）では両方とも「いいえ」＝落ちる。拾えるのは規則1b だけで、
+          <b>組C だけ拾って取り込みを落とすと、同じ規則が画面ごとに違う答えを出すことになる</b>。</span><br>
+          <span style="color:#8A4B44">▶ <b>旧判定が見落としていた機序（2026-09-04 に発見）</b>＝上の行は
+          「PDF取り込み」の 1 語で<b>〈なろうの取り込み画面〉と〈手元のPDFファイルを足す操作〉を束ねて</b>いた。
+          層③ で受けたと書いた「組C の 1 行」は
+          <b>「PDF は本棚の ［PDFを追加］」＝後者だけ</b>（<code>IntroDeck.kt</code> 組C の 3 項目目）。
+          <b>前者はどの層にも受け皿が無いまま「規則3 で送った」ことになっていた</b>——
+          落としたつもりの項目が、実は落としてすらいなかった。</span><br>
+          <b>出しかた</b>＝<b>取り込み画面を初めて開いた瞬間</b>に組D（1 枚）だけ。<b>点は打たない</b>（組C と同じ）。
+          <span style="color:#4A4C47">文言は §4 の 7 枚目・入口は §3 の入口表（<b>2026-09-04 に案A で裁定・実装済み</b>）。</span></td>
+      </tr>
+    </table>
+  </div>
+
+  <!-- ============================================================ §3 -->
+  <div class="sec">
+    <h2>§3　カード列の構造 ─ 1 本の列・4 つの組・5 つの入口　<span class="tag">実装は 1 つ</span></h2>
+    <p class="body">
+      <b>案A の死因は「読む前の説明は実感と結びつかない」</b>だった。前版はこれを
+      「初回は章1 で終わらせ、章2 へ自動で送らない」で回避したが、<b>章2 をいつ見るかは〈設定へ行くかどうか〉任せ</b>
+      になっていた——つまり<b>死因を避けただけで、解いてはいなかった</b>。
+    </p>
+    <p class="rule">
+      <b>解きかた ─ その画面に初めて来た瞬間に、その画面の説明だけを出す。</b>　（2026-08-21 裁定）<br>
+      カードは<b>1 本の列（7 枚）</b>のまま。それを<b>「いつ出すか」で 4 つの組</b>に分ける。<br>
+      <b>組A「このアプリのこと」（1〜3 枚目）</b>＝<b>初回・本棚が空のとき</b>。読んだ経験を要さない事実だけ。<br>
+      <b>組B「読みかた」（4・5 枚目）</b>＝<b>本文を初めて開いたとき</b>。目の前に本文がある＝実感と同時に届く。<br>
+      <b>組C「さがしかた」（6 枚目）</b>＝<b>検索画面を初めて開いたとき</b>。同上。<br>
+      <b>組D「つくって、本棚に入れる」（7 枚目）</b>＝<b>PDF取り込み画面を初めて開いたとき</b>。同上（2026-09-04 追加）。<br>
+      <span style="color:#4A4C47">▶ <b>「組」の意味が変わった</b>: 前版の「章」は〈実感が要るか〉での仕分けだったが、
+      いまは〈<b>どの画面に着いたときに出すか</b>〉。実感は<b>出す瞬間が保証する</b>ので、
+      仕分けのための章立てはもう要らない。前版の回避策（章2 へ送らない）は<b>役目を終えて消えた</b>。</span>
+    </p>
+    <p class="rule" style="border-left-color:#50685C">
+      <b>なぜ入口が増えても実装が二重にならないか</b>　カード列は<b>順序つきの配列 1 本</b>で、
+      各カードが属する組を持つだけ。描画するコンポーネントも 1 つ。
+      入口は<b>どの組から始めるかを渡す</b>だけで、<b>2 つ目の画面も 2 つ目のカード列も作らない</b>。
+      <b>増えたのは入口（＝呼び出し側）だけ</b>で、列も部品も前版のまま。
+    </p>
+    <p class="rule" style="border-left-color:#50685C">
+      <b>現在地の点は「その回に出す枚数」ぶんだけ打つ</b>——列全体の 7 個は<b>絶対に打たない</b>。
+      組A＝●○○（<b>3 個</b>・2026-09-03 に向きの選択カードが入って 1 個増えた）／組B＝●○（2 個）／
+      <b>組C＝点なし</b>／<b>組D＝点なし</b>（1 枚しかない回に点は要らない・
+      1 個だけの点はむしろ壊れて見える）。<br>
+      <span style="color:#4A4C47">これは飾りではなく<b>全体量を見せないための要</b>。7 個並べた瞬間に、
+      却下した全画面型と同じ「これだけ読む必要がある」が戻ってくる。<br>
+      <b>設定から通しで読むときも同じ規則</b>＝点は組が変わるたびにリセットする（●○○ → ●○ → なし → なし）。<br>
+      <span style="color:#8A4B44">⚠️ <b>2026-09-04 に組D が入って「点の無い回」が 2 つ続くようになった</b>
+      ＝「点の不在がそのまま『これで終わり』の合図」は<b>通しの終盤で 1 回鈍る</b>。
+      <b>これは承知のうえで何もしない</b>（裁定）——終端ボタンが ［とじる］ に変わるので押す直前には分かる。
+      組C と組D を 1 組にまとめる案は、<b>出す条件が別画面</b>（検索画面／取り込み画面）で
+      「組＝出す単位」という本節の定義に反するため<b>採らない</b>。</span></span>
+    </p>
+    <table class="mx">
+      <tr><th style="width:14%">入口</th><th style="width:16%">開始</th><th style="width:22%">見えるもの</th><th>なぜ</th></tr>
+      <tr>
+        <td><b>初回の扉</b><br><span style="color:#6A6C67">本棚が空・未消費</span></td>
+        <td>組A（1〜3 枚目）</td>
+        <td>3 枚（点 ●○○）。<b>読書操作は 1 文字も出ない</b>。</td>
+        <td>まだ 1 冊も無く、読書画面を見ていない。ここで実感を要する話を出すと<b>案A が死んだ理由をそのまま繰り返す</b>。
+          組A の中身は<b>どちらも読んだ経験を必要としない事実</b>なので、空棚を背景にしても成立する。</td>
+      </tr>
+      <tr>
+        <td><b>本文を初めて開いたとき</b><br><span style="color:#6A6C67">未消費・本文が描かれてから</span></td>
+        <td>組B（4・5 枚目）</td>
+        <td>2 枚（点 ●○）。背景は<b>読んでいる本文</b>。</td>
+        <td><b>ここが今回の裁定の核</b>。説明の対象が背後に見えている状態で読むので、
+          「メニューを出す」も「左へスワイプ」も<b>その場で試せる</b>。
+          前版のように設定へ来るのを待たなくてよくなった。<br>
+          <span style="color:#8A4B44">⚠️ 既存の没入ヒント（ピル）と同じことを言うので、<b>二重に出さない仕掛けが要る</b>（§8）。</span></td>
+      </tr>
+      <tr>
+        <td><b>検索画面を初めて開いたとき</b><br><span style="color:#6A6C67">未消費・画面が描かれてから</span></td>
+        <td>組C（6 枚目）</td>
+        <td>1 枚（<b>点なし</b>）。背景は<b>検索画面</b>。</td>
+        <td>チップと ［条件を調整］ が背後に見えている状態で読むので、
+          <b>「選んだ範囲の中だけ」が何を指すか、目で確かめられる</b>。
+          チップだけでは意味が分からない（規則1b）という取りこぼしが、ここで閉じる。</td>
+      </tr>
+      <tr>
+        <td><b>PDF取り込み画面を初めて開いたとき</b><br><span style="color:#6A6C67">未消費・目次が初描画されてから</span></td>
+        <td>組D（7 枚目）</td>
+        <td>1 枚（<b>点なし</b>）。背景は<b>なろうの目次ページ</b>。</td>
+        <td>この面の<b>ボタンはすべてなろうのもの</b>で、アプリのものは題と戻るだけ——
+          自動送りで ［縦書きPDF］ の枠が見えていても、それが<b>なろう側の生成フォームだ</b>とは読めない（規則1b）。<br>
+          <span style="color:#8A4B44">⚠️ <b>出す契機はこの入口だけ「描き切ってから」を厳密には守れない</b>。
+          WebView の自動送り（<code>scrollIntoView</code>）が終わったことを Kotlin 側は知らない
+          （<code>evaluateJavascript</code> の結果を受けていない）ため、実装は
+          <b><code>onPageCommitVisible</code> かつ目次 URL 一致</b>＝自動送りの JS を投げるのと同じ瞬間に出す。
+          <b>担保できるのは</b>〈目次に着いた後にしか出ない〉〈白紙の上には載らない〉の 2 つで、
+          <b>担保できないのは</b>〈カードが載る瞬間、背後がまだ目次の上の方でありうる〉こと。<br>
+          それ以上は<b>注入 JS の役割を「ビューポート移動のみ」から広げる</b>話＝ADR 0010/0011 の線に触れるので
+          <b>踏み込まない</b>（踏み込むなら別 ADR）。カードの文言は<b>閉じた後の状態</b>を指しており、
+          スクロールはカードの下で進むので実害は出ない想定＝<b>実機の二段検分で見る</b>。</span></td>
+      </tr>
+      <tr>
+        <td><b>設定 ＞ 操作の説明</b><br><span style="color:#6A6C67">常設・1 か所だけ</span></td>
+        <td>組A から<b>通し</b>（1〜7 枚目）</td>
+        <td>7 枚を連続。点は組ごとにリセット（●○○ → ●○ → なし → なし）。</td>
+        <td><b>従来どおり全部通しで読める</b>。フラグは見ない＝<b>何度でも開ける</b>。<br>
+          <b>読み進めた組はその場で消費する</b>ので、ここで全部読んだ人には<b>あとから自動で出てこない</b>
+          （同じ説明を 2 度は割り込ませない）。</td>
+      </tr>
+    </table>
+    <p class="note">
+      <b>割り込みの総量</b>　自動で出るのは<b>アプリ通算で 4 回・合計 7 枚</b>（組A 3 枚・組B 2 枚・組C 1 枚・組D 1 枚）。
+      <span style="color:#4A4C47">組D で 1 回・1 枚増えた（2026-09-04）。<b>取り込み画面は ［取り込む］ を押した直後</b>＝
+      割り込みの原価が最も安い面で、正本が「割り込みのコストが最も高い」と書いた読書中とは事情が違う。
+      しかも<b>初回だけ</b>なので、2 冊目以降は 1 画素も使わない。</span>
+      前版の 1 回・2 枚から増えているが、<b>増えたぶんは全部「その画面に初めて着いた瞬間」に移動しただけ</b>で、
+      設定へ行かないと読めなかったものが届くようになった。
+      <span style="color:#4A4C47">新規の人は〈扉 → ［作品をさがす］ を押す → 検索画面〉と進みやすく、
+      <b>組A と組C が数秒で連続する</b>ことがある。<b>これは受け入れる</b>（2026-08-21 裁定）——
+      間引くと組C がその画面を離れたあとへずれ、<b>実感と説明が同時に来る</b>という今回の設計の芯が崩れる。</span>
+    </p>
+
+    <h2 style="font-size:14.5px;margin-top:26px;letter-spacing:.04em">組A「このアプリのこと」 ─ 初回・本棚が空のとき（3 枚）</h2>
+    <div class="stage ga">
+
+      <div class="wrap"><span class="mode"><b>組A ─ 1/3</b>　扉＝カード列の 1 枚目<br>（独立した部品ではない）</span>
+        <div class="phone k" role="img" aria-label="章1 1枚目 はじめに">
+          <div class="sb"><span>9:41</span><span>5G ▾ ▮▮▮</span></div>
+          <div class="head"><h1>本棚</h1></div>
+          <div class="empty">
+            <h2>まだ本がありません</h2>
+            <p>読みたい作品をさがすか、お手元のPDFを追加して読み始めましょう。</p>
+            <div class="ctas">
+              <button class="btn fill">作品をさがす</button>
+              <button class="btn out">PDFを追加</button>
+            </div>
+          </div>
+          <nav class="tabbar">
+            <a class="tab on"><span class="ic"><span class="pill2"></span><svg viewBox="0 0 24 24"><path d="M6 4h11a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/><path d="M4 18a2 2 0 0 1 2-2h12"/></svg></span><span class="lb">本棚</span></a>
+            <a class="tab"><span class="ic"><span class="pill2"></span><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.4 4.4"/></svg></span><span class="lb">さがす</span></a>
+            <a class="tab"><span class="ic"><span class="pill2"></span><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span><span class="lb">設定</span></a>
+          </nav>
+          <div class="scrim">
+            <div class="ocard">
+              <div class="obody">
+                <div class="fig">
+                  <svg viewBox="0 0 120 84" width="120" height="84">
+                    <rect x="10" y="14" width="22" height="48" rx="2"/><rect x="36" y="20" width="22" height="42" rx="2"/>
+                    <rect x="62" y="10" width="22" height="52" rx="2"/><rect x="88" y="24" width="22" height="38" rx="2"/>
+                    <path class="soft" d="M6 68h108"/>
+                    <path d="M21 26v10M47 30v10M73 22v10M99 34v10" class="soft"/>
+                  </svg>
+                </div>
+                <h3>はじめに</h3>
+                <p><b>PDF</b> と Web の連載小説（<b>小説家になろう</b>）を、ひとつの本棚で読めます。</p>
+                <p>漢字の<b>ふりがなは自動でつきます</b>。</p>
+              </div>
+              <div class="odots"><i class="on"></i><i></i><i></i></div>
+              <div class="obtns"><button class="obtn">あとで</button><button class="obtn pri">つづける</button></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="wrap"><span class="mode"><b>組A ─ 2/3</b>　<b>本文を見る前</b>に向きを決める<br>（2026-09-03 裁定＝案1・背景は空棚）</span>
+        <div class="phone k" role="img" aria-label="組A 2枚目 どちらで読みますか">
+          <div class="sb"><span>9:41</span><span>5G ▾ ▮▮▮</span></div>
+          <div class="head"><h1>本棚</h1></div>
+          <div class="empty">
+            <h2>まだ本がありません</h2>
+            <p>読みたい作品をさがすか、お手元のPDFを追加して読み始めましょう。</p>
+            <div class="ctas">
+              <button class="btn fill">作品をさがす</button>
+              <button class="btn out">PDFを追加</button>
+            </div>
+          </div>
+          <nav class="tabbar">
+            <a class="tab on"><span class="ic"><span class="pill2"></span><svg viewBox="0 0 24 24"><path d="M6 4h11a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/><path d="M4 18a2 2 0 0 1 2-2h12"/></svg></span><span class="lb">本棚</span></a>
+            <a class="tab"><span class="ic"><span class="pill2"></span><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.4 4.4"/></svg></span><span class="lb">さがす</span></a>
+            <a class="tab"><span class="ic"><span class="pill2"></span><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span><span class="lb">設定</span></a>
+          </nav>
+          <div class="scrim">
+            <div class="ocard">
+              <div class="obody">
+                <div class="fig">
+                  <!-- 横組みの紙と縦組みの紙の対比。実線 2 枚（どちらも「できる」）＝
+                       2 枚目の twoWays 図が破線で「アプリ／なろう」を分けているのと役割が違う。 -->
+                  <svg viewBox="0 0 120 84" width="120" height="84">
+                    <rect x="8" y="14" width="46" height="56" rx="5"/>
+                    <path class="soft" d="M16 28h30M16 38h30M16 48h22M16 58h30"/>
+                    <rect x="66" y="14" width="46" height="56" rx="5"/>
+                    <path class="soft" d="M104 22v40M96 22v40M88 22v32M80 22v40"/>
+                  </svg>
+                </div>
+                <h3>どちらで読みますか</h3>
+                <p>本文を<b>縦書き</b>にも<b>横書き</b>にもできます。</p>
+                <div class="ochips">
+                  <button class="ochip">横書き</button>
+                  <button class="ochip on">縦書き</button>
+                </div>
+                <div class="later">あとから ［表示設定］＞［本文の向き］ で変えられます。</div>
+              </div>
+              <div class="odots"><i></i><i class="on"></i><i></i></div>
+              <div class="obtns"><button class="obtn back"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>もどる</button><button class="obtn pri">つづける</button></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="wrap"><span class="mode"><b>組A ─ 3/3</b>　ここで組A は終わり<br>読書操作へは進ませない（実感が無いから）</span>
+        <div class="phone k" role="img" aria-label="章1 2枚目 読みかたは2通り">
+          <div class="sb"><span>9:41</span><span>5G ▾ ▮▮▮</span></div>
+          <div class="head"><h1>本棚</h1></div>
+          <div class="empty">
+            <h2>まだ本がありません</h2>
+            <p>読みたい作品をさがすか、お手元のPDFを追加して読み始めましょう。</p>
+            <div class="ctas">
+              <button class="btn fill">作品をさがす</button>
+              <button class="btn out">PDFを追加</button>
+            </div>
+          </div>
+          <nav class="tabbar">
+            <a class="tab on"><span class="ic"><span class="pill2"></span><svg viewBox="0 0 24 24"><path d="M6 4h11a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/><path d="M4 18a2 2 0 0 1 2-2h12"/></svg></span><span class="lb">本棚</span></a>
+            <a class="tab"><span class="ic"><span class="pill2"></span><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.4 4.4"/></svg></span><span class="lb">さがす</span></a>
+            <a class="tab"><span class="ic"><span class="pill2"></span><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span><span class="lb">設定</span></a>
+          </nav>
+          <div class="scrim">
+            <div class="ocard">
+              <div class="obody">
+                <div class="fig">
+                  <svg viewBox="0 0 120 84" width="120" height="84">
+                    <rect x="8" y="14" width="46" height="56" rx="5"/>
+                    <path class="soft" d="M16 28h30M16 38h30M16 48h20"/>
+                    <path d="M22 60h18"/>
+                    <rect x="66" y="14" width="46" height="56" rx="5" stroke-dasharray="5 4"/>
+                    <path class="soft" d="M74 24h30" stroke-dasharray="4 3"/>
+                    <path class="soft" d="M74 34h30M74 44h18" stroke-dasharray="5 4"/>
+                    <path class="soft" d="M86 60h14" stroke-dasharray="4 3"/>
+                  </svg>
+                </div>
+                <h3>読みかたは、2 通り</h3>
+                <p><b>アプリで読む</b>　ふりがな付き。文字の大きさや縦書きに変えられます。</p>
+                <p><b>なろうで読む</b>　なろうのページをそのまま表示。アプリの操作・表示設定・ふりがな機能は効きません。</p>
+                <div class="later">読みかたの説明は、読みはじめてから ［設定］＞［操作の説明］ で。</div>
+              </div>
+              <div class="odots"><i></i><i></i><i class="on"></i></div>
+              <div class="obtns"><button class="obtn back"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>もどる</button><button class="obtn pri">はじめる</button></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+    <p class="note">
+      <b>組A が 3 枚になった理由（2026-09-03 裁定＝案1）</b>　<b>アプリ名も短い説明も縦書きを看板にしているのに、
+      初見は横書きで開く</b>——この反転を、扉の流れの中で閉じる 1 枚を 2 枚目に差した。
+      <span style="color:#4A4C47">▶ <b>置き場所が組A である理由</b>＝下の「案A の死因」（読む前の説明は実感と結びつかない）は
+      <b>説明</b>についての規則で、<b>選択</b>には当たらない: 選択は憶えて後で使うものではなく<b>その場で 1 回押して終わる</b>ので、
+      本文を 1 文字も見ていなくても押せる。<br>
+      ▶ <b>組B へ送らない理由（設計の眼目）</b>＝本文を開いた<b>後</b>に訊く形にすると、
+      <code>NativeReadingScreen.kt:407</code> の <code>verticalMode</code> が
+      <b><code>remember</code> で入場時に 1 度だけ prefs を読む</b>ため、カードから prefs を書いても
+      <b>本文は横書きのまま動かない</b>。組A なら<b>読書画面へ入る前に prefs が確定している</b>＝この罠を踏まない
+      （同じ機序を <code>IntroController.chromeHintSilenced</code> の KDoc が既に一度記録している）。<br>
+      ▶ <b>代償</b>＝点が 3 個になり、自動で出る総量が通算 5 枚 → 6 枚になる。上限（列全体の点を打たない）には触れない。
+      <span style="color:#4A4C47">※ 枚数は<b>2026-09-03 時点の値</b>。組D が入った現在は 7 枚（§3 の「割り込みの総量」が現在値の正本）。</span></span>
+    </p>
+    <p class="note">
+      <b>参考: 組A がかつて 2 枚だった理由</b>　案A の原型は 3 枚だったが、3 枚目は「縦書きでも読めます」＝<b>実感を要する話</b>で、
+      そこが原型の死因だった。その 1 枚を章2 へ送ると、残る<b>実感不要の話はちょうど 2 枚</b>になる。
+      枚数を削ったのではなく、<b>置き場所を直したら 2 枚になった</b>。
+      <span style="color:#4A4C47">「なろうで読む」も専用カードを立てず 2 枚目へ畳んだ——
+      〈読みかたが 2 通りある〉は 1 つのメッセージなので、分けるとかえって分かりにくい。</span>
+    </p>
+
+    <h2 style="font-size:14.5px;margin-top:30px;letter-spacing:.04em">組B「読みかた」 ─ 本文を初めて開いたとき（2 枚）　<span style="font-size:11.5px;font-weight:400;color:#6A6C67">背景＝読んでいる本文</span></h2>
+    <div class="stage gb">
+
+      <div class="wrap"><span class="mode"><b>組B ─ 1/2</b>　本文を開いた直後に出る<br>説明の対象が背後に見えている</span>
+        <div class="phone" role="img" aria-label="組B 3枚目 横書きで読む">
+          <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+          <div class="reader">
+            <p><ruby>辺境<rt>へんきょう</rt></ruby>の<ruby>城門<rt>じょうもん</rt></ruby>に<ruby>辿<rt>たど</rt></ruby>り<ruby>着<rt>つ</rt></ruby>いたのは、<ruby>長<rt>なが</rt></ruby>い<ruby>雨<rt>あめ</rt></ruby>がようやく<ruby>上<rt>あ</rt></ruby>がった<ruby>頃<rt>ころ</rt></ruby>だった。<ruby>濡<rt>ぬ</rt></ruby>れた<ruby>石畳<rt>いしだたみ</rt></ruby>が<ruby>夕陽<rt>ゆうひ</rt></ruby>を<ruby>照<rt>て</rt></ruby>り<ruby>返<rt>かえ</rt></ruby>している。</p>
+            <p>「——ここまで、よく<ruby>付<rt>つ</rt></ruby>いてきてくれた」</p>
+            <div class="blank"></div><hr><div class="blank"></div>
+            <p><ruby>翌朝<rt>よくあさ</rt></ruby>、<ruby>鳥<rt>とり</rt></ruby>の<ruby>声<rt>こえ</rt></ruby>で<ruby>目<rt>め</rt></ruby>を<ruby>覚<rt>さ</rt></ruby>ますと、<ruby>窓辺<rt>まどべ</rt></ruby>には<ruby>昨夜<rt>ゆうべ</rt></ruby>の<ruby>雨<rt>あめ</rt></ruby>の<ruby>名残<rt>なごり</rt></ruby>が<ruby>雫<rt>しずく</rt></ruby>となって<ruby>光<rt>ひか</rt></ruby>っていた。</p>
+          </div>
+          <div class="scrim">
+            <div class="ocard">
+              <div class="obody">
+                <div class="fig">
+                  <svg viewBox="0 0 120 84" width="120" height="84">
+                    <rect x="30" y="4" width="60" height="76" rx="7"/>
+                    <path class="soft" d="M34 16h52M34 68h52"/>
+                    <circle cx="60" cy="42" r="17" opacity=".45"/><circle cx="60" cy="42" r="9"/>
+                  </svg>
+                </div>
+                <h3>横書きで読む</h3>
+                <dl>
+                  <dt>横書きにする</dt><dd>下のバーの ［表示設定］ ＞ ［本文の向き］。文字の大きさ・行間・余白も同じ場所です。</dd>
+                  <dt>メニューを出す</dt><dd>本文のどこでもタップ。<em>もう一度で消えます</em>。</dd>
+                  <dt>次の話へ</dt><dd><em>左へスワイプ</em>。下のバーの ［次章］ でも。</dd>
+                </dl>
+              </div>
+              <div class="odots"><i class="on"></i><i></i></div>
+              <div class="obtns"><button class="obtn">あとで</button><button class="obtn pri">つぎへ</button></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="wrap"><span class="mode"><b>組B ─ 2/2</b>　原型の 3 枚目はここ<br>縦書きに変える場所も同じ画面の中</span>
+        <div class="phone" role="img" aria-label="組B 4枚目 縦書きで読む">
+          <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+          <div class="reader">
+            <p><ruby>辺境<rt>へんきょう</rt></ruby>の<ruby>城門<rt>じょうもん</rt></ruby>に<ruby>辿<rt>たど</rt></ruby>り<ruby>着<rt>つ</rt></ruby>いたのは、<ruby>長<rt>なが</rt></ruby>い<ruby>雨<rt>あめ</rt></ruby>がようやく<ruby>上<rt>あ</rt></ruby>がった<ruby>頃<rt>ころ</rt></ruby>だった。<ruby>濡<rt>ぬ</rt></ruby>れた<ruby>石畳<rt>いしだたみ</rt></ruby>が<ruby>夕陽<rt>ゆうひ</rt></ruby>を<ruby>照<rt>て</rt></ruby>り<ruby>返<rt>かえ</rt></ruby>している。</p>
+            <p>「——ここまで、よく<ruby>付<rt>つ</rt></ruby>いてきてくれた」</p>
+            <div class="blank"></div><hr><div class="blank"></div>
+            <p><ruby>翌朝<rt>よくあさ</rt></ruby>、<ruby>鳥<rt>とり</rt></ruby>の<ruby>声<rt>こえ</rt></ruby>で<ruby>目<rt>め</rt></ruby>を<ruby>覚<rt>さ</rt></ruby>ますと、<ruby>窓辺<rt>まどべ</rt></ruby>には<ruby>昨夜<rt>ゆうべ</rt></ruby>の<ruby>雨<rt>あめ</rt></ruby>の<ruby>名残<rt>なごり</rt></ruby>が<ruby>雫<rt>しずく</rt></ruby>となって<ruby>光<rt>ひか</rt></ruby>っていた。</p>
+          </div>
+          <div class="scrim">
+            <div class="ocard">
+              <div class="obody">
+                <div class="fig">
+                  <svg viewBox="0 0 120 84" width="120" height="84">
+                    <path d="M96 12v58M84 12v58M72 12v58" class="soft"/>
+                    <path d="M60 20v42M48 20v42"/>
+                    <!-- ⚠️ 2026-09-07 に矢印を左向き→右向きへ反転。この矢印は**指の向き**（＝このカードが
+                         教えている操作）で、実機の前進スワイプは指を右へ。項目が「右へスワイプ」と言っている
+                         横で ← を描くと、絵と文が正面から食い違う。
+                         ⚠️ 「行が左へ進む」の意味に読み替えれば元の向きも成り立つが、**このカードの用は
+                         割り当て（指の向き）を教えること**なので、曖昧なら操作側へ倒す。 -->
+                    <path d="M18 76H40"/><path d="M33 69l7 7-7 7"/>
+                    <path class="soft" d="M14 12h96" opacity=".35"/>
+                  </svg>
+                </div>
+                <h3>縦書きで読む</h3>
+                <dl>
+                  <dt>縦書きにする</dt><dd>下のバーの ［表示設定］ ＞ ［本文の向き］。</dd>
+                  <dt>読み進める</dt><dd><em>右へスワイプ</em>（横書きでは「次の話へ」）。</dd>
+                  <dt>次の話へ</dt><dd>最後まで進めて、さらに右へ。［次章］ でも。</dd>
+                </dl>
+              </div>
+              <div class="odots"><i></i><i class="on"></i></div>
+              <div class="obtns"><button class="obtn back"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>もどる</button><button class="obtn pri">とじる</button></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <h2 style="font-size:14.5px;margin-top:30px;letter-spacing:.04em">組C「さがしかた」 ─ 検索画面を初めて開いたとき（1 枚）　<span style="font-size:11.5px;font-weight:400;color:#6A6C67">背景＝検索画面・チップは既定4つ ON の姿</span></h2>
+    <div class="stage gc">
+
+      <div class="wrap"><span class="mode"><b>組C ─ 1 枚だけ</b>　検索画面を開いた直後<br><b>点は打たない</b>（1 枚に点は要らない）</span>
+        <div class="phone k" role="img" aria-label="組C 5枚目 さがして本棚に入れる">
+          <div class="sb"><span>9:41</span><span>5G ▾ ▮▮▮</span></div>
+          <div class="sback"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>見つける</div>
+          <div class="sinputbox"><div class="sinput">作品名・作者・キーワード</div></div>
+          <div class="scroll" style="padding-top:0">
+            <div class="ssec">検索範囲</div>
+            <div class="rchips">
+              <span class="rchip on">タイトル</span><span class="rchip on">あらすじ</span>
+              <span class="rchip on">キーワード</span><span class="rchip on">作者名</span>
+            </div>
+            <div class="condbtn">
+              <svg viewBox="0 0 24 24"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg>
+              条件を調整
+            </div>
+          </div>
+          <nav class="tabbar">
+            <a class="tab"><span class="ic"><span class="pill2"></span><svg viewBox="0 0 24 24"><path d="M6 4h11a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/><path d="M4 18a2 2 0 0 1 2-2h12"/></svg></span><span class="lb">本棚</span></a>
+            <a class="tab on"><span class="ic"><span class="pill2"></span><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.4 4.4"/></svg></span><span class="lb">さがす</span></a>
+            <a class="tab"><span class="ic"><span class="pill2"></span><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span><span class="lb">設定</span></a>
+          </nav>
+          <div class="scrim">
+            <div class="ocard">
+              <div class="obody">
+                <div class="fig">
+                  <svg viewBox="0 0 120 84" width="120" height="84">
+                    <circle cx="40" cy="34" r="17"/><path d="M52 46l13 13"/>
+                    <rect x="74" y="16" width="34" height="10" rx="5" class="soft"/>
+                    <rect x="74" y="32" width="34" height="10" rx="5"/>
+                    <rect x="74" y="48" width="34" height="10" rx="5" class="soft"/>
+                    <path d="M18 70h84" class="soft" opacity=".5"/>
+                  </svg>
+                </div>
+                <h3>さがして、本棚に入れる</h3>
+                <dl>
+                  <dt>検索範囲</dt><dd>言葉は<em>選んだ範囲の中だけ</em>を探します。複数選べます。</dd>
+                  <dt>もっと絞る</dt><dd>［条件を調整］ から、ジャンル・更新時期・文字数・読了時間・除外語など。</dd>
+                  <dt>本棚に入れる</dt><dd>作品の詳細画面で ［本棚に置く］。PDF は本棚の ［PDFを追加］。</dd>
+                </dl>
+                <div class="later">この説明は ［設定］＞［操作の説明］ にあります。</div>
+              </div>
+              <div class="obtns r"><button class="obtn pri">とじる</button></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <h2 style="font-size:14.5px;margin-top:30px;letter-spacing:.04em">組D「つくって、本棚に入れる」 ─ PDF取り込み画面を初めて開いたとき（1 枚）　<span style="font-size:11.5px;font-weight:400;color:#6A6C67">背景＝なろうの目次ページ・自動送りの後の位置</span></h2>
+    <div class="stage gd">
+
+      <div class="wrap"><span class="mode"><b>組D ─ 1 枚だけ</b>　取り込み画面を開いた直後<br><b>点は打たない</b>（組C と同じ）</span>
+        <div class="phone k" role="img" aria-label="組D 7枚目 つくって本棚に入れる">
+          <div class="sb"><span>9:41</span><span>5G ▾ ▮▮▮</span></div>
+          <div class="topbar">
+            <button class="ib" aria-label="戻る"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+            <div class="ct">縦書きPDFを取り込む</div>
+          </div>
+          <div class="web">
+            <div class="ep">第百二十五話　雨上がりの城門<span class="dt">2026/08/21</span></div>
+            <div class="ep">第百二十六話　石畳の照り返し<span class="dt">2026/08/24</span></div>
+            <div class="ep">第百二十七話　彼女は剣を置いた<span class="dt">2026/08/28</span></div>
+            <div class="ad">広告</div>
+            <div class="pdfbox">
+              <h5>縦書きPDF</h5>
+              <p>この作品を縦書きのPDFで読むことができます。設定を選んで作成してください。</p>
+              <div class="frow"><div class="fsel">文字サイズ　中</div><div class="fsel">ページ番号　あり</div></div>
+              <div class="frow"><div class="fsel">1ページの行数　18</div><div class="fsel">ルビ　あり</div></div>
+              <div class="fbtn">縦書きPDFを作成する</div>
+            </div>
+            <div class="foot">— 小説家になろう —</div>
+          </div>
+          <div class="scrim">
+            <div class="ocard">
+              <div class="obody">
+                <div class="fig">
+                  <!-- 新規図版（IntroFigure.IMPORT）＝**なろうの面（破線）から本棚（実線）へ運ぶ**。
+                       約束は TWO_WAYS から継ぐ＝なろうの面は破線・アプリの面と動作は実線。
+                       ⚠️ TWO_WAYS の使い回しは不可＝あちらは 2 つの面を**並べて分ける**図で、
+                       こちらは**片方からもう片方へ運ぶ**図（ORIENTATION のときと同じ理由で禁じる）。
+                       ⚠️ **この svg が Compose 翻訳の source**（IntroFigure.kt importToShelf が座標で写経）。 -->
+                  <svg viewBox="0 0 120 84" width="120" height="84">
+                    <rect x="36" y="4" width="48" height="34" rx="3" stroke-dasharray="5 4"/>
+                    <path class="soft" d="M43 13h34M43 20h34M43 27h20" stroke-dasharray="5 4"/>
+                    <path d="M60 43v13"/><path d="M54 50l6 6 6-6"/>
+                    <rect x="38" y="63" width="11" height="17" rx="1.5"/>
+                    <rect x="52" y="63" width="11" height="17" rx="1.5"/>
+                    <rect x="66" y="63" width="11" height="17" rx="1.5"/>
+                    <path class="soft" d="M31 82h58"/>
+                  </svg>
+                </div>
+                <h3>つくって、本棚に入れる</h3>
+                <dl>
+                  <dt>ここはなろうのページ</dt><dd>なろうが配信するページを、そのまま表示します。</dd>
+                  <dt>縦書きPDFを作る</dt><dd>開いた位置にある <em>［縦書きPDF］</em> の枠から。作り終わるとページが変わります。</dd>
+                  <dt>ダウンロードを押す</dt><dd>変わったページの <em>［縦書きPDFダウンロード］</em>。押すと<em>アプリが引き取り</em>、本棚に入ります。</dd>
+                </dl>
+                <div class="later">この説明は ［設定］＞［操作の説明］ にあります。</div>
+              </div>
+              <div class="obtns r"><button class="obtn pri">とじる</button></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+    <p class="note">
+      <b>⚠️ 実装で分かった版面の事実（2026-09-04・golden 実測）</b>　組D は<b>組C より 1 行ぶん高い</b>
+      （3 項目目が 3 行に折り返す）。360×640dp・既定フォントの golden では
+      <b>［とじる］ が折り返しの下に入り、スクロールしないと画面に出ない</b>——組C はちょうど収まっている。<br>
+      <span style="color:#4A4C47">これは<b>この器の既知の性質</b>で、退行ではない（カードは縦スクロール器＝
+      <code>IntroOverlayContentTest</code> が組C でも「スクロールで必ず到達できる」ことを見ており、組D にも同じ検査を足した）。
+      <b>詰めるなら文言ではなく器の側</b>——文言は裁定済みなので実装側で言い換えない。
+      実機で「押せないと感じる」かは<b>二段検分</b>で見る。</span>
+    </p>
+  </div>
+
+  <!-- ============================================================ §4 -->
+  <div class="sec">
+    <h2>§4　文言（フル記載）</h2>
+    <p class="body">
+      カードは<b>文言が本体</b>なので、絵と別に文字だけで並べる。
+      <b>1 枚あたり本文 2 段落まで、または項目 3 つまで</b>を上限にした——
+      これを超えたら枚を割るのではなく<b>中身を削る</b>（枚を割ると点が増えて全体量が見えてしまう）。<br>
+      <b>2026-08-21 改訂</b>: 冒頭コメントの基準〈<b>一般的なジェスチャの挙動は書かない・書くのはアプリ固有の割り当てだけ</b>〉で
+      1 文ずつ点検した。判定は下の「改訂の記録」に全部残してある。
+    </p>
+    <div class="copy">
+      <h4>1 枚目<span class="ch">組A ─ 初回の扉そのもの</span></h4>
+      <dl>
+        <dt>見出し</dt><dd>はじめに</dd>
+        <dt>本文1</dt><dd><b>PDF</b> と Web の連載小説（<b>小説家になろう</b>）を、ひとつの本棚で読めます。</dd>
+        <dt>本文2</dt><dd>漢字の<b>ふりがなは自動でつきます</b>。</dd>
+        <dt>ボタン</dt><dd>［あとで］（弱・閉じる）　［つづける］（藍の実塗り＝一画面一強調）</dd>
+      </dl>
+
+      <h4>2 枚目<span class="ch">組A ─ 向きを選ぶ（2026-09-03 追加＝案1）</span></h4>
+      <dl>
+        <dt>見出し</dt><dd>どちらで読みますか</dd>
+        <dt>本文1</dt><dd>本文を<b>縦書き</b>にも<b>横書き</b>にもできます。</dd>
+        <dt>選択肢</dt><dd>［横書き］　［<b>縦書き</b>］　＝ 2 択チップ・<b>初期選択は縦書き</b>
+          （看板と初見を一致させるのがこのカードの用。<code>settings-D.html:65-67</code> の写経で、
+          on は藍の実塗り＝一画面一強調の枠内に収まる）</dd>
+        <dt>小さい行</dt><dd><b>あとから ［表示設定］＞［本文の向き］ で変えられます。</b></dd>
+        <dt>ボタン</dt><dd>［← もどる］　［つづける］</dd>
+      </dl>
+      <p class="note" style="margin-top:6px">
+        <b>「あとから変えられます」を書く/書かないの綱引き</b>　書かないと<b>取り返しがつかない選択に見え</b>、
+        書くと<b>「じゃあ今決めなくていい」</b>と読めて選択の意味が薄まる。<b>書く</b>を採る——
+        このカードは<b>設定の代わり</b>ではなく<b>既定値の確認</b>で、押さずに ［つづける］ でも
+        初期選択（縦書き）が確定する形だから、逃げ道を示しても選択は空振りしない。
+      </p>
+
+      <h4>3 枚目<span class="ch">組A ─ 組A はここで終わる</span></h4>
+      <dl>
+        <dt>見出し</dt><dd>読みかたは、2 通り</dd>
+        <dt>本文1</dt><dd><b>アプリで読む</b>　ふりがな付き。文字の大きさや縦書きに変えられます。</dd>
+        <dt>本文2</dt><dd><b>なろうで読む</b>　なろうのページをそのまま表示。アプリの操作・表示設定・ふりがな機能は効きません。</dd>
+        <dt>小さい行</dt><dd><b>読みかたの説明は、読みはじめてから ［設定］＞［操作の説明］ で。</b></dd>
+        <dt>ボタン</dt><dd>［← もどる］　［はじめる］（閉じる）</dd>
+      </dl>
+
+      <h4>4 枚目<span class="ch">組B ─ 本文を初めて開いたとき</span></h4>
+      <dl>
+        <dt>見出し</dt><dd>横書きで読む</dd>
+        <dt>横書きにする</dt><dd>下のバーの ［表示設定］ ＞ ［本文の向き］。文字の大きさ・行間・余白も同じ場所です。</dd>
+        <dt>メニューを出す</dt><dd>本文のどこでもタップ。<b>もう一度で消えます</b>。</dd>
+        <dt>次の話へ</dt><dd><b>左へスワイプ</b>。下のバーの ［次章］ でも。</dd>
+        <dt>ボタン</dt><dd>組B 単独＝［あとで］　［つぎへ］　／　設定からの通し＝［← もどる］　［つぎへ］</dd>
+      </dl>
+
+      <h4>5 枚目<span class="ch">組B ─ 組B はここで終わる</span></h4>
+      <dl>
+        <dt>見出し</dt><dd>縦書きで読む</dd>
+        <dt>縦書きにする</dt><dd>下のバーの ［表示設定］ ＞ ［本文の向き］。</dd>
+        <dt>読み進める</dt><dd><b>右へスワイプ</b>（横書きでは「次の話へ」）。</dd>
+        <dt>次の話へ</dt><dd>最後まで進めて、さらに右へ。［次章］ でも。</dd>
+        <dt>ボタン</dt><dd>組B 単独＝［← もどる］　［とじる］　／　設定からの通し＝［← もどる］　［つぎへ］</dd>
+      </dl>
+
+      <h4>6 枚目<span class="ch">組C ─ 検索画面を初めて開いたとき・1 枚だけ</span></h4>
+      <dl>
+        <dt>見出し</dt><dd>さがして、本棚に入れる</dd>
+        <dt>検索範囲</dt><dd>言葉は<b>選んだ範囲の中だけ</b>を探します。複数選べます。</dd>
+        <dt>もっと絞る</dt><dd>［条件を調整］ から、ジャンル・更新時期・文字数・読了時間・除外語など。</dd>
+        <dt>本棚に入れる</dt><dd>作品の詳細画面で <b>［本棚に置く］</b>。PDF は本棚の ［PDFを追加］。</dd>
+        <dt>小さい行</dt><dd><b>この説明は ［設定］＞［操作の説明］ にあります。</b></dd>
+        <dt>ボタン</dt><dd>［とじる］</dd>
+      </dl>
+
+      <h4>7 枚目<span class="ch">組D ─ PDF取り込み画面を初めて開いたとき・1 枚だけ（2026-09-04 追加）</span></h4>
+      <dl>
+        <dt>見出し</dt><dd>つくって、本棚に入れる</dd>
+        <dt>ここはなろうのページ</dt><dd>なろうが配信するページを、そのまま表示します。</dd>
+        <dt>縦書きPDFを作る</dt><dd>開いた位置にある <b>［縦書きPDF］</b> の枠から。作り終わるとページが変わります。</dd>
+        <dt>ダウンロードを押す</dt><dd>変わったページの <b>［縦書きPDFダウンロード］</b>。押すと<b>アプリが引き取り</b>、本棚に入ります。</dd>
+        <dt>小さい行</dt><dd><b>この説明は ［設定］＞［操作の説明］ にあります。</b></dd>
+        <dt>ボタン</dt><dd>［とじる］（<b>1 枚だけの回＝副ボタンを置かない</b>＝組C と同じ）</dd>
+      </dl>
+      <p class="note" style="margin-top:6px">
+        <b>§4 の基準にどう通したか</b>（一般的なジェスチャの挙動は書かない・書くのはこのアプリ固有の割り当てだけ）<br>
+        ・<b>書いていない</b>＝「スクロールします」「タップします」「ボタンを押します」の類。<br>
+        ・<b>書いた</b>＝〈この面のボタンは<b>なろうのもの</b>〉〈<b>2 段階</b>（作る→ダウンロード）〉
+          〈押した先で<b>アプリが引き取って本棚に入る</b>〉。3 つとも推測できない。
+          とくに 3 つ目は<b>規則1 にも当たる</b>——ブラウザのダウンロードだと思えば「ファイルはどこへ行った」になる。<br>
+        ・<b>見出しは組C と対にした</b>（「さがして、本棚に入れる」／「つくって、本棚に入れる」）
+          ＝2 つの入手経路が<b>同じ終点</b>を持つことが、文を足さずに見出しだけで伝わる。<br>
+        ・<b>1 項目目は <code>NarouExternalPageNotice.BODY</code> の第 1 文と 1 字同一</b>。
+          <b>同じ事実を 2 通りに言うと、片方を直したときにもう片方が黙って腐る</b>——
+          組A 3 枚目が既に同じ理由で同じ言い回しへ揃えてある（ADR 0042）。
+          <span style="color:#4A4C47">実装では <code>IntroOverlayContentTest</code> が定数から導いた文字列で照合し、
+          <b>どちらを直しても落ちる</b>ようにしてある。</span><br>
+        ・<span style="color:#8A4B44"><b>⚠️ なろう側の「作成」ボタンの実ラベルは一次確認していない</b></span>ので<b>名指ししない</b>
+          （「その枠から」で受ける）。名指ししてよいのは確定している見出し語「縦書きPDF」と、
+          ADR 0011 が原文で記録している「縦書きPDFダウンロード」だけ。実機で 1 語を確かめられたらそこだけ差し替える。<br>
+        ・<span style="color:#8A4B44"><b>⚠️ 「広告」の語は名指ししない</b></span>（ADR 0042 決定2）。背景に広告帯が出るが、
+          名指しした瞬間に〈場所の案内〉が〈警告〉へ変質する。1 項目目の「そのまま表示します」に織り込む。<br>
+        ・<b>上限</b>＝項目 3 つ（本節の「1 カード 3〜4 項目まで」の内側）。組C と同じ 3 項目＋<code>.later</code>。
+      </p>
+    </div>
+    <p class="note" style="border-left-color:#8A4B44">
+      <b>⚠️ 2026-09-07 の文言改訂 ─ 2 件（組B のみ）</b><br>
+      <b>①方向の是正（バグ）</b>　5 枚目の〈読み進める〉〈次の話へ〉が「<b>左</b>へ」と書いていたが、
+      <b>実機は指を右へで進み、左へで戻る</b>（PGEM10 実測）。実装側の座標系コメントも
+      <code>ChapterPullConnection</code>「item #0＝右端・読み進めは指を右へ」／
+      <code>ChapterFlipBenchmark</code>「縦書きの前進スワイプ（指を右へ）」で一致しており、
+      <b>教示だけが 4 枚目（横書き＝左へで正しい）の文言を流用したまま</b>だった。
+      <span style="color:#4A4C47">機序＝4 枚目と 5 枚目は<b>同じ項目名（「次の話へ」）を持つ対の構造</b>で、
+      対にした側（見出し「<b>横書きで</b>読む」／「縦書きで読む」）だけが差し替えられ、
+      <b>中身は横書き側から複製されたまま向きだけ検算されなかった</b>。
+      ⚠️ <b>鏡像の対を作ったら、対の各項目を実装の座標系と 1 つずつ突き合わせる</b>——
+      見出しが違えば中身も直っている、とは限らない。</span><br>
+      <b>②4 枚目の非対称の解消（裁定）</b>　5 枚目にだけ〈縦書きにする〉があり 4 枚目に〈横書きにする〉が無かった。
+      <b>4 枚目へ〈横書きにする〉を足して対称化する</b>。
+      <span style="color:#4A4C47">見た目の対称のためではない——<b>向きの既定は縦書き</b>
+      （<code>INTRO_ORIENTATION_DEFAULT_VERTICAL=true</code>・組A 2 枚目の初期選択）なので、
+      <b>組B に着く人の多くは縦書きで読んでいる</b>。その人が最初に見る 4 枚目が
+      「次の話へ＝<b>左</b>へスワイプ」だけを言うと、<b>いま自分がしている操作の説明として読めてしまう</b>
+      （縦書きでは左＝戻る＝逆）。冒頭に〈横書きにする〉が入ると
+      <b>「これは横書きという別の状態の話だ」と 1 行目で分かる</b>＝2 枚とも
+      <b>端末の現在値に依らず読める</b>形になり、状態を持たない列（§8「カード列の持ちかた」）と噛み合う。<br>
+      <b>捨てた案</b>: <b>見出しを現在の向きで出し分ける</b>＝カード列に端末の状態が混ざり
+      （§4「選択肢」の項と <code>IntroChoice</code> の設計＝列は文言の正本で可変値を持たない、に反する）、
+      しかも直るのは見出しだけで<b>逆向きの項目は残る</b>。
+      <b>現状維持</b>＝上の誤読が残る。<br>
+      重複を避けるため「文字の大きさ・行間・余白も同じ場所です。」は<b>初出の 4 枚目にだけ</b>置き、
+      5 枚目は場所の指示だけにした（同じ文を 2 枚続けて出すと、2 枚目が読み飛ばされる）。</p>
+    <p class="note">
+      <b>⚠️ 2026-08-21 のフラグ裁定で本文の文言は 1 文字も変えていない</b>（確定済み）。
+      変わったのは<b>所属の呼び名（章→組）とボタン</b>だけ——ボタンは文章ではなく
+      <b>「その回の中で何枚目か」で決まる部品</b>なので、回の切りかたが変われば必然的に変わる。
+    </p>
+
+    <h2 style="font-size:14.5px;margin-top:26px;letter-spacing:.04em">改訂の記録 ─ 何を削り、何を残したか</h2>
+    <p class="body">
+      判定は 1 つだけ——<b>読者が既に知っていることか、このアプリ固有の割り当てか</b>。
+      前者なら削り、後者は<b>短くしても消さない</b>。
+    </p>
+    <p class="note" style="margin-bottom:8px">
+      ⚠️ <b>「枚」列は 2026-08-21 時点の並び</b>（5 枚構成）。2026-09-03 に 2 枚目へ向きの選択カードが入ったので、
+      <b>現行の並びとは 2 枚目以降が 1 つずれる</b>（旧2→新3・旧3→新4・旧4→新5・旧5→新6）。
+      表の番号を書き換えないのは、<b>この表が「そのとき何を削ったか」の記録</b>だから——
+      並びに追従させると、どの版の話をしているのかが読めなくなる。
+    </p>
+    <table class="mx">
+      <tr><th style="width:8%">枚</th><th style="width:36%">改訂前</th><th style="width:26%">改訂後</th><th>判定</th></tr>
+      <tr><td>1</td><td>お手元の PDF と…<b>読むためのアプリです</b>。／漢字にはふりがなが自動でつきます。<b>設定は要りません。</b></td>
+        <td>PDF と Web の連載小説…ひとつの本棚で<b>読めます</b>。／漢字のふりがなは自動でつきます。</td>
+        <td><b>削</b>「設定は要りません」＝<b>「自動」が既に含意している</b>ので重複。
+          「お手元の」「読むためのアプリです」は名乗りの水増し。<b>残</b>〈PDF と Web を 1 つの本棚で〉〈ふりがな自動〉＝どちらも固有。</td></tr>
+      <tr><td>2</td><td>なろうで読む　…ページをそのまま開きます。<b>アプリの操作は効きません。</b></td>
+        <td>なろうで読む　…そのまま表示。<b>アプリの操作・表示設定・ふりがな機能は効きません。</b></td>
+        <td><b>足した唯一の箇所</b>。2 通りの差のうち〈<b>アプリ側の機能がどれも届かない</b>〉が<b>最も推測できない</b>のに書かれていなかった。
+          <span style="color:#4A4C47">基準は「短くせよ」ではないので、固有の事実は足す。<br>
+          ⚠️ <b>2026-09-03 に是正</b>——2026-08-21 版の「<b>ふりがなは付かず</b>」は<b>事実誤認</b>だった。
+          なろうのページには<b>作者が付けたルビがそのまま出る</b>ので、付かないのではなく
+          <b>アプリのふりがな機能が及ばない</b>が正しい。主語をアプリ側へ寄せ、実装済みの
+          <code>NarouExternalPageNotice.BODY</code>（ADR 0042）と<b>1 字同一</b>の言い回しへ揃えた
+          ——同じ事実を 2 通りに言うと、片方を直したときにもう片方が黙って腐る。</span></td></tr>
+      <tr><td>3</td><td><b>読み進める　下へスクロールします。</b></td><td>（項目ごと削除）</td>
+        <td><b>削</b>　横書きで下へスクロールは<b>スマホを使う人が全員知っている</b>。割り当ての情報がゼロ。</td></tr>
+      <tr><td>3</td><td>本文のどこかを <b>1 回</b>タップ。もう一度<b>タップ</b>で消えます。</td>
+        <td>本文のどこでもタップ。もう一度で消えます。</td>
+        <td><b>削</b>「1 回」（タップが 1 回なのは既知）・2 度目の「タップ」（語の反復）。
+          <b>残</b>「どこでも」＝<b>実タップ領域が本文全面</b>という固有の事実（中央に限らない）。</td></tr>
+      <tr><td>3</td><td>見出し「本文を読む」</td><td>見出し「<b>横書きで</b>読む」</td>
+        <td>4 枚目と対にした。<b>同じ左スワイプが別の割り当て</b>であることを、文を足さず見出しだけで区切れる。</td></tr>
+      <tr><td>4</td><td><b>左へなぞります。指をはなすと、そこで止まります。</b></td>
+        <td><b>左へスワイプ</b>（横書きでは「次の話へ」）。</td>
+        <td>⚠️ <b>削りすぎの境界</b>。「指をはなすと止まる」＝既知なので削る。
+          <b>「左へ」は残す</b>——消すと〈縦書きでどう読み進めるか〉が伝わらなくなる。
+          <span style="color:#8A4B44">⚠️ この「左へ」自体が<b>誤り</b>だった（正しくは右へ）＝2026-09-07 に是正。
+          この表は「そのとき何を削ったか」の記録なので<b>当時の文言のまま残す</b>。現行の文言は上の全文リストが正本。</span>
+          括弧は文を増やさずに<b>割り当ての衝突（T3）</b>を置くためのもので、これがこの列で最も推測できない事実。</td></tr>
+      <tr><td>4</td><td>［本文の向き］ <b>から</b>。…も同じところ<b>です</b>。／最後まで読み<b>進めて</b>、さらに左へ<b>引きます</b>。［次章］ でも<b>進めます</b>。</td>
+        <td>［本文の向き］。…も同じ場所です。／最後まで進めて、さらに左へ。［次章］ でも。
+          <span style="color:#8A4B44">⚠️「さらに左へ」は 2026-09-07 に「さらに右へ」へ是正（同上・当時の文言のまま残す）。</span></td>
+        <td><b>文体</b>　1 項目に「〜ます」が 3 つ並ぶと手取り足取りに聞こえる。<b>割り当ては体言止め</b>にし、
+          ですますは結果を言う文だけに残した（丁寧さは落としていない）。</td></tr>
+      <tr><td>5</td><td><b>下の ［さがす］ から。</b>入力した言葉は、選んだ検索範囲の中だけを探します（いくつでも選べます）。</td>
+        <td>（項目名を「検索範囲」へ）言葉は選んだ範囲の中だけを探します。複数選べます。</td>
+        <td><b>削</b>「下の［さがす］から」＝<b>タブバーに見えている</b>（規則2）。
+          <b>残</b>〈選んだ範囲の中だけ〉〈複数選べる〉＝検索範囲という仕組みは画面を見ても推測できない。</td></tr>
+    </table>
+    <p class="note">
+      <b>前便から持ち越しの削り</b>　全画面型にあった「読めるもの・ふりがな・読みかた」の 3 項目立ては 1・2 枚目へ畳んだ。
+      「新着話の通知」は落とした（<b>設定に行があり副文で説明済み</b>＝規則2）。
+      「なろうで読む」の〈できないこと〉の列挙も 1 行に圧縮した。<br>
+      <b>削らなかったもの</b>　6 枚目（組C）の条件の列挙（ジャンル・更新時期・文字数・読了時間・除外語）は<b>残した</b>——
+      名詞の並びであって手順ではなく、<b>何ができるかを知らせること自体がこのカードの用</b>だから。
+      <b>語尾が反復していないなら、長さは問題ではない</b>。
+    </p>
+  </div>
+
+  <!-- ============================================================ §5 -->
+  <div class="sec">
+    <h2>§5　再訪の導線 ─「［設定］＞［操作の説明］ から」をどこで言うか</h2>
+    <p class="body">
+      設定に置いただけでは誰も辿り着かない。かといって却下された C-3 のように<b>常に見える入口を足すと、
+      分かった人には余分</b>になる。答えは<b>各章の最後のカードで 1 回ずつ言う</b>——
+      どちらもカードの内側なので、<b>新しい常設物はひとつも増えない</b>。
+    </p>
+    <table class="mx">
+      <tr><th style="width:20%">どこで</th><th style="width:36%">文言</th><th>なぜそこか</th></tr>
+      <tr>
+        <td><b>3 枚目（組A の最後）</b></td>
+        <td>読みかたの説明は、読みはじめてから ［設定］＞［操作の説明］ で。</td>
+        <td><b>章1 が読書操作を見せずに終わる以上、この 1 行が無いと「説明はこれで全部」に見える</b>。
+          <b>「読みはじめてから」を明記する</b>のが要点——先送りが親切だと分かるので、
+          読書操作を出さなかったことが手抜きでなく配慮として伝わる。</td>
+      </tr>
+      <tr>
+        <td><b>6 枚目（組C の最後）</b></td>
+        <td>この説明は ［設定］＞［操作の説明］ にあります。</td>
+        <td>章2 を読み終えた人＝<b>また困りうる人</b>。設定から来た人はここが終点なので、
+          <b>次も同じ場所で会える</b>ことを最後に置く。</td>
+      </tr>
+      <tr>
+        <td><b>7 枚目（組D ＝列の最後）</b><br><span style="color:#6A6C67">2026-09-04 追加</span></td>
+        <td>この説明は ［設定］＞［操作の説明］ にあります。</td>
+        <td>組C と<b>同じ 1 行</b>＝各組の最後で 1 回ずつ言う、という本節の規則をそのまま適用しただけ
+          （組D も 1 枚で終わる回なので、その 1 枚が組の最後）。<br>
+          <span style="color:#4A4C47">▶ <b>通しで読む人には この 1 行が 2 枚続けて出る</b>（6 枚目と 7 枚目）。
+          規則どおりの帰結で、<b>設定から来た人にとっては 7 枚目が本当の終点</b>なので最後にもう一度言う側を採る。
+          <b>組D 側を落とすと、取り込み画面から単独で出た人が再訪の在り処を 1 度も聞けなくなる</b>
+          ——組D は組C を経由せずに出る回なので、ここは重複ではなく<b>それぞれの回の終端</b>。</span></td>
+      </tr>
+    </table>
+    <p class="rule" style="border-left-color:#8A4B44">
+      <b>ピルへの相乗りは引き続き却下。</b>実装のピルは<b>押して閉じる UI ではない</b>——
+      タップを奪わない純表示で、連続 2.6 秒で自分から消える（<code>ImmersiveChromeHint.kt</code>）。
+      その 2.6 秒で読ませられるのは<b>1 文だけ</b>で、2 文目を足すと本題のほうが読まれなくなる。
+    </p>
+    <p class="note">
+      <b>取りこぼしの確認</b>: 扉を ［あとで］ で閉じ、その後 1 度も設定を開かない人は章2 に辿り着かない。
+      <b>これは正しい取りこぼし</b>——その人は説明を求めていない。困ったときに設定を縦に走査すれば、
+      見出し「<b>つかいかた</b>」で止まれる。
+    </p>
+  </div>
+
+  <!-- ============================================================ §6 -->
+  <div class="sec">
+    <h2>§6　本文初回のヒントと取っ手　<span class="tag r">ピルは実装済み＝この便では設計し直さない</span></h2>
+    <p class="body">
+      下の 2 枚は<b>実装の現在値をそのまま写した</b>もの。写した理由は 1 つ——ユーザーが目視裁定中なのは
+      <b>取っ手の濃さ</b>で、その判断は<b>周りに何が出ているか</b>に左右されるから。
+      ここだけは「作りたい絵」ではなく「実際の絵」を出す。
+    </p>
+    <p class="rule">
+      <b>層① と層② が同じ場所で連続する</b>　没入に入った通算初回、<b>連続 2.6 秒</b>のあいだピルが出て自分で消える。
+      そのあと<b>取っ手だけが残る</b>。教示は一度で終わり、常設されるのは文言を持たない手がかりだけ。<br>
+      <span style="color:#4A4C47">「見る前に消える」問題は<b>既に解決済み</b>＝〈クロームが退避したまま〉かつ〈前面〉が
+      <b>途切れず</b>続いた時間だけを数え、途切れたらタイマーごと 0 に戻す（<code>ImmersiveChromeHint.kt</code>）。</span>
+    </p>
+    <div class="stage">
+
+      <div class="wrap"><span class="mode">通算初回だけ ─ 実装どおりの丸ピル（下端 96dp・タップを奪わない）</span>
+        <div class="phone" role="img" aria-label="本文の初回ヒント ピルと取っ手">
+          <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+          <div class="reader">
+            <p><ruby>辺境<rt>へんきょう</rt></ruby>の<ruby>城門<rt>じょうもん</rt></ruby>に<ruby>辿<rt>たど</rt></ruby>り<ruby>着<rt>つ</rt></ruby>いたのは、<ruby>長<rt>なが</rt></ruby>い<ruby>雨<rt>あめ</rt></ruby>がようやく<ruby>上<rt>あ</rt></ruby>がった<ruby>頃<rt>ころ</rt></ruby>だった。<ruby>濡<rt>ぬ</rt></ruby>れた<ruby>石畳<rt>いしだたみ</rt></ruby>が<ruby>夕陽<rt>ゆうひ</rt></ruby>を<ruby>照<rt>て</rt></ruby>り<ruby>返<rt>かえ</rt></ruby>している。</p>
+            <p>「——ここまで、よく<ruby>付<rt>つ</rt></ruby>いてきてくれた」</p>
+            <div class="blank"></div><hr><div class="blank"></div>
+            <p><ruby>翌朝<rt>よくあさ</rt></ruby>、<ruby>鳥<rt>とり</rt></ruby>の<ruby>声<rt>こえ</rt></ruby>で<ruby>目<rt>め</rt></ruby>を<ruby>覚<rt>さ</rt></ruby>ますと、<ruby>窓辺<rt>まどべ</rt></ruby>には<ruby>昨夜<rt>ゆうべ</rt></ruby>の<ruby>雨<rt>あめ</rt></ruby>の<ruby>名残<rt>なごり</rt></ruby>が<ruby>雫<rt>しずく</rt></ruby>となって<ruby>光<rt>ひか</rt></ruby>っていた。</p>
+            <p><ruby>城門<rt>じょうもん</rt></ruby>の<ruby>兵<rt>へい</rt></ruby>は<ruby>誰<rt>だれ</rt></ruby>も<ruby>私<rt>わたし</rt></ruby>たちを<ruby>止<rt>と</rt></ruby>めなかった。<ruby>錆<rt>さ</rt></ruby>びた<ruby>蝶番<rt>ちょうつがい</rt></ruby>が、<ruby>風<rt>かぜ</rt></ruby>に<ruby>低<rt>ひく</rt></ruby>く<ruby>鳴<rt>な</rt></ruby>いている。</p>
+          </div>
+          <div class="pillhint">画面をタップでメニュー</div>
+          <div class="handle"></div>
+        </div>
+      </div>
+
+      <div class="wrap"><span class="mode">以後ずっとこの見え ─ 残るのは取っ手だけ（<b>濃さの裁定はこの 1 枚で</b>）</span>
+        <div class="phone" role="img" aria-label="没入中 取っ手だけ">
+          <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+          <div class="reader">
+            <p><ruby>辺境<rt>へんきょう</rt></ruby>の<ruby>城門<rt>じょうもん</rt></ruby>に<ruby>辿<rt>たど</rt></ruby>り<ruby>着<rt>つ</rt></ruby>いたのは、<ruby>長<rt>なが</rt></ruby>い<ruby>雨<rt>あめ</rt></ruby>がようやく<ruby>上<rt>あ</rt></ruby>がった<ruby>頃<rt>ころ</rt></ruby>だった。<ruby>濡<rt>ぬ</rt></ruby>れた<ruby>石畳<rt>いしだたみ</rt></ruby>が<ruby>夕陽<rt>ゆうひ</rt></ruby>を<ruby>照<rt>て</rt></ruby>り<ruby>返<rt>かえ</rt></ruby>している。</p>
+            <p>「——ここまで、よく<ruby>付<rt>つ</rt></ruby>いてきてくれた」</p>
+            <div class="blank"></div><hr><div class="blank"></div>
+            <p><ruby>翌朝<rt>よくあさ</rt></ruby>、<ruby>鳥<rt>とり</rt></ruby>の<ruby>声<rt>こえ</rt></ruby>で<ruby>目<rt>め</rt></ruby>を<ruby>覚<rt>さ</rt></ruby>ますと、<ruby>窓辺<rt>まどべ</rt></ruby>には<ruby>昨夜<rt>ゆうべ</rt></ruby>の<ruby>雨<rt>あめ</rt></ruby>の<ruby>名残<rt>なごり</rt></ruby>が<ruby>雫<rt>しずく</rt></ruby>となって<ruby>光<rt>ひか</rt></ruby>っていた。</p>
+            <p><ruby>城門<rt>じょうもん</rt></ruby>の<ruby>兵<rt>へい</rt></ruby>は<ruby>誰<rt>だれ</rt></ruby>も<ruby>私<rt>わたし</rt></ruby>たちを<ruby>止<rt>と</rt></ruby>めなかった。<ruby>錆<rt>さ</rt></ruby>びた<ruby>蝶番<rt>ちょうつがい</rt></ruby>が、<ruby>風<rt>かぜ</rt></ruby>に<ruby>低<rt>ひく</rt></ruby>く<ruby>鳴<rt>な</rt></ruby>いている。</p>
+          </div>
+          <div class="handle"></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ============================================================ §7 -->
+  <div class="sec">
+    <h2>§7　教示にせず UI 側で直すもの　<span class="tag g">裁定済み・実装は別便</span></h2>
+    <p class="body">
+      カード列を<b>不具合の説明で埋め合わせる逃げ道</b>にしないため、教示から分離した項目。
+      <b>説明に書けば直さなくてよい、にはしない</b>——枚数が増える最短の道がこれ。
+    </p>
+    <table class="mx">
+      <tr><th style="width:26%">食い違い</th><th style="width:34%">実装の現在値</th><th>裁定（2026-08-21）</th></tr>
+      <tr>
+        <td><b>入力欄が名乗る 3 つと、既定の検索範囲 1 つが噛み合っていない</b></td>
+        <td>placeholder は「作品名・作者・キーワード」（<code>DiscoverySearchScreen.kt:271</code>）。
+          一方 既定は <code>inTitle=true</code> のみで、キーワード・作者名・あらすじは <code>false</code>
+          （<code>domain/SearchDraft.kt:106-109</code>）。作者名を入れた初見の人には 0 件が返る。</td>
+        <td><b>文言が正しく、既定値が間違っていた</b>＝<b>既定を 4 つとも ON にする</b>。<br>
+          <span style="color:#4A4C47">この修正が入ると初見の検索で 0 件が返る事故が消える＝層① は要らない（§2）。
+          「検索範囲は1つ以上必要」の注記と揺れは 4 つ ON でも変わらず働く。</span></td>
+      </tr>
+    </table>
+    <p class="note">
+      T3（横書き／縦書きの横スワイプの食い違い）は<b>この便では触らない</b>という裁定に従い表から外した
+      ——それぞれ単独では直感的で、詰まるのは両面を行き来する人だけ。かつ T3 はまだ実測されていない仮説。
+      <b>章2 の 3・4 枚目が両方の挙動を隣り合わせで見せる</b>ので、行き来する人はそこで突き合わせられる。
+    </p>
+  </div>
+
+  <!-- ============================================================ §8 -->
+  <div class="sec">
+    <h2>§8　Compose 翻訳への申し送り　<span class="tag g">この節だけ見れば作れる状態にしてある</span></h2>
+
+    <p class="rule" style="border-left-color:#8A4B44">
+      <b>★過去版の申し送りから撤回済みの 3 点。古い版を見て着手しないこと。</b><br>
+      <b>撤回①</b>「フラグは『わかった を押した瞬間』に立てる」「<code>delay(2600)</code> の自動消灯を消す」→ <b>不要</b>。
+      没入ヒントの消費バグは <code>c772de3</code> で修正済みで、<code>awaitImmersiveHintSeen()</code> が
+      <b>〔collapsedFraction &gt; 0.9f〕AND〔Lifecycle ≥ RESUMED〕が連続 2600ms</b> のときだけ消費する
+      （途切れたら <code>transformLatest</code> のキャンセルでタイマーごと 0 に戻る）。<b>ピルは触らない</b>。<br>
+      <b>撤回②</b>「あとで見返す 1 行をピルへ相乗り」→ <b>ピルには足さない</b>（§5）。<br>
+      <b>撤回③</b>「全画面の説明画面（目次型・読み物型）」→ <b>作らない</b>（認知負荷で却下＝冒頭コメント）。
+      <b>NavHost に新しい画面を足さない</b>——カード列は<b>本棚／設定の上へ重ねるオーバーレイ</b>。
+    </p>
+
+    <p class="body"><b>作るもの ─ 2 つ</b>　①カード列のオーバーレイ（7 枚・4 組・1 コンポーネント）　②設定の「操作の説明」行。<br>
+      <b>触らないもの</b>　没入ヒントのピル（<code>ImmersiveChromeHint.kt</code> / <code>ChapterScreen.kt:389-406</code> /
+      <code>NativeReadingScreen.kt:1463-1487</code>）＝<b>既に正しい</b>。</p>
+    <p class="body"><b>作らないもの（明示）</b>　全画面の説明画面／止めカード（割り込んで進行を止める教示）／
+      表示設定シートへの入口（C-3 却下）／<b>なろうで読む・目次・装いの間</b>への<b>層① 教示</b>（§2）。</p>
+    <p class="rule" style="border-left-color:#8A4B44">
+      <b>★この行から 2 つ外した記録（消さずに残す）</b><br>
+      <b>①「検索」</b>——<b>2026-08-21 に §2 で「置く」へ覆っていたのに、この 1 行だけ旧判定のまま残っていた</b>
+      （組C は実装済み＝<code>IntroGroup.SEARCH</code>）。<b>同じファイルの中で §2 と §8 が反対のことを言っていた</b>ので、
+      §2 を正として外す。<span style="color:#4A4C47">⚠️ 機序＝<b>反転は「置く」側の表に書き足せば済むと思いがちだが、
+      「作らないもの」の側は書き足しでは直らず、消しに行かないと残る</b>。反転を記録するときは
+      <b>否定形で書かれた箇所を必ず grep する</b>（本ファイル内でも <b>3 箇所</b>に分かれていた）。<br>
+      ⚠️ <b>2026-09-07 追記</b>: ここは長く「2 箇所」と書いていたが<b>3 箇所目が生き残っていた</b>——
+      冒頭コメント「前便から引き継ぐ裁定（変えない）」の中に「検索の初出教示も不要」が併記されており、
+      <b>§2・§8 と反対のことを言う行が本文の外（コメント）に残っていた</b>。
+      grep の範囲を <code>&lt;body&gt;</code> だけに取ると、<b>設計の由来を書いたヘッダコメントが丸ごと死角になる</b>。</span><br>
+      <b>②「PDF取り込み」</b>——<b>2026-09-04 の実機所感と規則1b で反転</b>（§2 の「PDF取り込みを初めて開いたとき」の行が根拠の正本）。
+      旧判定は「目的を持って押して来る画面」だったが、<b>動機は〈この面で何を押すか〉を運ばない</b>。
+      組C（検索範囲チップ）を反転させたのと<b>同じ規則・同じ取りこぼし</b>。<br>
+      <span style="color:#4A4C47">▶ <b>組D の中身は 2026-09-04 に裁定＝層① のカード 1 枚</b>（案A）。
+      3 案（カード 1 枚／恒常の帯／初回だけの帯）を比べた一時ドラフトは、採用案を本ファイル
+      （§3 の入口表と組D の絵・§4 の 7 枚目・§8 のフラグ表）へ差し戻したうえで削除した。<br>
+      <b>落とした 2 案の理由を残す</b>: <b>常設の帯</b>＝層① の定義（割り込んでその場で言う・恒常表示しない）にも
+      層②（文言を持たない）にも入らず<b>3 層のどこにも席が無い</b>うえ、この画面は<b>作品ごとに毎回通る</b>ので
+      却下 C-3「恒常的に見え続けるものは、理解した後にコストへ変わる」が最も多く起きる。
+      <b>初回だけの帯</b>＝層① には入るが、<b>再訪の受け皿（<code>.later</code> 相当）を置く余白が無く</b>規則3・4 が立たない。
+      さらに<b>消す契機に新しい規則を 1 本増やす</b>（時間で消すと T4 の轍＝見た保証が無いのに焼く。
+      この面は読み込みが重く目を離しやすいので時間の推定が最も当てにならない）。</span>
+    </p>
+
+    <table class="mx">
+      <tr><th style="width:20%">項目</th><th>決めたこと</th></tr>
+
+      <tr><td><b>カード列の持ちかた</b><br><span style="color:#8A4B44">（実装を二重にしない要）</span></td>
+        <td>カードは<b>順序つきの不変リスト 1 本</b>（7 要素）。各要素は〈見出し・本文または項目・<b>2 択</b>・図版・属する章〉を持つ。
+          描画するコンポーネントは<b>1 つ</b>。<br>
+          ・<b>入口が渡すのは〈開始する組〉と〈通しで読むか〉の 2 値だけ</b>＝
+            <code>IntroGroup.ABOUT</code>（組A）／<code>IntroGroup.READING</code>（組B）／<code>IntroGroup.SEARCH</code>（組C）／
+            <code>IntroGroup.IMPORT</code>（組D）。
+            <b>入口が 5 つに増えても、2 つ目の画面も 2 つ目のリストも作らない</b>
+            <span style="color:#4A4C47">（2026-09-04 に組D を足したときも、増えたのは列の 1 要素と呼び出し側 1 箇所だけ＝この芯が効いた）</span>。<br>
+          ・<b>単独の回はその組で終わる</b>／<b>通し（設定から）は組をまたいで最後まで進む</b>
+            ＝終端かどうかは <code>通し ? 列の最後 : 組の最後</code> の 1 行で決まる。<br>
+          ・<b>現在地の点は「その回に出す枚数」ぶんだけ打つ</b>（組A＝<b>3 個</b>・組B＝2 個・<b>組C＝打たない</b>・<b>組D＝打たない</b>）。
+            通しでも同じ＝<b>組が変わるたびにリセット</b>（●○○ → ●○ → なし → なし）。
+            <span style="color:#8A4B44">⚠️ 列全体の 7 個は絶対に打たないこと——打った瞬間に「これだけ読む必要がある」が戻り、
+            却下した全画面型と同じ認知負荷になる（冒頭コメント）。1 枚だけの回に点を 1 個出すのも禁止
+            （壊れて見える／通しでは<b>点の不在がそのまま「これで終わり」の合図</b>になる）。</span><br>
+          ・<b>［← もどる］は列の前方へ 1 枚戻る</b>＝<b>ただのインデックス −1</b>。組をまたぐ特別扱いは要らない。
+            回の先頭カードでは ［← もどる］ の代わりに ［あとで］（閉じる）を出す。</td></tr>
+
+      <tr><td><b>向きの選択カード</b><br><span style="color:#8A4B44">（2026-09-03 追加＝案1）</span></td>
+        <td><b>触るファイルは 3 つ＋列の 1 つ。読書画面には 1 行も入れない。</b><br>
+          <b>①</b> <code>ui/intro/IntroFigure.kt</code>　enum へ <code>ORIENTATION</code> を足し、
+            §3 の 2/3 の <code>&lt;svg&gt;</code> を座標で写経する（実線 2 枚＝<code>rect(8,14,46,56,rx5)</code> と
+            <code>rect(66,14,46,56,rx5)</code>／左は横罫 <code>M16 28h30 / 38h30 / 48h22 / 58h30</code>・
+            右は縦罫 <code>M104 22v40 / M96 22v40 / M88 22v32 / M80 22v40</code>、どちらも <code>soft</code>）。
+            <span style="color:#8A4B44">⚠️ <code>TWO_WAYS</code> の使い回しは不可＝あちらは<b>破線</b>で
+            「アプリ／なろう」を分ける図で、ここは<b>どちらも実線＝どちらも選べる</b>が意味。</span><br>
+          <b>②</b> <code>ui/intro/IntroDeck.kt</code>　<code>IntroCard</code> へ
+            <code>val choice: IntroChoice? = null</code> を足し、2 枚目として上の文言のカードを差す。
+            <code>IntroChoice</code> が持つのは<b>2 択のラベルだけ</b>——現在値と onSelect は
+            <b>④ の Controller 側</b>にある。<span style="color:#4A4C47">⚠️ 当初は 3 つとも
+            <code>IntroChoice</code> へ入れる想定で書いていたが、<code>IntroDeck.cards</code> は
+            <code>object</code> 直下の不変リストで<b>アプリ通算 1 個しか存在しない</b>＝可変の状態を混ぜると
+            端末の設定値がカード定義に貼り付き、「列＝文言の正本」でなくなる（テストも並び順に依存して壊れる）。
+            実装時に分けた。</span><br>
+          <b>③</b> <code>ui/intro/IntroOverlay.kt</code>　<code>IntroCardBody</code> の段落の直後・
+            <code>.later</code> の直前に <code>card.choice</code> のチップ行を 1 つ。
+            <b>選択状態は <code>selectableGroup()</code> ＋ <code>Modifier.semantics { role = Role.RadioButton }</code></b>
+            で読み上げる（見えは <code>.ochip</code>／on は <code>primary</code> の実塗り・off は
+            <code>outlineVariant</code> の 1px 枠＝<b>色は必ずトークン経由</b>）。<br>
+          <b>④</b> <code>ui/intro/IntroController.kt</code>　現在値と確定を持つ。
+            <b>読み書きは既存キー <code>reading_vertical</code>（<code>PrefKeys.READING_VERTICAL</code>）1 本だけ＝新キーを足さない。</b><br>
+          <span style="color:#4A4C47">▶ <b>いつ書くか</b>: <b>チップを押した時</b>と<b>このカードから先へ進んだ時</b>の 2 つ。
+          <b>カードを描いた瞬間には書かない</b>——初期選択（縦書き）は<b>見えているだけ</b>で、
+          ［あとで］で降りた人の端末を勝手に書き換えないため。逆に ［つづける］ を押した人は
+          チップに触れていなくても<b>初期選択が確定する</b>（見えていたものが選ばれる＝画面と保存値が一致する）。<br>
+          ▶ <b>現在値の読み</b>: <code>prefs.getBoolean(READING_VERTICAL, <b>true</b>)</code> ではなく
+          <b>キーの有無で分ける</b>——不在なら初期選択＝縦書き、在るならその値。
+          <b>既定値そのもの（false＝横書き）は変えない</b>: 変えると
+          <b>まだ一度も向きを触っていない既存ユーザーの本文が次回起動で縦書きに変わる</b>（対照案の副作用）。
+          このカードは<b>新規の人にだけ</b>問うので、その副作用が無いことが採用理由の一部。</span></td></tr>
+
+      <tr><td><b>置きかた</b></td>
+        <td><b>NavHost には触れない</b>——呼び出し元の上へ重ねるオーバーレイ（<code>/new-screen</code> の「深い画面」チェックリスト不要）。
+          背景は組A＝本棚（空棚）／組B＝<b>読んでいる本文</b>／組C＝<b>検索画面</b>／設定から＝設定画面。<br>
+          ・<b>出すのは背景が描き切ってから</b>＝組B は <code>deferHeavyContent</code> が閉じてから
+            （push 遷移窓で本文がまだ骨のうちに載せると、<b>説明の対象が背後に無い</b>ままカードだけが浮く）。
+            組C も同様に検索画面が描かれてから。<span style="color:#4A4C47">ピルが
+            <code>barsVisualReady</code> / <code>deferHeavyContent</code> を前提にしているのと同じ考えかた。</span><br>
+          ・<b>VM 不要</b>（静的テキストのみ）。現在位置は<b>画面ローカルの remember</b>で持ち、<b>永続しない</b>
+            ——次に開いたときは常にその章の先頭から（＝途中再開の状態を持たない）。<br>
+          ・システム Back ＝ ［← もどる］と同じ。先頭カードでの Back は閉じる。<br>
+          ・route/Content の 2 層に割り、Content に Robolectric テストを付ける（<code>/new-screen</code> §4）。</td></tr>
+
+      <tr><td><b>フラグ ─ 4 系統</b><br><span style="color:#8A4B44">（2026-08-21 裁定／組D は 2026-09-04 追加）</span></td>
+        <td>すべて Boolean・<code>FILE_APP_PREFS</code>・書き込みは <code>apply()</code>。<b>4 本とも新規キー</b>。<br>
+          <table class="mx" style="margin:8px 0">
+            <tr><th style="width:16%">組</th><th style="width:26%">キー</th><th>出す条件</th></tr>
+            <tr><td><b>組A</b>（1〜3枚目）</td><td><code>intro_about_shown</code></td>
+              <td>未消費 <b>かつ 本棚が空</b>。<b>起動回数では判定しない</b>——初回起動は権限ダイアログや復元と
+                重なりやすく、そこへ重ねると<b>読まれずに閉じられて 1 回を焼く</b>（ピルで踏んだのと同じ穴）。</td></tr>
+            <tr><td><b>組B</b>（3・4枚目）</td><td><code>intro_reading_shown</code></td>
+              <td>未消費 <b>かつ 本文画面に着いた</b>（<code>deferHeavyContent</code> が閉じてから）。</td></tr>
+            <tr><td><b>組C</b>（6枚目）</td><td><code>intro_search_shown</code></td>
+              <td>未消費 <b>かつ 検索画面に着いた</b>（描画後）。</td></tr>
+            <tr><td><b>組D</b>（7枚目）</td><td><code>intro_import_shown</code></td>
+              <td>未消費 <b>かつ 取り込み画面が目次を初描画した</b>（<code>onPageCommitVisible</code> かつ目次 URL 一致）。<br>
+                <span style="color:#8A4B44">⚠️ ここだけ「背景が描き切ってから」を厳密には守れない
+                （WebView の自動送りの完了を Kotlin 側が知らない）＝§3 の入口表の但し書きが正本。</span></td></tr>
+          </table>
+          <span style="color:#4A4C47">※ <b>組D のキーはベンチのシード契約では neutral</b>＝
+          <code>LibrarySeedReceiver</code> は固定しない。組D を出す入口が取り込み画面 1 箇所しかなく、
+          ベンチはそこへ入らない（3 タブと読書画面しか歩かない・播く本は <code>ncode=null</code>）。
+          <b>取り込み画面や作品詳細を歩くベンチを足したら mustPin へ移すこと</b>
+          （<code>SeedContractPrefKeysTest</code> の当該コメントが根拠の正本）。</span>
+          <span style="color:#4A4C47">※ <b>向きの選択カード（2 枚目）は 4 本目のフラグを持たない</b>——
+          書くのは既存の <code>reading_vertical</code> だけで、「もう訊いたか」は
+          <code>intro_about_shown</code> が既に表している。フラグを増やすと
+          〈訊いた〉と〈選んだ〉が別々に腐り、どちらが正しいか誰にも分からなくなる。</span>
+          <span style="color:#4A4C47">※ 前版の <code>intro_door_shown</code> は <code>intro_about_shown</code> へ改名した。
+          「扉」は見た目の呼び名で、他の 2 本（画面名）と体系が揃わないため。未実装なので改名は無コスト。</span><br>
+          <b>消費のタイミング ─ 3 本とも同じ 1 つの規則</b>:
+          <b>その組の最後のカードまで到達したうえで、閉じた／次の組へ進んだ時点</b>で立てる。<br>
+          ・単独の回＝終端ボタン（［はじめる］／［とじる］）を押した時点。スクリム外タップ・システム Back でも同じ。<br>
+          ・<b>途中で閉じたら消費しない</b>（組B の 3 枚目で閉じたら未消費のまま）＝次の機会にまた出る。
+            <b>なぜ「閉じたとき」でよいか</b>: カードは<b>ユーザーの操作を待つ</b>ので、
+            閉じられた＝確実に見られた、が成立する。ピルのように<b>時間で「見たか」を推定する必要が無い</b>。<br>
+          ・<b>設定から開くときはフラグを見ない</b>（何度でも読める）。ただし<b>通しで読み進めた組はその場で消費する</b>
+            ＝設定で全部読んだ人に、あとから同じ説明が自動で割り込むことはない。</td></tr>
+
+
+      <tr><td><b>★ピルと二重に出さない</b><br><span style="color:#8A4B44">（ここが今回いちばん壊しやすい）</span></td>
+        <td><b>問題</b>: 組B の 3 枚目は「メニューを出す　本文のどこでもタップ。もう一度で消えます。」で、
+          <b>ピルの「画面をタップでメニュー」と同じことを言っている</b>。しかも<b>出る瞬間まで同じ</b>——
+          組B は本文初回、ピルは<b>入場時の自動初期退避</b>（<code>didInitialCollapse</code>）で
+          <code>collapsedFraction</code> が動いた先で発火するので、<b>本文を初めて開いた 1 回で両方成立する</b>。<br>
+          <b>対処 ─ カード側でピルを黙らせる（<code>ImmersiveChromeHint.kt</code> は 1 行も変えない）</b>:<br>
+          ・<b>組B を表示した瞬間</b>に <code>IMMERSIVE_HINT_SHOWN</code> を true にする。
+            <b>あわせて <code>ChapterScreen</code> の <code>chromeHintConsumed</code> state も true にする</b>
+            ——<span style="color:#8A4B44">⚠️ prefs へ書くだけでは足りない。あの state は
+            <code>remember { mutableStateOf(prefs.getBoolean(…)) }</code> で<b>入場時に 1 度読むだけ</b>なので、
+            同一セッションでは false のまま効果が走り続け、<b>カードを閉じた直後にピルが出てくる</b>。</span><br>
+          ・触るのは <code>ChapterScreen</code> の<b>結線だけ</b>（既存の <code>consumed</code> 引数へ渡す値）。
+            <b>別便が直した判定ロジック（<code>awaitImmersiveHintSeen</code>）には手を入れない</b>。<br>
+          <b>なぜ「表示した瞬間」なのに T4 の轍を踏まないか</b>　T4 の害は「見た保証が無いのに焼いて
+          <b>教育の機会を失う</b>」ことだった。ここで焼くのは<b>ピルの機会だけ</b>で、
+          <b>教育の役目はカードが引き受けている</b>（しかもカードは閉じるまで消えない）。失われる機会がゼロなので、
+          早く倒して問題ない。<b>組B 自身の消費（<code>intro_reading_shown</code>）は従来どおり「閉じたとき」</b>
+          ——<b>目的が違う 2 つを同じ瞬間に縛らない</b>。<br>
+          <span style="color:#8A4B44">⚠️ <b>結果としてピルは、新規の人にはほぼ出なくなる</b>（組B が同じ役目をより厚く果たすため）。
+          それでも<b>実装は残す</b>: ①組B を消費済みで本文へ来る経路が将来増えたときの受け皿、
+          ②直したばかりのコードを消さない（撤去は「参照する側」まで含めて 1 セットの作業＝別便で判断する）。</span></td></tr>
+
+      <tr><td><b>旧フラグの扱い</b></td>
+        <td><code>PrefKeys.IMMERSIVE_HINT_SHOWN</code>（<code>"immersive_hint_shown"</code>）は<b>そのまま使い続ける</b>
+          （キー名を変えない）。新キーへ捨てる案は撤回済み——<b>焼き方は c772de3 で既に直っており</b>、
+          キーを変えて救えるのは修正前に焼かれた人だけ。本番リリース前＝<b>既存ユーザーがゼロ</b>なので救う対象が存在しない。<br>
+          ただし<b>意味は増えた</b>＝「ピルを出し切った」に加えて「<b>組B がピルの役目を肩代わりした</b>」でも立つ（上記）。</td></tr>
+
+      <tr><td><b>取っ手の実測値</b><br><span style="color:#8A4B44">（裁定中・動かさない）</span></td>
+        <td>位置 <code>BottomCenter</code>／下端から <b>16dp</b>／幅 <b>46dp</b>／高さ <b>3dp</b>／角丸 <b>2dp</b>／<b>不透明度 0.30</b>。
+          色は<b>藍アクセントをトークン経由で</b>（直書き禁止＝<code>/visual-language</code>）。<br>
+          ・<b>没入中（クローム退避中）だけ</b>出す。クローム表示中は下端バーがあるので出さない。<br>
+          ・<b>タップを奪わない純表示</b>。装飾なので TalkBack へ新しいフォーカス可能ノードを足さない。
+            <span style="color:#8A4B44">⚠️ 実際の操作は本文全面のタップ＝a11y の到達性は既存経路に依存する。実装時に要確認。</span><br>
+          ・現行ピルの <code>Insets.ChromeHintBottom</code>（<b>96.dp</b>）とは<b>別値</b>＝取っ手用に 16dp を新しく置く
+            （80dp 離れるので重ならない）。</td></tr>
+
+      <tr><td><b>めくりの遷移と寸法</b><br><span style="color:#8A4B44">（2026-09-07 実機所見の是正）</span></td>
+        <td><b>遷移＝横スライド（shared axis X）。</b>進むとき新しい面は<b>右から</b>入り古い面は<b>左へ</b>抜ける・
+          ［← もどる］ は鏡像。移動量は <b>32dp</b>（<code>Spacing.S32</code>）＝<b>カード幅ぶんの押し出しにはしない</b>。
+          尺は<b>全体 250ms</b>・フェードは<b>先に退場（100ms）→ 遅れて入場（150ms）</b>のフェードスルー。
+          値は motion トークンへ置く（直書き禁止＝<code>/visual-language</code>）。<br>
+          <b>動かす範囲は本文域（<code>.obody</code>）だけ</b>——点とボタンは下端に固定。
+          <span style="color:#4A4C47">主ボタンごと滑らせると①押した指の下でボタンが横へ逃げる
+          ②遷移中は<b>去りゆくカードのボタンも生きている</b>ので連打で 2 枚飛ぶ、の 2 つを自分で作る。</span><br>
+          <b>寸法＝その回で最も高い 1 枚に揃える</b>（列 7 枚ではなく<b>その回</b>）。実装は
+          <b>実行時に測る</b>（<code>SubcomposeLayout</code> で回の全カードを測り最大を採る）。
+          <span style="color:#8A4B44">⚠️ dp の定数にしないこと——最大は fontScale・端末幅・文言の改稿で動く。
+          定数にした瞬間に、次に文言を 1 行足した人が黙って溢れさせる。</span><br>
+          <b>スワイプでの送りは足さない</b>。<span style="color:#4A4C47">この画面の用は
+          〈このアプリ固有の割り当てを教えること〉で、<b>教示自身が説明の要る隠れた割り当てを増やす</b>のは
+          自己矛盾（§1 の基準そのもの）。［つぎへ］／［← もどる］ は見えていて、点が残りを語っている。</span></td></tr>
+
+      <tr><td><b>設定の「操作の説明」</b></td>
+        <td>新規グループ見出し「<b>つかいかた</b>」を立てる（「このアプリ」へ混ぜない＝縦に走査した人が見出しで止まれる）。
+          ラベル「<b>操作の説明</b>」／副文「<b>読書画面・検索・PDF取り込みの使いかたを見返せます</b>」。<br>
+          <span style="color:#8A4B44">⚠️ <b>2026-09-07 是正</b>: 旧副文「読書画面と検索の使いかたを見返せます」は<b>2 領域しか数えていなかった</b>
+          （2026-09-04 に組D を足して<b>通しは 7 枚・4 領域</b>になっている）。<b>副文は組の数だけ列挙する</b>——
+          通しで開く導線なので、何が読めるかを列挙しないと「もう知っている話だけ」と読まれて押されない。
+          <b>組を増やしたらこの副文も足す</b>（列挙をやめて総称にすると、増えたことに誰も気づけない）。</span><br>
+          押すと<b>組A から列の最後まで通しで開く</b>（画面遷移ではなくオーバーレイ）。<br>
+          <span style="color:#8A4B44">⚠️ <b>2026-08-25 訂正</b>: ここは「章2 からカード列を開く」と書かれていたが、
+          <b>章立て（章1／章2）で仕分けていた前版の残り</b>で、3 系統へ分けた §3 の入口表
+          （設定 ＞ 操作の説明 ＝ <b>組A から通し・1〜7 枚目</b>）と食い違っていた。§3 が正。
+          Compose 翻訳時にこの 1 行だけを見て実装すると、設定から開いても組A が読めない別物になる。</span></td></tr>
+
+      <tr><td><b>a11y</b></td>
+        <td>・カードは<b>ダイアログとして読み上げる</b>（オーバーレイ配下をフォーカスから外す）。<br>
+          ・現在地の点は装飾＝<b>点そのものは読み上げない</b>。代わりにカードへ
+            「<b>2 枚中 1 枚目</b>」相当の状態を持たせる（<b>章内の枚数</b>で数える＝画面の点と一致させる）。</td></tr>
+
+      <tr><td><b>意匠ゲート</b></td>
+        <td>見た目・余白を変えるので <code>recordRoborazziDebug</code> の golden 再記録を<b>同じコミットに同梱</b>し、
+          <code>python3 tools/check_design_tokens.py</code> を通すこと（既定ゲート非同乗＝忘れると腐ったまま潜伏する）。</td></tr>
+
+      <tr><td><b>翻訳で変わった色<br><span style="font-weight:400;color:#6A6C67">（2026-08-25 逆同期）</span></b></td>
+        <td>本モックの CSS は<b>実装の決定に合わせて書き換え済み</b>。次の翻訳者は旧い生値へ戻さないこと。<br>
+          ・<b>本文・項目の文字</b> <code>#4A4C47</code> → <code>var(--info) #5C606D</code>。
+            旧値は<b>この解説文書の地の文で使っていた生値</b>で、K のトークンに対応が無かった。
+            Compose 側は役割トークン <code>InfoText</code>（意味を運ぶ補助テキスト）へ載せた
+            ——<b>トークン層の直書きは禁止</b>（<code>/visual-language</code>）だから。<br>
+          ・<b>項目名 <code>dt</code></b> <code>--ink-soft #7C808B</code> → <code>var(--info)</code>。
+            ink-soft は素地上 <b>3.79:1</b> で、<b>ADR 0014-D「意味を運ぶ文字は WCAG 4.5:1 ＞ 美学」</b>に反する。
+            dt は〈何がどこに割り当たっているか〉を運ぶ文字なので装飾スロットには置けない。<br>
+            ⚠️ 代償＝<b>dt と dd が同色になり、モックが持っていた濃淡の階層が消える</b>。
+            階層は<b>寸法（11.5px / 13.5px）と字間</b>だけで作る、が現在の姿。
+            濃淡を戻したいなら「dd をもう一段濃くする」方向で、ink-soft へ戻す方向ではない。<br>
+          ・<b>消し点</b> <code>#D6D4CD</code> → <code>var(--dot-off) #D0D2D4</code>
+            ＝<code>colorScheme.outline #9CA0A8</code> を素地の上に α.45 で置いた実効値。明度はほぼ同じで、
+            生値を直書きしないための置き換え。<br>
+          ・<b>［あとで］［もどる］の文字</b>も同じ理由で <code>--info</code>（ボタン語も意味を運ぶ文字）。</td></tr>
+    </table>
+  </div>
+
+  <!-- ============================================================ 裁定 -->
+  <div class="sec">
+    <h2>裁定してほしい点</h2>
+    <p class="rule">
+      1. <b>ピルを組B が肩代わりする</b>のでよいか ─ 同じことを言うので二重には出せず、
+         カード側で黙らせる設計にした（§8）。<b>結果としてピルは新規の人にはほぼ出なくなる</b>が、実装は残す。<br>
+      2. <span style="color:#50685C"><b>決着済み（2026-08-21）</b></span>　割り込みの間引きは<b>入れない</b>＝
+         <b>条件が満たされた組はその場で出す</b>。組A と組C が数秒で連続してもよい
+         ——<b>実感と説明が同時に来ること</b>を優先する。<br>
+      3. <b>組C に点を打たない</b>のでよいか ─ 1 枚だけの回に点 1 個は壊れて見える。
+         通しで読むと最後の 1 枚だけ点が消えるので、<b>点の不在が「これで終わり」の合図</b>になる（§3）。<br>
+      4. <b>2 枚目の「読みはじめてから ［設定］＞［操作の説明］ で。」</b>は文言確定のため触っていないが、
+         組B が<b>自動で出る</b>ようになったので「設定へ行かないと読めない」とも読める。
+         <span style="color:#4A4C47">嘘ではない（設定にあるのは事実）ので据え置いたが、
+         直すなら文言裁定をやり直す必要がある＝報告のみ。</span><br>
+      5. <b>取っ手の濃さ</b> ─ 不透明度 .30 / 幅 46 / 高さ 3（§6 の 2 枚目が「ずっとこの見え」）。
+    </p>
+  </div>
+
+</div>
+</body>
+</html>

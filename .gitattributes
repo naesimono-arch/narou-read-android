@@ -1,0 +1,13 @@
+# 抽出 HTML の golden は「バイト単位」で照合されるため、チェックアウト時の改行変換を禁じる。
+#
+# なぜ: HtmlExporterGoldenTest.goldenHtmlByteEqual は、抽出器の生成物（常に LF）と golden ファイルを
+# byte 一致で比べる。ところが Git for Windows は**システムスコープ**
+# （C:/Program Files/Git/etc/gitconfig）に core.autocrlf=true を持つため、golden だけ CRLF へ変換されて
+# checkout される（index は LF のまま＝`git ls-files --eol` が i/lf w/crlf を示す）。
+# 結果、Linux の CI は緑なのに Windows のローカルだけ赤くなり、しかも `git status` は
+# 「autocrlf 的には正常」なので差分を出さない＝原因が見えない形で赤が居座る（2026-08-17 に実際に踏んだ）。
+#
+# -text にすると git は改行を一切変換しなくなり、index の LF がそのまま作業ツリーへ出る。
+# ⚠️ 既存のチェックアウト済みファイルは自動では直らないので、この行を足した便で
+# `git checkout -- android/app/src/test/resources/golden_html/` を1度回して作業ツリーを LF へ揃えている。
+android/app/src/test/resources/golden_html/** -text

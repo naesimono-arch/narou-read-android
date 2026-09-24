@@ -66,7 +66,7 @@ class SkinCTest {
         }
     }
 
-    // ---- (c) 意味文字コントラスト回帰（text/infoText/unreadLabel/ruby × 地色）----
+    // ---- (c) 意味文字コントラスト回帰（text/infoText/semanticMicroText/ruby × 地色）----
 
     private fun assertMeaningPairsAA(skinName: String, tokens: SkinTokens) {
         for (theme in tokens.supportedThemes) {
@@ -77,7 +77,7 @@ class SkinCTest {
                 "text" to r.text,
                 "infoText" to r.infoText,
                 "ruby" to r.ruby,
-                "unreadLabel" to shelf.unreadLabel,
+                "semanticMicroText" to shelf.semanticMicroText,
             )
             for ((label, fg) in pairs) {
                 val ratio = contrastRatio(fg, bg)

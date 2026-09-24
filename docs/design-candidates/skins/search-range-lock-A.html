@@ -1,0 +1,275 @@
+<!-- @dsCard group="UI-n / 発見（さがす）" name="検索範囲チップ 候補A（押せるが外れない＋その場で理由）" -->
+<!--
+  【一時ドラフト・複数案比較用＝裁定後削除】（visual-language の型。正本 skins/discovery-K.html は無変更）
+  ユーザー報告 2026-08-07:「検索範囲は最低1つ以上選択する必要があるが、その抑止方法がボタンを薄くすること。
+  薄くするのは直感的に『選択から外れる』と読める」。search-range-lock-A〜D.html はこの制約表現だけを差し替えた
+  比較用モックで、共通部分はバイト単位で同一・案の差分は末尾の「候補X 差分」CSS ブロックと
+  その直後の候補スクリプト（CAND オブジェクト）だけに閉じている（4ファイルを diff すればそこだけが出る）。
+
+  【現況＝左フレーム（4案とも同一・比較の基準）】DiscoverySearchScreen.kt:303-349 が最後の1つを
+  selected+enabled=false にし、FilterChipItem(:819-860) が disabledSelectedBorderColor=primary@38% /
+  disabledLabelColor=onSurfaceVariant@38% を当てる。ここで**ラベル色は「淡い藍」でなく「淡い灰」へ落ちる**
+  ＝選択中を示す唯一の手掛かり（藍）がラベルから消え、淡い枠だけが残る。報告の「選択から外れると読める」は
+  意匠の必然であって誤読ではない（枠 alpha 38% も未選択チップの --line 枠と近い明度に着地する）。
+
+  【操作】どちらのフレームも「タイトルだけが選ばれた＝最後の1つ」の状態で始まる。右（候補）のチップを押す。
+  左（現況）は静止＝押しても何も起きない見え方そのものを比較対象として置いている。
+
+  【共通の前提（4案の判断に効く）】なろうAPI仕様では範囲4項目すべて未指定＝全項目が対象
+  （NovelApiRepository.kt:320-327 のコメントと実装）。つまり 0 個選択は API 的に成立し、
+  禁じているのは UI 側の判断（ADR 0007 原則2「検索の仕組みを隠さない」＝暗黙の全域検索の再発防止）。
+
+  ---- 候補A: 押せるが外れない＋その場で理由 ----
+  狙い: 「押せなさ」で制約を示すのをやめ、「押せる・応える・でも外れない」に置き換える。淡くしないので
+    選択の見た目（藍の枠＋藍のラベル）は完全に保たれ、「外れた」と読める余地が原理的に無くなる。
+  どう見えるか: 最後の1つも他と同じ選択済みチップのまま。押すと注記「検索範囲は1つ以上必要です」が
+    その場に出て、ごく短い横揺れ（±3px・約220ms・色の点滅はしない）で「入力は届いた」ことだけを返す。
+    2つ以上選んでいる間は注記が消え、押下も普通に外れる。
+  実装コストと副作用の見立て: 中。enabled=true へ戻し（:318-337 の4行）、押下が同値を返した場合だけ
+    アニメを走らせる分岐を画面側に持つ（domain の withRangeToggled は「最後の1つなら自身を返す」ため、
+    呼び出し側で count==1 && 対象がON を見て判定する＝ロジック変更なし）。横揺れは theme/Motion.kt に
+    スロットを1つ足して Animatable で当てる。golden は静止画＝注記が既に出ている状態なので影響は小さいが、
+    「淡い→濃い」の色差が消えるため再記録は必要。副作用: disabled が外れると TalkBack が「無効」と
+    読まなくなるので stateDescription で「外せません」を補う必要がある（a11y の後退を作らないこと）。
+-->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>検索範囲チップ 候補A — 押せるが外れない</title>
+<style>
+  /* トークンは正本 skins/discovery-K.html の :root をそのまま引き継ぐ（新しい色は1つも足していない）。 */
+  :root{
+    --base:#FBFAF8;      /* 和紙地（D踏襲） */
+    --ink:#1C1F26;       /* 主文字（D踏襲） */
+    --ink-soft:#7C808B;  /* 装飾補助（OnSurfaceVariantLight 実値。チップ未選択ラベル・セクション見出し） */
+    --info:#5C606D;      /* 意味メタ（InfoTextLight 実値。注記＝意味を運ぶ文字・入力プレースホルダ） */
+    --line:#ECEAE4;      /* ヘアライン（OutlineVariantLight 実値。チップ未選択枠） */
+    --ai:#1C3D5A;        /* 藍アクセント（PrimaryLight 実値。チップ選択枠・ラベル） */
+    --ai-pill:rgba(28,61,90,.10); /* 藍10%＝現在地バッジ地 */
+    --field:#F1F0EC;     /* 沈めた面（SurfaceVariantLight 実値） */
+    --mincho:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
+    --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#E4E3DD;display:flex;flex-direction:column;align-items:center;min-height:100vh;padding:26px;font-family:var(--gothic)}
+  .cap{color:var(--info);font-size:13px;margin-bottom:18px;text-align:center;line-height:1.75;max-width:900px}
+  .cap b{color:var(--ink)}
+  .stage{display:flex;gap:30px;flex-wrap:wrap;justify-content:center}
+  .wrap{display:flex;flex-direction:column;align-items:center;gap:9px}
+  .wrap .mode{font-size:12px;letter-spacing:.14em;color:var(--info)}
+  .phone{width:412px;height:915px;background:var(--base);border-radius:38px;overflow:hidden;position:relative;
+    box-shadow:0 24px 60px rgba(0,0,0,.26);display:flex;flex-direction:column}
+
+  .sb{height:44px;display:flex;align-items:center;justify-content:space-between;padding:0 26px;font-size:12px;color:var(--ink-soft);flex-shrink:0}
+
+  /* トップバー（実装 TopAppBar: 戻る＋明朝24sp・字間2sp の「探す」） */
+  .bar{flex-shrink:0;display:flex;align-items:center;gap:14px;padding:2px 16px 6px}
+  .bar svg{width:21px;height:21px;stroke:var(--ink);fill:none;stroke-width:1.6;flex-shrink:0}
+  .bar h1{font-family:var(--mincho);font-size:24px;font-weight:500;color:var(--ink);letter-spacing:.08em}
+
+  /* 検索欄（実装 BasicTextField: 枠を持たずヘアライン下線のみの静かな入力欄） */
+  .sfield{flex-shrink:0;padding:8px 24px 0}
+  .sfield .row{display:flex;align-items:center;gap:8px;padding-bottom:8px}
+  .sfield input{flex:1;min-width:0;border:none;background:transparent;font-family:var(--gothic);font-size:15px;color:var(--ink);outline:none}
+  .sfield svg{width:20px;height:20px;stroke:var(--ink-soft);fill:none;stroke-width:1.7;flex-shrink:0}
+  .sfield .hr{height:1px;background:var(--line)}
+
+  .scroll{flex:1;overflow:auto;padding:0 24px 24px}
+
+  /* セクション見出し（実装 FontMicroLabel 10.5sp・字間3sp・SemiBold・onSurfaceVariant） */
+  .sec-row{display:flex;align-items:center;gap:10px;margin:24px 0 12px}
+  .sec{font-size:10.5px;letter-spacing:.28em;color:var(--ink-soft);font-weight:600}
+
+  /* 検索範囲チップ（実装 FilterChipItem: 角丸2dp・地は素地のまま・枠とラベル色だけで状態を示す） */
+  .range-chips{display:flex;flex-wrap:wrap;gap:8px}
+  .rchip{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;color:var(--ink-soft);background:var(--base);
+    border:1px solid var(--line);border-radius:2px;padding:8px 12px;cursor:pointer;user-select:none}
+  .rchip.on{color:var(--ai);border-color:var(--ai)}
+  /* 現況フレーム専用: 実装の disabled 色をそのまま写す（枠=primary@38%・ラベル=onSurfaceVariant@38%）。
+     ラベルが藍でなく灰へ落ちるのが「選択から外れたと読める」の実体なので、ここは正確に再現する。 */
+  .rchip.dis{cursor:default;color:color-mix(in srgb, var(--ink-soft) 38%, transparent);
+    border-color:color-mix(in srgb, var(--line) 50%, transparent)}
+  .rchip.on.dis{border-color:color-mix(in srgb, var(--ai) 38%, transparent)}
+
+  /* 注記（実装は infoText＝意味を運ぶ文字。alpha で沈めない＝ADR 0014-D） */
+  .note{display:none;font-size:10.5px;color:var(--info);margin-top:8px;line-height:1.6}
+  .note.show{display:block}
+
+  /* 候補ごとの受け皿。既定は不可視で、使う案だけが末尾の差分ブロックで有効化する
+     （こうすると本文マークアップを4案で完全に共有でき、diff が機構だけに絞れる）。 */
+  .lock{display:none;align-items:center;justify-content:center;width:11px;height:11px}
+  .lock svg{width:11px;height:11px;stroke:currentColor;fill:none;stroke-width:2}
+  .allbadge{display:none;font-size:10px;letter-spacing:.06em;color:var(--ai);background:var(--ai-pill);border-radius:2px;padding:3px 7px}
+
+  /* 条件を調整（実装 DiscoverySearchScreen の枠線ボタン。有効条件0件＝--line 枠＋--ink-soft 字） */
+  .cond-btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;margin-top:16px;
+    border:1px solid var(--line);border-radius:2px;padding:12px;color:var(--ink-soft);font-size:12.5px;cursor:pointer}
+  .cond-btn svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.6}
+
+  /* 以下は画面の文脈を戻すためのプレースホルダ（裁定対象外・実データの語を模す） */
+  .pchip{display:inline-flex;align-items:center;gap:8px;font-size:12px;color:var(--ink);border:1px solid var(--line);
+    border-radius:2px;padding:8px 12px;cursor:pointer}
+  .chips-wrap{display:flex;flex-wrap:wrap;gap:8px}
+  .kw-cat{border-bottom:1px solid var(--line);padding:16px 0 12px;cursor:pointer}
+  .kw-cat-head{display:flex;align-items:baseline;justify-content:space-between}
+  .kw-cat-title{font-size:13px;font-weight:600;color:var(--ink)}
+  .kw-cat-caret{font-size:12px;color:var(--ink-soft)}
+  .kw-cat-preview{font-size:11px;color:var(--ink-soft);margin-top:4px}
+  /* ===== 候補A 差分（この案の機構はここだけ） ===== */
+  /* 最後の1つも見た目は選択中のまま＝淡くしない。よって .last には何も足さない（規則を明示のため空で置く）。 */
+  .rchip.last{ }
+  /* 押下の応答は注記の出現＋横揺れ。色を点滅させないのは「意味の無い色変化」を作らないため（ADR 0014 トークン層）。 */
+  @keyframes nudge{0%{transform:translateX(0)}25%{transform:translateX(-3px)}55%{transform:translateX(3px)}80%{transform:translateX(-2px)}100%{transform:translateX(0)}}
+  .note.nudge{animation:nudge .22s ease-in-out}
+</style>
+</head>
+<body>
+  <p class="cap"><b>「さがす」検索範囲チップ — 制約表現の候補</b><br>
+  左＝<b>現況</b>（最後の1つを disabled にしてラベルと枠を淡くする）。右＝<b>候補</b>（案名は下の見出し）。<br>
+  どちらも「タイトルだけが選ばれた＝最後の1つ」の状態で始まる。<b>右のチップを押して</b>挙動を見比べる。</p>
+  <div class="stage">
+
+    <!-- フレーム1: 現況（4案とも同一・静止） -->
+    <div class="wrap"><span class="mode">現況（いまの実装）</span>
+    <div class="phone" role="img" aria-label="現況の検索範囲チップ">
+      <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+      <div class="bar">
+        <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
+        <h1>探す</h1>
+      </div>
+      <div class="sfield">
+        <div class="row">
+          <input type="text" value="スローライフ" readonly>
+          <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg>
+        </div>
+        <div class="hr"></div>
+      </div>
+      <div class="scroll">
+        <div class="sec-row"><span class="sec">検索範囲</span><span class="allbadge">すべて</span></div>
+        <div class="range-chips">
+          <span class="rchip on dis">タイトル</span>
+          <span class="rchip dis">キーワード</span>
+          <span class="rchip dis">作者名</span>
+          <span class="rchip dis">あらすじ</span>
+        </div>
+        <div class="note show">検索範囲は1つ以上必要です</div>
+        <div class="cond-btn">
+          <svg viewBox="0 0 24 24"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/><circle cx="9" cy="7" r="2" fill="var(--base)"/><circle cx="15" cy="12" r="2" fill="var(--base)"/><circle cx="9" cy="17" r="2" fill="var(--base)"/></svg>
+          条件を調整
+        </div>
+        <div class="sec-row"><span class="sec">ピン留め</span></div>
+        <div class="chips-wrap">
+          <span class="pchip">薬草園</span><span class="pchip">スローライフ</span>
+        </div>
+        <div class="sec-row"><span class="sec">キーワードから選ぶ</span></div>
+        <div class="kw-cat"><div class="kw-cat-head"><span class="kw-cat-title">作品傾向</span><span class="kw-cat-caret">⌄</span></div>
+          <div class="kw-cat-preview">ギャグ・シリアス・ほのぼの…</div></div>
+        <div class="kw-cat"><div class="kw-cat-head"><span class="kw-cat-title">登場キャラクター</span><span class="kw-cat-caret">⌄</span></div>
+          <div class="kw-cat-preview">男主人公・女主人公・人外…</div></div>
+        <div class="kw-cat"><div class="kw-cat-head"><span class="kw-cat-title">舞台</span><span class="kw-cat-caret">⌄</span></div>
+          <div class="kw-cat-preview">和風・西洋・中華…</div></div>
+      </div>
+    </div></div>
+
+    <!-- フレーム2: 候補（マークアップは4案で完全共有・差分はCSSとCANDだけ） -->
+    <div class="wrap"><span class="mode" id="candmode"></span>
+    <div class="phone">
+      <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+      <div class="bar">
+        <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
+        <h1>探す</h1>
+      </div>
+      <div class="sfield">
+        <div class="row">
+          <input type="text" value="スローライフ" readonly>
+          <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg>
+        </div>
+        <div class="hr"></div>
+      </div>
+      <div class="scroll">
+        <div class="sec-row"><span class="sec">検索範囲</span><span class="allbadge" id="allbadge">すべて</span></div>
+        <div class="range-chips" id="chips">
+          <span class="rchip" data-k="title">タイトル<i class="lock"><svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7.5a4 4 0 0 1 8 0V11"/></svg></i></span>
+          <span class="rchip" data-k="keyword">キーワード<i class="lock"><svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7.5a4 4 0 0 1 8 0V11"/></svg></i></span>
+          <span class="rchip" data-k="writer">作者名<i class="lock"><svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7.5a4 4 0 0 1 8 0V11"/></svg></i></span>
+          <span class="rchip" data-k="story">あらすじ<i class="lock"><svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7.5a4 4 0 0 1 8 0V11"/></svg></i></span>
+        </div>
+        <div class="note" id="note"></div>
+        <div class="cond-btn">
+          <svg viewBox="0 0 24 24"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/><circle cx="9" cy="7" r="2" fill="var(--base)"/><circle cx="15" cy="12" r="2" fill="var(--base)"/><circle cx="9" cy="17" r="2" fill="var(--base)"/></svg>
+          条件を調整
+        </div>
+        <div class="sec-row"><span class="sec">ピン留め</span></div>
+        <div class="chips-wrap">
+          <span class="pchip">薬草園</span><span class="pchip">スローライフ</span>
+        </div>
+        <div class="sec-row"><span class="sec">キーワードから選ぶ</span></div>
+        <div class="kw-cat"><div class="kw-cat-head"><span class="kw-cat-title">作品傾向</span><span class="kw-cat-caret">⌄</span></div>
+          <div class="kw-cat-preview">ギャグ・シリアス・ほのぼの…</div></div>
+        <div class="kw-cat"><div class="kw-cat-head"><span class="kw-cat-title">登場キャラクター</span><span class="kw-cat-caret">⌄</span></div>
+          <div class="kw-cat-preview">男主人公・女主人公・人外…</div></div>
+        <div class="kw-cat"><div class="kw-cat-head"><span class="kw-cat-title">舞台</span><span class="kw-cat-caret">⌄</span></div>
+          <div class="kw-cat-preview">和風・西洋・中華…</div></div>
+      </div>
+    </div></div>
+
+  </div>
+
+<script>
+  // 共通コアが参照する要素。候補スクリプト（CAND）より先に取っておく。
+  const chipsEl = document.getElementById('chips');
+  const noteEl  = document.getElementById('note');
+  const badgeEl = document.getElementById('allbadge');
+</script>
+
+<script>
+  // ===== 候補A 差分（この案の機構はここだけ） =====
+  const CAND = {
+    name: '候補A: 押せるが外れない＋その場で理由',
+    // 選択状態は動かさない。押下に「応える」ことだけを返して死んだアフォーダンスを避ける。
+    onLastTap(state, key, el){
+      // 連打でもアニメを再生し直すため、いったんクラスを外して強制リフローを挟む。
+      noteEl.classList.remove('nudge'); void noteEl.offsetWidth; noteEl.classList.add('nudge');
+    },
+    note(count){ return count === 1 ? '検索範囲は1つ以上必要です' : null; },
+  };
+</script>
+
+<script>
+  // ===== 共通コア（4案でバイト同一）=====
+  // 初期状態は実装の既定（ADR 0007 原則2「範囲の既定はタイトル」）＝最後の1つになった状態で始める。
+  const state = {title:true, keyword:false, writer:false, story:false};
+  document.getElementById('candmode').textContent = CAND.name;
+
+  const onCount = () => Object.values(state).filter(Boolean).length;
+
+  function render(){
+    const c = onCount();
+    chipsEl.querySelectorAll('.rchip').forEach(el => {
+      const on = state[el.dataset.k];
+      el.classList.toggle('on', on);
+      // .last＝「制約の対象になっている最後の1つ」。この印の見せ方だけが案ごとに変わる。
+      el.classList.toggle('last', on && c === 1);
+    });
+    const t = CAND.note(c);
+    noteEl.textContent = t || '';
+    noteEl.classList.toggle('show', !!t);
+    badgeEl.classList.toggle('show', c === 0);
+  }
+
+  chipsEl.addEventListener('click', e => {
+    const el = e.target.closest('.rchip');
+    if (!el) return;
+    const key = el.dataset.k;
+    // 「選択中かつ残り1つ」だけが案ごとの分岐点。それ以外は素直なトグル（4案とも同じ）。
+    if (state[key] && onCount() === 1) CAND.onLastTap(state, key, el);
+    else state[key] = !state[key];
+    render();
+  });
+
+  render();
+</script>
+</body>
+</html>

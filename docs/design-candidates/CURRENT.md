@@ -8,16 +8,17 @@
 
 | 画面 / 層 | 現行正本 | 注記 |
 |---|---|---|
-| 本棚（画面構造） | `discovery/bookshelf-fusion-D.html` | ⚠️ 発見帯の完全退避のみ未反映（handover 残1 確定待ち・意図的据え置き） |
+| 本棚（画面構造） | `discovery/bookshelf-fusion-D.html` | ✅ 発見帯の未反映は **obsolete**（全スキンから帯を撤去済み＝描き直す対象が消えた・2026-08-20） |
 | 本棚（書影＝栞・最終形） | `bookshelf-shiori-grid-D.html` | 先端174種・決定論選択。**見た目の最新はこちら** |
 | 本棚（グリッド⇄リスト整合） | `bookshelf-shiori-consistency-D.html` | 1冊=1色相の共有規約 |
 | 読書 | `reading-D.html` | モーションは ADR 0005 §B＝モック対象外 |
 | 目次 | `toc-D.html` | |
-| 設定 | `settings-D.html` | |
-| 発見系 | `discovery/discovery-{home,genre,search,detail}-D.html` | ⚠️ InfoText AA 未反映（handover 留置） |
+| 設定 | `settings-D.html` | K の意匠面は `skins/settings-K.html`（既定スキン＝実装は全スキン共通 SettingsScreenK 1本） |
+| 診断の記録（書き出し） | `skins/diagnostics-export-K.html` | ⚠️ **正本ではない＝裁定待ちドラフト**（案A ボトムシート／案B 専用画面／案A の空状態の3枚・中身は同一文）。入口の行は `skins/settings-K.html` の「データ」節へ直差分済み＝そちらは正本。裁定が付いたら勝った案だけ残して正本化し、本行の注記を落とす |
+| 発見系 | `discovery/discovery-{home,genre,search,detail}-D.html` | ⚠️ InfoText AA 未反映（`docs/backlog-frozen.md` へ凍結） |
 | 装いの間（スキン選択） | `skins/wardrobe-D.html` | 入口は本棚 topbar のみ（ADR 0021 決定7） |
 | スキンC 夜行 | `skins/bookshelf-C.html`・`skins/reading-C.html` | 色トークン層のみ実装済み・構造/演出層は別タスク |
-| スキンK 本棚（横画面グリッド） | `skins/bookshelf-K-landscape.html` | 5列＝案L5（2026-07-26 裁定）。縦正本 `skins/bookshelf-K.html`（2列改A）との差は列数のみ・破線/余白/キャプション同値 |
+| スキンK 本棚（横画面グリッド） | `skins/bookshelf-K-landscape.html` | 5列＝案L5（2026-07-26 裁定）。縦正本 `skins/bookshelf-K.html`（2列改A）との差は列数のみ・破線/余白/キャプション同値。**2026-08-20 裁定済み・Compose 未反映**＝①フィルタ行のスクロール端フェード（案「中」＝幅56px／端18%保持・1.0 では不発火）は縦正本と `bookshelf-D.html` に反映済み ②空棚での拡張FAB出没は K 固有で GO（D は空棚文言が FAB を名指しするため当時は伝播せず）——**2026-09-02 に裁定が変わり D も空棚では FAB を出さない＝文言ごと改稿**。D の空棚の見え（イラストは `EmptyBookshelf.kt` からの逆同期・文言3案）は `skins/bookshelf-D.html` 下段の候補枠が正本＝人間の裁定待ち。翻訳時の申し送りは `bookshelf-K.html` 冒頭コメントが正本。横正本と M/P/J は①未反映 |
 | スキンM 星図・P カートリッジ・J ポータル | `skins/{bookshelf,reading,discovery,toc,settings}-{M,P,J}.html` | **実装対象の正本**（2026-07-17 確定・Compose未実装）。P目次＝はっちゃけ版採用 |
 | スキン候補（ステージング） | `skins/candidates/` | **正本ではない**。Q読書の庭＝差し戻し保留・L/N/O/R/S＝保留・hatchake/＝P試作の不採用分（目次のみ採用済み） |
 

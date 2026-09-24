@@ -6,6 +6,8 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotSelected
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
@@ -53,7 +55,7 @@ class ReadingSettingsSheetTest {
         onVerticalModeChange: (Boolean) -> Unit = {},
         // スキンM の意匠分岐（テーマ固定表示・星のつまみ）検証用。既定 D＝既存テストは完全不変。
         skin: Skin = Skin.WAMODERN_D,
-        // J の「システムに従う」（扉プレビュー下の追従入口）結線検証用。既定 false/空＝既存テストは不変。
+        // J の「システムに従う」（テーマ行の最後に並ぶ追従入口）結線検証用。既定 false/空＝既存テストは不変。
         followingSystem: Boolean = false,
         onFollowSystem: () -> Unit = {},
         // 案3ライブプレビューの押下行通知（押下=該当行・解放=null）の契約検証用。既定 no-op＝既存テストは不変。
@@ -97,10 +99,11 @@ class ReadingSettingsSheetTest {
     @Test
     fun `M装着ではテーマ3択の代わりに固定表示行を出しスライダー値は不変`() {
         setSheet(skin = Skin.SEIZU_M)
-        // 固定表示（settings-M .theme-fixed）＝何が装着されているか＋変種切替の所在。
+        // 固定表示（settings-M の `.rt.relay`）＝何が装着されているか＋変種切替の所在。
         composeTestRule.onNodeWithText("星図 ・ 夜の相").assertIsDisplayed()
-        // 入口移管（2026-07-29 本棚→設定タブ「きせかえ」）後の実導線を指す文言であること。
-        composeTestRule.onNodeWithText("ほかの装いは設定の「きせかえ」から").assertIsDisplayed()
+        // 副文は正本 `.relay .rt2 .s` の一次表記（2026-09-03 に実装側の独自文から張り替え）。
+        // 入口移管（2026-07-29 本棚→設定タブ「きせかえ」）後の実導線名「きせかえ」を含むことも兼ねて縛る。
+        composeTestRule.onNodeWithText("この装いは夜天ひとつ。ほかの相は「きせかえ」から").assertIsDisplayed()
         // 3択チップは出ない（1変種＝押しても変わらないチップを出さない）。
         composeTestRule.onNodeWithText("ライト").assertDoesNotExist()
         // ロジック共有の証左＝スライダー現在値は D と同一書式のまま。
@@ -148,30 +151,37 @@ class ReadingSettingsSheetTest {
     }
 
     @Test
-    fun `縦書きトグルの見出しとチップと現在値を表示する`() {
+    fun `本文の向きは2択タグで出し既定は横書きが選ばれている`() {
         setSheet()
         composeTestRule.onNodeWithText("本文の向き").assertIsDisplayed()
-        composeTestRule.onNodeWithText("縦書き").assertIsDisplayed()
-        // trailing の現在値（モック settings-D 案C・2026-08-06 裁定）: 横書き中は節ラベル右端に「横書き」。
-        composeTestRule.onNodeWithText("横書き").assertIsDisplayed()
+        // 2026-09-04 裁定（比較モック案B）: 札は〔横書き〕〔縦書き〕の2本で、常にどちらかが選択状態。
+        composeTestRule.onNodeWithText("横書き").assertIsSelected()
+        composeTestRule.onNodeWithText("縦書き").assertIsNotSelected()
+        // trailing の現在値はこの節だけ落とした（札自身が現在値を語る）＝各語は画面に1つずつしか無い。
+        // ⚠️ この本数検査が要る理由: 現在値を「念のため」戻すと、2026-09-04 実機で実害になった
+        // 「同じ語が2つ並ぶ」状態が復活する。落としたことを機械で固定しておく。
+        composeTestRule.onAllNodesWithText("横書き").assertCountEquals(1)
+        composeTestRule.onAllNodesWithText("縦書き").assertCountEquals(1)
     }
 
     @Test
-    fun `縦書きON時はtrailing現在値が縦書きへ変わる`() {
-        // ON では現在値も「縦書き」になりチップ label と文言が重複するため、現在値側の検証は
-        // 「横書きの不在」＋「縦書き2ノード（チップ＋現在値）」で行う（onNodeWithText の一意性を保つ）。
+    fun `縦書きON時は縦書き札が選択され横書き札は残る`() {
         setSheet(verticalMode = true)
-        composeTestRule.onNodeWithText("横書き").assertDoesNotExist()
-        composeTestRule.onAllNodesWithText("縦書き").assertCountEquals(2)
+        composeTestRule.onNodeWithText("縦書き").assertIsSelected()
+        // 旧・単独チップでは縦書き中に「横書き」という語が画面のどこにも無く、戻り先が読めなかった
+        //（2026-09-04 実機 PGEM10 の実害）。2択タグでは戻り先が常に札として在ることを固定する。
+        composeTestRule.onNodeWithText("横書き").assertIsNotSelected()
     }
 
     @Test
-    fun `縦書きチップのタップでonVerticalModeChangeが反転値で呼ばれる`() {
-        var toggled: Boolean? = null
-        // 現在 OFF（横書き）→ タップで ON（縦書き）を要求する反転値が飛ぶ。
-        setSheet(verticalMode = false, onVerticalModeChange = { toggled = it })
+    fun `向きの札のタップでonVerticalModeChangeが押した側の絶対値で呼ばれる`() {
+        val sent = mutableListOf<Boolean>()
+        setSheet(verticalMode = false, onVerticalModeChange = { sent += it })
         composeTestRule.onNodeWithText("縦書き").performClick()
-        assertEquals(true, toggled)
+        assertEquals(listOf(true), sent)
+        // 選択中の札を押しても裏返らない（旧 `!verticalMode` の反転送出をやめた＝札＝現在値と操作結果が一致）。
+        composeTestRule.onNodeWithText("横書き").performClick()
+        assertEquals(listOf(true, false), sent)
     }
 
     @Test
@@ -210,8 +220,9 @@ class ReadingSettingsSheetTest {
     }
 
     @Test
-    fun `J装着では扉プレビュー3択＋システムに従うを出す（settings-J）`() {
-        // J は supportedThemes=3（ADR 0022 §2）＝扉プレビューの3択が出る。M の固定表示行分岐に流れないこと。
+    fun `J装着ではテーマ3行＋システムに従うを出す（settings-J）`() {
+        // J は supportedThemes=3（ADR 0022 §2）＝正本 settings-J の行方式（.row/.rl/.rv）で3択が出る
+        //（2026-09-03 に扉プレビュー式チップを廃した）。M の固定表示行分岐に流れないこと。
         setSheet(skin = Skin.PORTAL_J)
         composeTestRule.onNodeWithText("表示設定").assertIsDisplayed()
         composeTestRule.onNodeWithText("ライト").assertIsDisplayed()
@@ -220,14 +231,14 @@ class ReadingSettingsSheetTest {
         // D 機能の J 意匠移植＝OS 明暗への自動追従へ戻す入口。
         composeTestRule.onNodeWithText("システムに従う").assertIsDisplayed()
         // ロジック共有の証左＝スライダー現在値は D と同一書式のまま。
-        //（J の扉プレビュー3択＋追従入口は縦に高く、スライダー値は Robolectric の 470px 窓の外に出るため
+        //（J のテーマ4行は縦に高く、スライダー値は Robolectric の 470px 窓の外に出るため
         //   assertExists で存在のみ確認する＝P 装着テストの "20dp" と同じ扱い。実機のシートはスクロールする）。
         composeTestRule.onNodeWithText("18sp").assertExists()
         composeTestRule.onNodeWithText("2.5").assertExists()
     }
 
     @Test
-    fun `J装着の扉タップでonThemeChangeが該当テーマで呼ばれる`() {
+    fun `J装着のテーマ行タップでonThemeChangeが該当テーマで呼ばれる`() {
         var picked: ReadingTheme? = null
         setSheet(skin = Skin.PORTAL_J, onThemeChange = { picked = it })
         composeTestRule.onNodeWithText("セピア").performClick()
@@ -240,5 +251,44 @@ class ReadingSettingsSheetTest {
         setSheet(skin = Skin.PORTAL_J, onFollowSystem = { followed = true })
         composeTestRule.onNodeWithText("システムに従う").performClick()
         assertEquals(true, followed)
+    }
+
+    /** シート枠込み（[ReadingSettingsSheet]）を本番と同じ形で組む。初期展開位置の検証専用。 */
+    private fun setSheetWithFrame() {
+        composeTestRule.setContent {
+            CompositionLocalProvider(
+                LocalSkin provides Skin.WAMODERN_D,
+                LocalSkinTokens provides Skin.WAMODERN_D.tokens,
+            ) {
+                ReadingSettingsSheet(
+                    colors = colors,
+                    readingTheme = ReadingTheme.LIGHT,
+                    onThemeChange = {},
+                    fontSize = 18,
+                    onFontSizeChange = {},
+                    onFontSizePersist = {},
+                    lineHeightEm = 2.5f,
+                    onLineHeightChange = {},
+                    onLineHeightPersist = {},
+                    bodyMarginDp = 20,
+                    onBodyMarginChange = {},
+                    onBodyMarginPersist = {},
+                    onDismiss = {},
+                )
+            }
+        }
+    }
+
+    @Test
+    fun `開いた直後にスライダー3本が可視である（初期展開位置）`() {
+        // なぜ枠込みで組むか（このクラスの他テストは Content だけを組む）: 検証対象が枠の
+        // 初期展開位置そのもの（sheetState の skipPartiallyExpanded）で、Content には現れないため。
+        // 退行させると PartiallyExpanded 起動に戻り、主役のスライダー3本が画面外へ落ちる
+        // （fontScale 1.0 でも文字サイズのつまみが 7px しか覗かない＝2026-08-20 実測）。
+        setSheetWithFrame()
+        // スライダーは文字ラベルを持たないので ProgressBarRangeInfo で3本それぞれを一意特定する。
+        sliderNode(current = 18f, range = 14f..24f, steps = 9).assertIsDisplayed()   // 文字サイズ
+        sliderNode(current = 2.5f, range = 2.3f..2.8f, steps = 4).assertIsDisplayed() // 行間
+        sliderNode(current = 20f, range = 10f..40f, steps = 5).assertIsDisplayed()    // 本文余白
     }
 }

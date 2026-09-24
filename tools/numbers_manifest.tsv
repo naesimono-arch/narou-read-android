@@ -1,0 +1,53 @@
+# 数値マニフェスト＝「この主張はここを指す」という宣言だけを人が書く。
+#
+# ⚠️ この表に値の欄は無い（意図的）。値を書いた瞬間に「人が値を書く」に戻り、
+#    出所と主張のリンクではなく写しが2つになる。値は tools/numbers.json（生成物）が持つ。
+# ⚠️ tools/numbers.json は人が編集しない。`python3 tools/numbers.py --extract` だけが書く。
+#
+# 列: key / kind / source / selector / fmt / tag_in / note   （TAB 区切り・# は行コメント）
+#
+# kind:
+#   measure_json  出所＝セッション JSONL（リポジトリ外・CI で再現不能）。source を --json で走らせ
+#                 selector のドット経路を引く。主張は「抽出時点のスナップショット」なので
+#                 md ↔ numbers.json の一致が本判定。--live を付けたときだけ再測して乖離を報告する。
+#   doc_number    出所＝リポジトリ内の md（日付つきスナップショット文書）。selector のラベルの直後に
+#                 現れる最初の数値を引く。md が「その文書が言っていること」を写しているかを毎走見る。
+#   kotlin_const  出所＝リポジトリ内の .kt の `const val <名前> = <数>`。現在値の写しなので毎走再導出し、
+#                 ずれたら FAIL。
+#   kotlin_attr   出所＝.kt の `<名前> = <数>`（アノテーション引数など）。扱いは kotlin_const と同じ。
+#
+# fmt: 1dp=小数1桁 / int=整数 / int_k=1000で割って整数（ms→s）
+# tag_in: 〔#key〕タグを必ず持つべき md。`-` は「タグを要求しない（下の note に理由）」。
+#
+key	kind	source	selector	fmt	tag_in	note
+# ── CLAUDE.md の費用構成比（出所＝セッション JSONL・手元限定）───────────────────
+ctx.toolinput_pct	measure_json	tools/measure_read_residency.py	by_source_pct.(tool_use 引数)	1dp	CLAUDE.md	最大費目＝ツール引数
+ctx.shellout_pct	measure_json	tools/measure_read_residency.py	by_source_pct.Bash	1dp	CLAUDE.md	シェル出力
+ctx.read_pct	measure_json	tools/measure_read_residency.py	read.pct_of_total	1dp	CLAUDE.md	Read
+ctx.assistant_pct	measure_json	tools/measure_read_residency.py	by_source_pct.(assistant 出力)	1dp	-	CLAUDE.md は「7〜10%」と幅で述べる＝上端 9.8% は別セッションの独立実装の値で当リポジトリに抽出器が無い。幅の下端だけをタグ付けると幅の主張が機械化されたと誤認させるのでタグを要求しない（守れない範囲）
+# ⚠️ 同じ量の測定が複数あるときは `量@YYYY-MM-DD` で**点を並べる**（片方で上書きしない）。
+#    単一セッションの測定は代表性が不明で、2 点が食い違っても「どちらが正しいか」を決める材料が無い。
+#    ∴ 検査器は「どちらが真か」を判定せず、**両方が出所どおりであること**だけを見る。
+#    `@` 付きのキー＝日付で凍結した歴史的な点。--live の再測乖離は info 止まり（凍結点は追随しないのが正）。
+ctx.ledger_pct_of_read@2026-08-10	doc_number	docs/knowledge/context-cost-breakdown-2026-08-10.md	台帳が	1dp	CLAUDE.md	台帳が Read に占める割合。出所は日付つき knowledge 文書そのもの
+ctx.handover_pct_of_total@2026-08-10	doc_number	docs/knowledge/context-cost-breakdown-2026-08-10.md	単独で全体の	1dp	CLAUDE.md	handover.md 単独の全体占有。同上
+ctx.ledger_pct_of_read@2026-09-03	measure_json	tools/measure_read_kind.py	target_pct_of_read.台帳(STATUS/handover/awaiting)	1dp	CLAUDE.md	再測。⚠️ 代表性が低い可能性＝この便はサブエージェント9体並列で、かつ測定中に handover.md が 8,811→6,631 字へ縮んだ（今ラウンドの消し込み6コミット）。どちらが効いたかは未確定
+ctx.handover_pct_of_total@2026-09-03	measure_json	tools/measure_read_residency.py	by_basename_pct_of_total.handover.md	1dp	CLAUDE.md	再測。⚠️ 上と同じ条件つき＝台帳自体が測定中に縮んでいるので、下がったこと自体が消し込みの結果を測っただけの可能性がある
+# ── docs/requirements.md の写し値（出所＝リポジトリ内・毎走再導出）──────────────
+nfr.startup.median_ms	kotlin_const	android/macrobenchmark/src/main/java/com/novelreader/macrobenchmark/StartupBudget.kt	BUDGET_MEDIAN_MS	int	docs/requirements.md	NFR-PERF-01
+nfr.startup.max_ms	kotlin_const	android/macrobenchmark/src/main/java/com/novelreader/macrobenchmark/StartupBudget.kt	BUDGET_MAX_MS	int	docs/requirements.md	NFR-PERF-01
+nfr.scroll.p50_ms	kotlin_const	android/macrobenchmark/src/main/java/com/novelreader/macrobenchmark/ScrollBudget.kt	BUDGET_P50_MS	int	docs/requirements.md	NFR-PERF-02
+nfr.scroll.p90_ms	kotlin_const	android/macrobenchmark/src/main/java/com/novelreader/macrobenchmark/ScrollBudget.kt	BUDGET_P90_MS	int	docs/requirements.md	NFR-PERF-02
+nfr.scroll.p99_ms	kotlin_const	android/macrobenchmark/src/main/java/com/novelreader/macrobenchmark/ScrollBudget.kt	BUDGET_P99_MS	int	docs/requirements.md	NFR-PERF-02
+nfr.flip.p50_ms	kotlin_const	android/macrobenchmark/src/main/java/com/novelreader/macrobenchmark/FlipBudget.kt	BUDGET_P50_MS	int	docs/requirements.md	NFR-PERF-03
+nfr.flip.p90_ms	kotlin_const	android/macrobenchmark/src/main/java/com/novelreader/macrobenchmark/FlipBudget.kt	BUDGET_P90_MS	int	docs/requirements.md	NFR-PERF-03
+nfr.flip.p99_ms	kotlin_const	android/macrobenchmark/src/main/java/com/novelreader/macrobenchmark/FlipBudget.kt	BUDGET_P99_MS	int	docs/requirements.md	NFR-PERF-03
+nfr.tabswipe.p50_ms	kotlin_const	android/macrobenchmark/src/main/java/com/novelreader/macrobenchmark/TabSwipeBudget.kt	BUDGET_P50_MS	int	docs/requirements.md	NFR-PERF-04
+nfr.tabswipe.p90_ms	kotlin_const	android/macrobenchmark/src/main/java/com/novelreader/macrobenchmark/TabSwipeBudget.kt	BUDGET_P90_MS	int	docs/requirements.md	NFR-PERF-04
+nfr.tabswipe.p99_ms	kotlin_const	android/macrobenchmark/src/main/java/com/novelreader/macrobenchmark/TabSwipeBudget.kt	BUDGET_P99_MS	int	docs/requirements.md	NFR-PERF-04
+nfr.tocpush.p50_ms	kotlin_const	android/macrobenchmark/src/main/java/com/novelreader/macrobenchmark/TocPushBudget.kt	BUDGET_P50_MS	int	docs/requirements.md	NFR-PERF-05
+nfr.tocpush.p90_ms	kotlin_const	android/macrobenchmark/src/main/java/com/novelreader/macrobenchmark/TocPushBudget.kt	BUDGET_P90_MS	int	docs/requirements.md	NFR-PERF-05
+nfr.tocpush.p99_ms	kotlin_const	android/macrobenchmark/src/main/java/com/novelreader/macrobenchmark/TocPushBudget.kt	BUDGET_P99_MS	int	docs/requirements.md	NFR-PERF-05
+nfr.import.extract_s	kotlin_const	android/macrobenchmark/src/main/java/com/novelreader/macrobenchmark/ImportBudget.kt	BUDGET_EXTRACT_MS	int_k	docs/requirements.md	NFR-PERF-06（ms→s）
+nfr.import.engine_s	kotlin_const	android/macrobenchmark/src/main/java/com/novelreader/macrobenchmark/ImportBudget.kt	BUDGET_ENGINE_MS	int_k	docs/requirements.md	NFR-PERF-06（ms→s）
+nfr.room.version	kotlin_attr	android/app/src/main/java/com/novelreader/data/AppDatabase.kt	version	int	docs/requirements.md	NFR-REL-01

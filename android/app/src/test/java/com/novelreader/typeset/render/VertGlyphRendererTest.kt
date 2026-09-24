@@ -5,6 +5,7 @@ import android.graphics.Canvas
 import android.graphics.Paint
 import com.novelreader.typeset.CharClass
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -91,10 +92,75 @@ class VertGlyphRendererTest {
     }
 
     @Test
+    fun uprightSingleAsciiInkStaysWithinEmCell() {
+        // G-3（golden 監査 2026-08-06）の物理側: 正立で描く単独半角数字の字面が em セル
+        // [yTop, yTop+cellAdvance] に収まること。寸法側は PaintFontMetricsTest が
+        // 「UPRIGHT の半角1字＝em マス」を固定しており、両者が揃って初めて
+        // 「前後の字と接触しない」不変条件が閉じる。
+        val bmp = Bitmap.createBitmap(96, 144, Bitmap.Config.ARGB_8888)
+        val yTop = 48
+        renderer.drawGlyph(Canvas(bmp), "3", CharClass.UPRIGHT, 48f, yTop.toFloat(), 48f, bodyPaint())
+        var minY = Int.MAX_VALUE
+        var maxY = Int.MIN_VALUE
+        for (y in 0 until 144) {
+            for (x in 0 until 96) {
+                if (android.graphics.Color.alpha(bmp.getPixel(x, y)) > 0) {
+                    if (y < minY) minY = y
+                    if (y > maxY) maxY = y
+                }
+            }
+        }
+        check(minY <= maxY) { "インクが描かれていること（フォント環境の前提）" }
+        // ±2px はアンチエイリアスの揺れ幅（manualRotateCentersInkOnColumnCenter と同基準）。
+        assertTrue("字面の天がセル上端を越えた: $minY", minY >= yTop - 2)
+        assertTrue("字面の底がセル下端を越えた: $maxY", maxY <= yTop + 48 + 2)
+    }
+
+    @Test
     fun uprightDoesNotSetVertFeature() {
         // 正立は vert を使わない。null のまま維持されること（漏れて後続に vert が乗らない担保）。
         val paint = bodyPaint()
         renderer.drawGlyph(newCanvas(), "亜", CharClass.UPRIGHT, 48f, 0f, 48f, paint)
         assertEquals(null, paint.fontFeatureSettings)
+    }
+
+    /**
+     * fontFeatureSettings への代入を記録する Paint。
+     *
+     * なぜ絵でなく代入を見るか: Robolectric の環境フォントは日本語の vert 縦字形を持たないため、
+     * 「vert を適用した」ことをピクセルで証明できない（適用してもしなくても同じ絵になる）。
+     * 描画層に残る唯一の観測点が「Paint へ "vert" を渡したか」なので、そこを直接記録する。
+     */
+    private class RecordingPaint : Paint() {
+        val featureLog = mutableListOf<String?>()
+
+        override fun setFontFeatureSettings(settings: String?) {
+            featureLog.add(settings)
+            super.setFontFeatureSettings(settings)
+        }
+    }
+
+    @Test
+    fun uprightMacronAppliesVertFeatureAndRestoresIt() {
+        // 2026-09-07 裁定 (b): ￣U+FFE3 は正立クラスのまま vert の縦字形を使う唯一の字
+        //（UAX#50 Tr・PGEM10 実測で横棒 64×4 → 右端の縦棒 3×66）。vert を渡さないと横棒のまま描かれ、
+        // 縦組み本文で漢数字「一」と紛らわしくなる＝UPRIGHT 分岐を useVert=false へ戻す退行を捕まえる。
+        val paint = RecordingPaint().apply { textSize = 48f; isAntiAlias = true; fontFeatureSettings = "kern" }
+        paint.featureLog.clear()
+        renderer.drawGlyph(newCanvas(), "￣", CharClass.UPRIGHT, 48f, 0f, 48f, paint)
+        assertTrue("￣ の描画で vert を適用していない: ${paint.featureLog}", paint.featureLog.contains("vert"))
+        assertEquals("復帰漏れ（共有 Paint に vert が残る）", "kern", paint.fontFeatureSettings)
+    }
+
+    @Test
+    fun uprightRepeatMarksDoNotApplyVertFeature() {
+        // 2026-09-07 裁定 (b): ゝヽヾ は UAX#50 が U（正立）と宣言し、実測の bounds 差も最大 3px＝
+        // 縦字形ではなくヒンティング差。JSONL の changed=true だけを根拠にここへ足す退行を捕まえる。
+        for (ch in listOf("ゝ", "ヽ", "ヾ")) {
+            val paint = RecordingPaint().apply { textSize = 48f; isAntiAlias = true }
+            paint.featureLog.clear()
+            renderer.drawGlyph(newCanvas(), ch, CharClass.UPRIGHT, 48f, 0f, 48f, paint)
+            assertTrue("'$ch' に vert を適用してはいけない: ${paint.featureLog}", !paint.featureLog.contains("vert"))
+        }
     }
 }

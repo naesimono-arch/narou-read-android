@@ -17,8 +17,22 @@
 ## 開発ルール
 
 - チャットへのコード出力は10行以内。UIコメントは日本語。
-- **コミット**: 1論理変更＝1コミット・形式 `fix/feat/refactor: 要約（日本語可）`・`git commit` 前に変更内容を提示して人間の承認を得る・`Co-Authored-By` は付けない。**台帳（STATUS/handover）の更新は原因となった論理変更と同じコミットに同梱**（`docs:` 単独コミットはドキュメント自体が作業対象のときのみ）。main への直コミット・merge はフックがブロック＝作業ブランチで進め、コミットは worktree 内セッションから行う。
-- **自己検証必須**: Kotlin の `src/main`/`src/test` を変更したら `cd android && ./gradlew testDebugUnitTest` を実行してからコミット計画を提示（PDF抽出ロジックも同テストで担保。androidTest は端末必須のため**実行**は対象外）。
+- **報告は結論と根拠だけ**: 調査の実況・検討して捨てた選択肢の列挙・同じ結論の言い換え・末尾の要約を書かない。
+  表は3行以上の比較にだけ使う。見出しは話題が変わるときだけ（**なぜ**＝監督の判断を速くするため。
+  ⚠️ **コスト規律としてではない**——応答本文の実効寄与は**7〜10%**の小項目にすぎない。
+  **最大はツール引数 38.0%**〔#ctx.toolinput_pct〕・次いでシェル出力 26.0%〔#ctx.shellout_pct〕・**Read 19.6%**〔#ctx.read_pct〕
+  （計測は `tools/measure_read_residency.py`〔ほか `measure_read_kind.py`・`measure_toolinput_and_ledger.py`〕。
+  ⚠️ **`〔#key〕` の付いた数値は人が書き替えない**＝宣言は `tools/numbers_manifest.tsv`・値の正本は生成物
+  `tools/numbers.json`・照合は `python3 tools/numbers.py --verify`。更新は `--extract` を走らせてから写す）。
+  ⚠️ **旧記載「assistant 4.3%・Read 36.3%〔handover.md 8.9%〕・tool_use 31.1%・Bash 20.1%」は誤り**
+  〔2026-09-02 に独立実装との突合で確定〕——**順位まで違っていた**（旧は Read 最大・実際はツール引数が最大）。
+  真因は計測側の欠陥3件＝①換算係数が除数で使われ約4.8倍ずれる ②分母が `cache_read` でなく人間の入力と
+  常設注入を数えていない ③1回の API 応答が複数イベント行に分割記録され**各行が同じ usage を複製**するため、
+  イベント単位で数えると総量もターン数も約2倍に膨らむ（③は独立実装が発見）。
+  ⚠️ **構成比は信用してよい**（独立実装と全区分 2.4pt 以内で一致・換算係数を変えても比は 0.5pt しか動かない）。
+  ⚠️ **絶対値はまだ信用しない**＝総額に未説明 22% が残る（jsonl 本文に現れない注入が候補・特定未了）。
+- **コミット**: 1論理変更＝1コミット・形式 `fix/feat/refactor: 要約（日本語可）`・**論理変更が検証済みになった時点で都度コミットしてよい**（2026-07-23 ユーザー裁定＝事前の「コミットしてよいか」提示は不要。ゲートと目視関門が多重化された運用が定着したため。⚠️ **破壊的操作・main への操作・push は従来どおり明示承認**）・`Co-Authored-By` は付けない。**台帳（STATUS/handover）の更新は原因となった論理変更と同じコミットに同梱**（`docs:` 単独コミットはドキュメント自体が作業対象のときのみ）。main への直コミット・merge はフックがブロック＝作業ブランチで進め、コミットは worktree 内セッションから行う。
+- **自己検証必須**: Kotlin の `src/main`/`src/test` を変更したら `cd android && ./gradlew testDebugUnitTest` を実行してからコミット計画を提示（PDF抽出ロジックも同テストで担保。androidTest は端末必須のため**実行**は対象外。⚠️ **Windows セッションでは成立しない**＝`/build` の Windows 節）。
   **本番の public シグネチャを変えたら `./gradlew :app:assembleDebugAndroidTest` でコンパイルだけ確認する**——
   既定ゲートは androidTest をコンパイルしないため、追従漏れが壊れたまま潜伏する（実際に2回発生）。
   golden・release R8 を含む全ゲートの結線は CI が持つ（`.github/workflows/ci.yml`）ので、ローカルは上記2つで足りる。
@@ -26,24 +40,42 @@
 - **git が記録するものは書かない**: SHA・コミットレンジ・コミット数・差分行数・コミット表を台帳へ手書きしない。**完了の記録はコミットメッセージが正本**（だから件名は今後も具体的に書く）。必要ならその場で `git log` を引く。
 - **一時ファイルは「抽出→集約→削除」まで1セット**（作りっぱなし禁止。git 管理下の削除は履歴から復元可能＝恐れるべきは未抽出の知識ごと消すこと）。削除・移設で他ファイルからの参照が切れるなら、張り替えるか参照ごと消す。
 - **コード変更・コミット前に `git branch --show-current` を確認**し、active plan 冒頭に対象ブランチを記録する（コンテキスト圧縮でブランチ文脈が落ちる対策）。
-- **委譲（agy＝実行者・Claude＝監督）**: **2026-07-24〜 agy は当面使用禁止**（明示解除まで。委譲は Claude サブエージェントのみ＝memory `feedback-avoid-agy-low-trust`）。**2026-07-26 に antigravity プラグイン自体を無効化**（`~/.claude/settings.json` の `enabledPlugins` を `false`）＝禁止中の agy へ強制委譲する `force-delegate-gate` が Bash/Edit をブロックしていたため。解除は同フラグを `true` へ戻すだけ（実体は残置＝可逆。**フック配線はセッション起動時固定のため反映は次セッションから**＝`docs/knowledge/claude-code-hook-wiring-session-fixed.md`）。以下は解除後の規範: 原則「**生成＝agy（仕様固定後・目安 ~300行超）・判断＝Claude**」。委譲しない＝統合・設計判断・trade-off 評価・編集起点ファイルの読み。検証の核＝自己申告 GREEN を信じずゲートは自分で回す／**削除行込み diff 全量レビュー**／完了判定は成果物の存在（`git status`・grep）で確認／外部API境界は〈UIの選択肢⇄実送信パラメータ〉全数突合。**plan モード中の agy は `--yolo` 厳禁・read-only digest のみ**（機序＝task_diary #40）。plan は〈機械バッチ／判断ループ〉に二分し末尾に実行起動ブロックを必須化・実行見込み ~10ターン超は fresh セッションで。経済・モデル選定・手順詳細は auto-memory `agy-*` 系が正本。
-- **Opus を実行者にするときの処方**（「書かれた基準への追従」が最強・「書かれていない基準の自己設定」が弱点＝effort を上げても埋まらない。根拠＝A/B実測 `/mnt/c/Users/qingj/Desktop/project/claude-bestpractice/models/knowledge/06-field-ab-opus-vs-fable.md`）: **完了定義を外給する**——①近似禁止（表現不可なら停止して相談するか合成解を検討）②症状でなく真因 ③検証は影響面の全画面・全組合せ（スモーク範囲を明示）④外部事実は一次ソース2点照合。複数項目バッチは1項目ごとに PushNotification→人間目視OK→コミット。委譲基準に該当する生成を自前でやるときは着手前に理由を明示。タスク種別ルーティング・ブリーフ設計＝`/mnt/c/Users/qingj/Desktop/project/claude-bestpractice/supervision/opus-protocol.md`。
+- **委譲は二層**（⚠️ **agy は 2026-08-13 に再凍結＝プラグインも無効・第3層は当面 Claude サブが兼ねる**。裁定＝**ADR 0031 決定5**、成果物の所在と解凍条件＝`docs/backlog-frozen.md`）: **判断＝main／設計と品質保証＝Claude サブ／生成＝Claude サブ**（仕様固定後・目安 ~300行超）。委譲しないのは統合・設計判断・trade-off 評価・編集起点ファイルの読み。**設計サブと品質保証サブは分ける**（仕様の不備は書いた本人に構造的に見えない）。「**削除行込み diff 全量レビュー**」は2層目（品質保証サブ）の職務＝監督は最終ゲートだけ持つ。検証の核＝自己申告 GREEN を信じずゲートは自分で回す／完了判定は成果物の存在（`git status`・grep）で確認／外部API境界は〈UIの選択肢⇄実送信パラメータ〉全数突合。⚠️ 節約の期待値を誤らないこと＝コスト主体は生成でなく `cache_read` で、**生成だけ移しても約3%**（ADR 0031 判断材料6）＝**委譲の動機はコストでなく〈監督のコンテキスト保護〉と〈独立した第二の目〉に置く**。plan は〈機械バッチ／判断ループ〉に二分し末尾に実行起動ブロックを必須化・実行見込み ~10ターン超は fresh セッションで。
+  **Read の前に「このターンで自分が編集するか」を決める＝編集しないなら調査 Read＝サブへ出す**（確かめるためだけに3ファイル以上開くなら必ず委譲）。
+  ⚠️ **これはフックで強制できない**（決定時点で見える特徴では機械判定の上限が 76.6%＝実測 `docs/knowledge/context-cost-hook-levers-measured-limits.md`）。
+- **Opus を実行者にするときの処方**（「書かれた基準への追従」が最強・「書かれていない基準の自己設定」が弱点＝effort を上げても埋まらない。根拠＝A/B実測 `/mnt/c/Users/naesimono/Desktop/project/knowledge/claude-ops/models/knowledge/06-field-ab-opus-vs-fable.md`）: **完了定義を外給する**——①近似禁止（表現不可なら停止して相談するか合成解を検討）②症状でなく真因 ③検証は影響面の全画面・全組合せ（スモーク範囲を明示）④外部事実は一次ソース2点照合。複数項目バッチは1項目ごとに PushNotification→人間目視OK→コミット。委譲基準に該当する生成を自前でやるときは着手前に理由を明示。タスク種別ルーティング・ブリーフ設計＝`/mnt/c/Users/naesimono/Desktop/project/knowledge/claude-ops/supervision/opus-protocol.md`。
 - Windows 側セッションでは PowerShell 構文（`$_`・`Get-ChildItem` 等）を Bash ツールに渡さない（PowerShell ツールで実行。POSIX コマンドはどちらでも可）。
-- コード探索は Grep/Glob 起点（この規模なら十分絞れる。総当たり Read の禁止）。**「起点」＝Bash の `grep`/`sed -n` でなく専用 Grep/Read ツールを使う**（drvfs 上でも速く権限プロンプトも踏まない。過去30日実測で Bash grep 706回 vs Grep ツール18回と乖離していたため明文化）。semble はツールの一つ＝キーワードで絞れない意味検索・類似実装探しのときだけ。パス既知なら直接 Read／アーキ全体把握・スキーマ変更は上の必須ゲートが先／編集前の文脈確認は従来どおり Read。
+- **コード探索は `rg` 起点**（総当たり Read の禁止）。⚠️ **Grep/Glob ツールは現行の実行系に存在しない**——旧記載「専用 Grep ツールを使う」は物理的に守れず、実測の乖離（Bash grep 706回 vs Grep 18回）を規律違反として誤読させていた（真因＝サーバー配信のツール構成。ローカル設定・バージョン・プロジェクト固有要因はいずれも対照実験で否定済み＝`docs/knowledge/tooling-no-grep-glob-tools.md`。**復旧待ちや設定変更で戻せる類ではない**）。作法＝**①`rg -l` でファイルを絞る ②必要箇所だけ Read の offset/limit で読む ③行を出すなら `-g '<glob>' -m 3` で対象と1ファイル上限を付ける**。`find`/`grep -r` より `rg` を優先（`.gitignore` を自動尊重するので `-prune` の羅列が消え、**コマンド文字列自体が縮む**＝費用はシェル出力より**ツール引数の方が大きい**〔最大区分・値は上の構成比〕）。semble はツールの一つ＝キーワードで絞れない意味検索・類似実装探しのときだけ。パス既知なら直接 Read／アーキ全体把握・スキーマ変更は上の必須ゲートが先／編集前の文脈確認は従来どおり Read。
 
 ## 管理ドキュメントの体系（役割で分離・混ぜない）
 
-- **現況（現在値のみ・目安60行）→ `STATUS.md`**（ブランチ追従・main が正本）／**やること → `handover.md`**（悩んだらまず見る。完了したら打ち消し線で残さず**消す**）
+- **現況（現在値のみ）→ `STATUS.md`**（ブランチ追従・main が正本）／**やること → `handover.md`**（悩んだらまず見る。完了したら打ち消し線で残さず**消す**）
+  ⚠️ **消す前に「後続の受け皿」を必記**（2026-09-03・nuru の指摘 (a) を採用）＝裁定で割れた残（採用されなかった案・
+  先送りにした論点・覆した旧裁定）は、消すのと同じコミットで **ADR／`docs/backlog-frozen.md`／別の台帳項目**の
+  どれかへ着地させる。**なぜ**＝「完了したら消す」は完了ぶんだけを落とす規律で、決着していない残まで一緒に落ちると
+  「決めたはずのことが誰の記憶にも残らない」形で消える（git log は完了の正本だが、**採らなかった案は記録しない**）。
+- **台帳のサイズ上限は行数でなく文字数で測る（`wc -m`）＝STATUS 2,500／handover 8,000／awaiting-human 12,000**。
+  **上限は「圧縮の合図」ではなく「消化の合図」**＝超えたら第一手は**中身を実行して消し込む**
+  （handover＝やって消す／STATUS＝現在値でなくなった記述を消す／awaiting-human＝人間に出して裁定を取り消し込む）。
+  文章を縮める・他所へ逃がすのは最後の手段で、移してよいのは**そもそも台帳の役目でないもの**だけ
+  （腐りにくい知見→`docs/knowledge/`・凍結→`docs/backlog-frozen.md`・一次情報→`.claude/plans/`・判断→`docs/decisions/`）。
+  **なぜ**＝台帳は文書でなく**在庫**。圧縮・移設は字数だけ下げて在庫を残すので、同じ量が数日で戻る（実際に「移す」運用で3本とも再超過）。
+  字数で縛る理由は読み込み費——**台帳だけで Read の 34.1%**〔#ctx.ledger_pct_of_read@2026-08-10〕→ **50.9%**〔#ctx.ledger_pct_of_read@2026-09-03〕、
+  `handover.md` 単独で全体の 8.9%〔#ctx.handover_pct_of_total@2026-08-10〕→ 5.9%〔#ctx.handover_pct_of_total@2026-09-03〕
+  （前者の出所＝`docs/knowledge/context-cost-breakdown-2026-08-10.md`）。⚠️ **単一セッションの測定を恒久値として引かない**＝
+  2点が動いた候補は①その便の性質（2026-09-03 はサブ9体並列）②測定中に台帳自体が縮んだ（handover 8,811→6,631 字）の2つで、
+  **どちらが真因かは材料が無く未確定**（∴ どちらか一方に倒さず両方を残す）。台帳の Read 占有は**上がって**いるので縛る理由は弱まっていない。
+  費用を落とす正しい手段は**やること自体を減らすこと**。
 - **人間の目視・裁定・外部手続き待ち → `awaiting-human.md`**（handover は「Claude が今すぐ動けるもの」だけ。二分の軸＝待ちの種類・迷ったら handover 側＝ADR 0028）
 - **完了の履歴 → git log が正本**／**判断・Why-not → `docs/decisions/`**（方式比較の前にまず README 索引を確認。不採用判断・コミットを生まない判断も ADR 化を検討）／**凍結・見送り → `docs/backlog-frozen.md`**（捨てず解凍条件つき）
 - **腐りにくい知見 → 新規は `docs/knowledge/` に1知見=1ファイル**（`task_diary.md` は凍結アーカイブ＝既存 #N 参照は有効・新規追記はしない）／実装パターンの「なぜ」→ `docs/patterns/`／外部APIなど参照資料 → `docs/reference/`／過去プランの一次情報 → `.claude/plans/`（役目を終えたら `archive/` へ）
-- auto-memory は**ブランチ不変情報のみ**（ブランチ固有の状態・進捗は STATUS/handover が正本）。ブランチ固有内容を `@import` で親パスから引かない。運用詳細＝memory `docs-status-vs-handover-split`・整合点検＝`/stale-check`。
+- auto-memory は**ブランチ不変情報のみ**（ブランチ固有の状態・進捗は STATUS/handover が正本）。ブランチ固有内容を `@import` で親パスから引かない。整合点検＝`/stale-check`。
 
 ## ドメイン知識（ポインタ）
 
 - PDF解析のルール → 文書ごと自動検出 `android/app/src/main/java/com/novelreader/pdf/DetectedRules.kt`（検出不能時のフォールバック定数＝同 `ParserRules.kt`）を直接参照
 - OPPO/ColorOS 固有動作 → `/device-verify`（§4 の症状→対処表）経由で `task_diary.md`
-- フック（`.claude/hooks/`）の新規作成・改修 → 先に `task_diary.md` #26/#28 と `docs/decisions/0004`・`0008` を確認（いずれもサイレント失敗クラス＝既存フックの雛形コピーだけで書き始めない）
+- フック（`.claude/hooks/`）の新規作成・改修 → 先に `task_diary.md` #26/#28 と `docs/decisions/0004`・`0008`、**auto-memory `hook-implementation-facts`（Claude Code 側の外形仕様＝agent_type の受領・注入経路・sandbox・plugin frontmatter のドロップ。実測で確定したもの）を開く**（いずれもサイレント失敗クラス＝既存フックの雛形コピーだけで書き始めない）
 - **フックの撤去は「参照する側」まで含めて1セット**: 撤去するフック名（拡張子抜き）でリポジトリ全体を grep し、他フックのロジック・コメント・docstring・`.gitignore`・skill の記述に残骸が無いことを確認する。撤去コミットが「撤去する側」しか触らないと、**生成物に依存した判定が恒久 dead 化してもテストは緑のまま通り続ける**（2026-07-12 のテスト強制3点撤去でセンチネル照合が13日間死んでいた実例）
 - 実行捏造検知器 → エンジン `.claude/hooks/detect_fabricated_execution_core.py`／CLI `analyze_transcript.py`／正解データ `docs/reference/hallucination-ground-truth.md`
 - `/hallucination` は打った瞬間にフックが機械保全して完結（そのターンの Claude は分類・調査を始めず直前の作業に戻る）。事後の分類・正式登録は明示依頼時のみ `/hallucination` スキルで。

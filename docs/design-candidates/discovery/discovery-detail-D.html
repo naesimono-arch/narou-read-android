@@ -1,4 +1,177 @@
 <!-- @dsCard group="UI-n / 発見（api-lab）" name="D. 作品詳細" -->
+<!--
+  ============================================================================
+  このモックが規定するもの（2026-08-21 改訂・案B 裁定を反映）
+  ============================================================================
+  従来このモックは「並び順・書影帯120dp・固定バーの主従」までしか規定しておらず、
+  **初期ビューポートに何が入るか**を規定していなかった（旧実装は .scroll の
+  下端に 210px のクリアランスを敷いただけの擬似固定バーで、実機のバー実高 229/285dp と合っていなかった）。
+  実機で「あらすじが1行も出ない」事故が起きた真因はここ＝**モックが検分できない層に
+  問題が落ちていた**こと。よって本改訂から、端末枠を実機と同じ 360×792dp（1px=1dp）にし、
+  固定バーを実寸の flex 要素にして、**初期可視行数がモック上で目に見える**ようにする。
+
+  ---- 寸法の較正（推測ではなく実測） ----
+  実機 360×792dp / density4 の実測2値（3アクション版＝あらすじ本文 h=144px／
+  4アクション版＝見出し「あらすじ」h=80px vs 3アクション版 h=112px）と、
+  golden `NovelDetailScreen_content_light_1.0.png`（w360dp-h640dp-xhdpi＝1dp=2px）から
+  画素で起こした版面値だけで組んである。**較正の自由度はシステムバー合算 63dp（上39＋下24）
+  ただ一つ**で、これは上記2つの実機実測値を**同時に**再現する唯一の値
+  （3アクション版＝本文可視36dp＝1.385行／4アクション版＝本文0行・見出し20/28dp＝28.6%クリップ）。
+  以後この面の寸法を動かすときは、この2値の再現が壊れていないかで検算できる。
+
+  ---- 「読める体裁」の判定基準（本文から導出・意匠の好みではない） ----
+  本文幅 312dp ÷ 14sp ＝ **1行 ≒ 22字**。
+  第1文「調薬の才能を…万能薬師のアルス。」32字 → 閉じるのに **2行**＝最低ライン。
+  第2文「しかし、無能と罵られ突如国を追放されてしまう。」23字 → 作品の転換が伝わるのに **3行**＝推奨ライン。
+  あらすじ全文は 8.8行（実機実測 h=916px）。
+
+  ---- なぜ案B（副アクションを横一列）なのか / 捨てた案とその理由 ----
+  8案を実測較正して比較した結果（比較ドラフトは裁定後に破棄・知識はここへ抽出）:
+  ・**採用＝案B**「主CTAは全幅のまま、副アクションを1行に横並べ」＝初期可視 **3.5行**。
+    3アクション版と4アクション版で**バー高が同一**になるのが決め手（片方だけ直る案は使えない）。
+  ・**却下＝案A**「目次・本棚をトップバーの『…』へ退避」＝行数は案Bと同じ 3.5行だが、
+    **導線を隠す方向そのものが不可**（2026-08-21 ユーザー裁定「せっかくの導線を隠すのは論外」）。
+    これは ADR 0011 の「維持する設計上の守り」②＝取込導線は公式ページを無加工・広告込みで
+    毎回ユーザー操作、と同じ筋。**この画面で「隠して省スペース化」の案は今後出さない。**
+  ・**却下＝案E**「溢れの合図（フェード＋全文リンク）だけ足す」＝旧裁定②の選択肢(c)の後継だが、
+    測ると**4アクション版では原理的に不成立**（本文が0行＝フェードさせる本文自体が存在しない）。
+    旧裁定(c)が3アクション版だけを前提にしていたことがここで確定した。
+  ・書影の厚み（案F 180dp帯・案G 2:3カード）は**別途裁定**＝下の「案2-c」で決着した。
+
+  ---- 決着: 書影は案2-c「淡地」（2026-08-21 ユーザー裁定）----
+  暗色帯（彩度12〜21%・明度26〜34%＝ほぼ無彩色）をやめ、**本棚と1ピクセル同じ栞書影**を
+  114×152（3:4＝本棚と同比）のカードで置き、その背後の帯の地を作品色から導く。
+  ・**帯の地は作品色から導くが、彩度14%・明度93%の固定窓へ圧縮する**。どの色相でも明度が揃うので
+    墨のコントラストは全8色相で 13.88〜14.36:1（振れ0.5以内）＝**変わるのは色みだけで版面の明暗は動かない**。
+    「本棚書影のランダム性を毎回固定の版面へどう収めるか」への答えがこれ（振れているのは画面の 0.1%）。
+  ・**情報列（題名・作者・ジャンルチップ）は帯の中**。高さ **96px 固定**（題名22×2行=44／間6／作者16／
+    間6／チップ 行14+padding8+枠2=24）を帯120の中へ **上12・下12（S12）＝上下対称**に据える（y 12..108）。
+    境界までの最短距離12px は帯の内側余白そのもの＝「帯の中に据わっている」と数で言える。
+    ⚠️ **line-height を明示**してフォント既定の `normal` 依存を外すこと——これが「内容にも環境にも
+    依らず96px固定」の根拠で、崩すと上下対称の根拠が消える。題名2行clamp・作者1行nowrap も同じ理由。
+  ・水平も同じ規定＝カード左24（S24＝ページ余白）／カード右138 と列左154 の間16（S16）／右余白24（S24）。
+  ・**書影カードは意図として帯の境界を 44px 越える**（カード高152の29%・帯高120の37%）。
+    10px の半端なはみ出しとは桁が違うので「面の上に置かれた本」と読める＝**減らすと中途半端に戻る**。
+  ・作者・ジャンルは書影の横へ吸収したので、旧 `.detail-meta-top`（作者行 16+36=52px）は消えた。
+    ブロック高は 120→166px（+46）だが作者行の 52px が消えるので**差引 −6px＝あらすじは 4.9→5.2行**。
+  ・**書影そのものは本棚と同一**（ShioriCover を題名で呼ぶだけ・生成側へ要求なし）。2-c が導出するのは
+    書影の背後にある帯の地であって書影の色ではない＝「同じ本なのに場所で色が違う」は起きない。
+  ・落選: 案1 統一カード（あらすじ3.1行）／案3 大判（0.0行＝不成立）／案4 奥付（表が消える構成変更）／
+    案2-a 額装・案2-b 一筋（作品色の権限が小さすぎ「素っ気なさ」が解けない）／案5 磨く（本棚との不統一が残る）。
+
+  ---- 併せて: 青磁チップの AA 未達を閉じた（同日）----
+  ジャンル／キーワードのチップ文字は青磁 #9CB3A8＝**白地の時点で 2.14:1＝AA 未達**という既存の壊れがあった
+  （2-c の淡地が原因ではない。淡地では 1.87〜1.94:1 とさらに落ちるだけ）。直し方は既に決まっていて、
+  ADR 0014-D「意味を運ぶ文字は WCAG 4.5:1」の裁定時に濃青磁 `UnreadSeiji #50685C`（--seiji-ink）が
+  新設済み——未読ラベルだけが移行され、ジャンル／キーワード／「なろう・未取込」が取りこぼされていた。
+  **新色は発明せず既存トークンを適用漏れへ当てる**だけで素地 5.79:1・2-c淡地 5.09〜5.26:1＝全8色相で AA 充足。
+  枠線は装飾（意味は文字が運ぶ）なので青磁のまま**据え置く**。
+
+  ---- 決着: バー注記は撤去（2026-08-21 ユーザー裁定） ----
+  固定バー下端にあった注記「なろう（syosetu.com）のページをそのまま表示します」は**消した**。
+  文言調整（掛かり先が読み取れないという指摘）ではなく撤去で決着した理由は2つ:
+  ・予告として不要＝ボタン名が「なろうで読む」で、着地の WebReaderScreen はタイトルも中身も
+    なろうのページそのもの（無加工・広告込み）＝見れば分かる。
+  ・規約上も不要＝ADR 0011 決定2 が定めるのは**実装をそう作ること**（無加工・広告込みで表示し
+    DL 押下は毎回ユーザー）であって、文言で告知する義務は書かれていない。
+  ⚠️ **無加工表示の実装そのものは不変**。消したのは注記だけで、ADR 0011/0012 の守りは何も緩めていない。
+  撤去で注記塊 36dp がバーから消え、**初期可視は 3.5行 → 4.9行**（492px → 528px ÷ 行送り26px）。
+
+  ---- 決着: fontScale（BA ＋ T2 ＋ 印③）2026-08-26 ユーザー裁定 ----
+  実機 fontScale 2.0 で「あらすじが0行・作者とジャンルが判読不能・題名は7字」になる件の決着。
+  比較は一時ドラフト2枚（detail-fontscale-viewport-compare / detail-titlebox-maxlines-compare）で取り、
+  **採用案だけをここへ畳んでドラフトは削除した**（visual-language「複数案比較のみ一時ドラフト」）。
+
+  ・**押し出しの主犯は書影帯ではない**。1.0→2.0 で伸びるのは ステータス格子 +161.5dp・固定バー +55.6dp・
+    見出し塊 +27.8dp・システムのステータスバー +23.6dp（計 +268.5dp）で、書影ブロックは dp 固定のまま
+    動いていなかった。**本文を1行取り戻すには 110dp 要る**——これが案の足切りになった。
+  ・**採用①＝案B（このモックには既に入っている固定バーの横一列）を Compose へ翻訳する**。
+    2026-08-21 に裁定・逆同期済みだったが実装は縦3段（193dp）のままで、**未翻訳の逆同期債務**として
+    残っていた（ドラフトの実測でこれが発覚した）。畳むと 1.0 で +27dp 版面が戻る。
+  ・**採用②＝案A: 帯を fontScale 追従にする＝帯 = 74·F + 46**（F＝fontScale。F=1 で 120＝従来値と一致）。
+    74 は情報列のうち sp で伸びる箱の総和（題名44 ＋ 作者16 ＋ チップ字面14）、46 は伸びない部分
+    （アキ6×2 ＋ チップの padding/枠 10 ＋ 帯の上下内側余白 24）。これで **2.0 でも作者とジャンルが読める**。
+    ⚠️ 代償＝**書影カードの「越え」が痩せる**（越え = 164 − 帯 ＝ F=1.3 で 21.8dp・F=1.5 で 7dp・
+    **F≥1.60 で 0dp**＝帯が書影を飲み、「面の上に置かれた本」は大きい文字設定では消える）。受諾済み。
+  ・**採用③＝題名の箱 T2（44 → 46dp・2行を本当に描く）**。正本もコードも「題名は2行」と書きながら
+    **2行目は一度も描かれていなかった**（箱44dp に対し Compose 実測の自然行高 22.75×2 = 45.5dp で
+    1.5dp 足りず、Paragraph が2行目を落としていた）。⚠️ これは「量」ではなく **箱46 ÷ 行45.5 = 1.011 という
+    「比」**の修正なので、箱ごと F 倍しても比は動かない＝**全 fontScale で2行が描かれる**（逆に 44dp のままでは
+    箱ごと拡大しても 0.967 のままで 2.0 でも1行）。⚠️ **あらすじは1行も減らない**——ブロック高 =
+    max(帯,164)+2 で書影カード下端 164dp が F<1.60 では支配的だから。
+    ⚠️ **帯の式は 74·F + 46 のまま据え置く**（T2 の +2dp は帯を太らせず、上下の内側余白から吸収する）。
+    上下対称は保つが値が変わる＝**内側余白 = 12 − F**（F=1 で 11/11・F=2 で 10/10）、情報列 = 76·F + 22。
+  ・**採用④＝スクロール示唆の印③「端フェード ＋ シェブロン」**。2つで1組で、片方だけ実装しない:
+    端フェードは**下端に本文がある間しか効かない**（2.0 では下端が余白＝地色に地色を重ねることになる）ので、
+    **2.0 を担うのはシェブロン側**。⚠️ 印は `canScrollForward` で出し分ける＝**下端に着いたら消す**
+    （消えないと「まだ続く」と嘘をつく）。⚠️ 印は**絶対配置＝版面を1dpも食わない**（だからあらすじの
+    行数は印の有無で変わらない）。⌄ の色は青磁 --seiji-ink の α.62＝意味を運ぶ小さな記号の既存スロット。
+  ・**不採用＝案C（あらすじをステータス格子より前に出す）**。2.0 であらすじ5行を取り戻せる唯一の案だったが、
+    代償が「連載中・127話／読了目安を先に見せる構成」そのもの＝**素性を先に見せる構成を守る側を選んだ**。
+    ⚠️ よって **fontScale 2.0 であらすじが 0行になるのは「しょうがない」として受諾済み**（並び替えで
+    版面を取り戻す提案をこの画面に再提出しない。2.0 で「続きがある」ことを言うのは印③の役目）。
+
+  ---- 決着: 取込済みの主CTA は蔵書へ＝「アプリで読む」（2026-09-04 ユーザー裁定・案A）----
+  ⚠️ **2026-07-16「完全一貫」／2026-08-21「案B・総高137dp固定」の記録は消さない**。案Aはどちらも**侵さず、
+  拡張して満たす**（下の「4状態すべて137dp」がその根拠）。
+  ・**症状の機序**: 取込済みの状態では、この画面のボタンが**どれもなろうの WebView へ出る**＝取り込んだ本
+    そのものへ行く道がゼロだった。真因は**作品詳細が ncode しか持たず bookId を持たない**こと。
+    経路A（本棚→本）は無傷で、詰むのは経路B（発見→詳細→取り込み→また詳細）だけ＝バック3回で本棚へ戻るしかない。
+  ・**採用＝案A「主CTA の差し替え」**: 取込済みなら主CTA を「アプリで読む」（手元の蔵書を開く）にし、
+    なろう系は副アクション行へ**降ろす**。⚠️ **スロット数は増やさない**＝入れ替えるだけなので 137dp を崩さない。
+    それどころか 81dp で浮いていた取込済・未読も2スロットになり、**4状態すべてが 137dp**（総高 =
+    1+16+48n+8(n−1)+16）＝あらすじの初期可視も全状態 5.2行で揃う。
+  ・**却下＝案B（なろう系を残したまま1つ足す）**＝3スロット 193dp で、あらすじが推奨ライン3行に**ちょうど接地
+    （余白ゼロ）**＝2026-08-21 の固定を正面から崩す。**却下＝案C（副アクション行に差し込むだけ）**＝寸法は
+    無傷だが手元の本が副・なろうが主のままで**主従が逆**。
+  ・**なろう系を消さない理由**: 取り込んだ PDF は取込時点のスナップショットで連載は続く。アプリ自身が
+    「続きが N 話更新されています」と通知しており、**その行き先はなろうの WebView だけ**＝消すと自分の通知の
+    着地を自分で塞ぐ。2026-08-21「せっかくの導線を隠すのは論外」と同じ筋。
+  ・**文言＝「アプリで読む」**（「なろうで読む」と1軸2択の対比語彙＝新しい語を発明しない）。
+    ⚠️ **旧記載（同日の先行裁定）「未読/既読で振り分けない。着地が1動作だから」は下の栞裁定で撤回**
+    ——着地は〈章〉と〈目次〉の2値で、振り分ける先は在った（下記）。
+  ・**副には「なろうで」を前置する**（「なろうで第12話から」「なろうの目次」）。主が蔵書側へ移った瞬間、
+    副の「第12話」が**何の**話数か言えなくなるため（手元の本の栞と、なろうの読書位置は別物）。
+    実効幅 124dp に対し「なろうで第12話から」＝103.5dp、4桁話数でも 115dp で1行に収まる。
+  ・**アイコンを〈手元＝MenuBook／なろう＝外部リンク〉で揃え直した**。案Aでは MenuBook が2つ並ぶと
+    「どちらが手元の本か」が絵で見分けられない。⚠️ これは**逆同期の是正も兼ねる**＝この改訂前は正本が
+    「なろうで読む」に外部リンク・「第13話から」に MenuBook と不揃いで、Compose は「なろうで読む」にも
+    MenuBook を当てていた。**MenuBook は「アプリで読む」専用**にし、なろう行きは全て外部リンクへ統一する。
+  ・**併せて逆同期をもう1件畳んだ**: 既読の情報列を「霧島あおい ／ 第12話まで読了」と描いていたのを
+    **作者だけ**（実装 `novel.summary.author`）へ寄せた。⚠️ **実装側が正しい**と判断した根拠3つ＝
+    ①情報列が運ぶのは作品の**素性**（題名・作者・ジャンル）で、読了話数は**自分の進捗**＝別種の情報。
+    ②`.au` は1行 nowrap + ellipsis の固定箱（96px固定の根拠）なので、長い作者名では**後ろに付けた読了話数から
+    先に落ちる**＝可変で意味のある側が真っ先に消える。③話数は固定バーの副CTAが既に、しかも**押せる形で**
+    運んでいる（重複）。2026-08-21 に `.au` の1行 nowrap 拘束を実装へ合わせたのと同じ筋。
+  ・**この裁定で採らず、先送りにした論点2つ**（比較ドラフトは破棄されるのでここへ畳む）:
+    ①主CTA を「続きから読む（○%）」にしてアプリ側の進捗を出す案＝進捗の取得が suspend の DB 参照で、
+      詳細 ViewModel に新しい依存が増える。「アプリで読む」なら bookId 1つで足りるのでまずそこで止める。
+    ②「既読」の判定が**なろうの読書位置**（webReadingProgress）で手元の本の栞を見ていない件
+      → ⚠️ **先送りをやめ、同日中に決着した**（次の節）。
+
+  ---- 決着: 取込済みの「既読／未読」は**手元の本の栞**が決める（2026-09-04 監督裁定）----
+  ⚠️ 上の案A節は**消さない**。これはその直後に出た是正で、案Aの絵柄は変えず**判定の源だけ**を移す。
+  ・**症状**: 判定が `webReadingProgress`（なろう側の位置）由来だったため、〈アプリで8割読了・なろう未訪〉が
+    「取込済・未読」の顔のまま、押すと手元の栞の**8割地点へ着地**していた。**顔と着地が別の源を見ていた**のが真因。
+  ・**決定**: 取込済みの顔は**手元の栞だけ**で決める。栞は主CTA の着地先そのものから導く
+    （`hasBookmark = (startFile != "index.html")`）＝**顔と着地がずれることが構造的に起きない**。
+    ⚠️ 「同じ規則で別々に引く」では不足＝引き直した瞬間に源が2つに割れる。**1つの値を両方が読む**のが要点。
+  ・**この画面には栞が2つある。役割で割る＝〈主＝手元／どの副＝なろう〉**。
+    ⚠️ **進捗が2つ在るのは不整合ではない**（次に読む人がそう誤読しないようここに明記する）:
+    手元の本は取込時点のスナップショットで、なろうは連載が続く別の面＝**別の本の別の栞**。
+    だから〈手元に栞あり × なろう未訪〉のような組み合わせが正常に起こる。
+  ・**主CTA の文言は手元の栞で振り分ける**: 栞あり＝「**アプリで続きから**」／栞なし＝「**アプリで読む**」。
+    副の「なろうで第N話から」「なろうで読む」と**〈場所〉で〈位置〉**の同型になり、対比語彙は保たれる。
+  ・**副アクションは、なろうの栞だけで決まる**（手元の栞は見ない）。
+    ⚠️ 新しい組み合わせ〈手元に栞あり × なろう未訪〉では **N が無い**ので、副は「**なろうで読む**」1つを出す。
+    **行ごと消さない**理由＝①消すと1スロット 81dp へ落ちて「4状態すべて 137dp」が壊れる
+    ②「なろうで最初から」は新語で、位置が無いことは既存の「なろうで読む」（未取込・未読の副と同じ語）が既に言える。
+  ・**未取込は従来どおり**（手元に本が無いので、なろう側の位置しか無い＝顔もなろうが決める）。変えたのは取込済みだけ。
+  ・**下の絵は取込済みの2×2 のうち「対角」の2枚**（〈栞なし × なろう既訪〉と〈栞あり × なろう未訪〉）。
+    残り2枚は組み合わせるだけで導けるうえ、**同じ軸に見える2枚（栞あり × なろう既訪 など）を描くと
+    「2軸が独立」という裁定そのものが絵で伝わらない**ため、あえて対角を選んでいる。
+  ============================================================================
+-->
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -10,377 +183,675 @@
   :root{
     --base:#FBFAF8;--ink:#1C1F26;--ink-soft:#7C808B;--line:#ECEAE4;
     --ai:#1C3D5A;        /* 藍 */
-    --seiji:#9CB3A8;     /* 青磁 */
+    --seiji:#9CB3A8;     /* 青磁（装飾・枠線・署名） */
+    /* 濃青磁＝既存トークン UnreadSeiji。ADR 0014-D「意味を運ぶ文字は WCAG 4.5:1」の適用漏れを
+       埋めるために使う（新色ではない）。青磁 #9CB3A8 は素地で 2.14:1＝AA 未達だった。 */
+    --seiji-ink:#50685C;
     --mincho:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
     --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
   }
   *{box-sizing:border-box;margin:0;padding:0}
   body{background:#E4E3DD;display:flex;flex-direction:column;align-items:center;min-height:100vh;padding:26px;font-family:var(--gothic)}
-  .cap{color:#5A5C57;font-size:13px;margin-bottom:18px;text-align:center;line-height:1.6}
+  .cap{color:#5A5C57;font-size:13px;margin-bottom:18px;text-align:center;line-height:1.7;max-width:1000px}
   .cap b{color:#2A2C28}
   .stage{display:flex;gap:30px;flex-wrap:wrap;justify-content:center}
   .wrap{display:flex;flex-direction:column;align-items:center;gap:9px}
   .wrap .mode{font-size:12px;letter-spacing:.24em;color:#6A6C67}
-  .phone{width:372px;height:780px;background:var(--base);border-radius:40px;overflow:hidden;position:relative;
+  /* 端末枠は実機と同寸の 360x792dp（1px = 1dp）。初期可視行数を規定するため、
+     システムバー・トップバー・固定バーをすべて実寸の flex 要素として積む。 */
+  /* --F = fontScale（dp の箱が追従する倍率＝案A の F）。--T = 字面の実効倍率。
+     ⚠️ 2つを分けるのは Android 14 の**非線形 sp 拡大**があるため——設定 2.0 の実測は字面 1.92 倍で、
+     箱（F=2.0）より字が小さくなる側にずれる。この静止モックは --T = --F（線形）で描く＝
+     「箱に2行が入るか」の判定にとって**実機より厳しい側**の絵になる（ここで入れば実機でも入る）。 */
+  .phone{width:360px;height:792px;background:var(--base);border-radius:34px;overflow:hidden;position:relative;
+    --F:1;--T:1;
     box-shadow:0 20px 50px rgba(0,0,0,.28);display:flex;flex-direction:column;font-family:var(--gothic)}
   /*==/harness==*/
 
-  .sb{height:40px;display:flex;align-items:center;justify-content:space-between;padding:0 24px;font-size:11px;color:var(--ink-soft);flex-shrink:0}
-  
-  /* Scrollable view */
-  .scroll{flex:1;overflow:auto;padding-bottom:210px} /* Extra space for fixed action bar（3アクション＋注記） */
+  /* システムバー（上39dp＋下24dp＝合算63dp が実測較正値） */
+  .sb{height:39px;flex-shrink:0;display:flex;align-items:center;justify-content:space-between;padding:0 24px;font-size:11px;color:var(--ink-soft)}
+  .navbar{height:24px;flex-shrink:0;display:flex;align-items:center;justify-content:center}
+  .navbar i{display:block;width:108px;height:3px;border-radius:2px;background:#C9C7C0}
 
-  /* 戻るボタン */
-  .back{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--ink-soft);padding:4px 24px 8px;cursor:pointer;flex-shrink:0}
-  .back svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.5}
+  /* トップバー 64dp（M3 TopAppBar）。書影が流れて本文タイトルが上端へ抜けたら
+     作品名がここへフェードイン（普段は透明＝この静止モックでは不可視が正）。 */
+  .topbar{height:64px;flex-shrink:0;display:flex;align-items:center;padding:0 8px;gap:4px}
+  .topbar .ic{width:48px;height:48px;display:flex;align-items:center;justify-content:center;color:var(--ink)}
+  .topbar .ic svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.6}
 
-  /* 書影風ヒーロー */
-  .cv{position:relative;aspect-ratio:2/3;border-radius:2px;overflow:hidden;display:flex;align-items:flex-end}
-  .cv .rule{position:absolute;left:24px;top:20px;bottom:20px;width:2px;background:var(--ai);opacity:.85}
-  .cv .ttl-in{padding:24px 24px 24px 32px;color:#base} /* text color uses white/base */
-  .cv .ttl-in b{font-family:var(--mincho);font-size:17px;font-weight:600;line-height:1.4;color:var(--base);text-shadow:0 1px 3px rgba(28,31,38,.4);display:block}
-  
-  /* 2026-07-31 ユーザー裁定: 190px → 120px。実機で「あらすじがスクロールしないと出てこない」＝
-     ファーストビューの押し下げが真因で、並び順（ヒーロー→作者→ステータス表→あらすじ）は変えず
-     ヒーローの高さだけを 80px 削る。aspect-ratio:auto で .cv の 2/3 を打ち消しているため
-     高さを変えても幅は連動しない（全幅の帯のまま）。Compose 側の正＝NovelDetailScreen.DetailHeroHeight。 */
-  .hero-cv {
-    width: 100%;
-    height: 120px;
-    border-radius: 0;
-    aspect-ratio: auto;
-    flex-shrink: 0;
-  }
+  /* スクロール域＝固定バーに削られた残り＝これが初期ビューポート。
+     overflow-y:auto なので検分者は続きも送れるが、開いた瞬間の見えが規定対象。
+     .viewport は印（端フェード・シェブロン）の絶対配置の親を作るためだけの層で、
+     **高さも余白も足さない**（印が版面を1dpも食わない、の実装上の根拠）。 */
+  .viewport{flex:1;min-height:0;position:relative;display:flex;flex-direction:column}
+  .scroll{flex:1;min-height:0;overflow-y:auto}
+  .scroll::-webkit-scrollbar{width:0}
+  /* margin の相殺で版面が縮むと較正が壊れるので、内側は flex 列にして相殺を止める。 */
+  .col{display:flex;flex-direction:column}
+  .col > *{flex-shrink:0}
+  .pad{padding:0 24px;display:flex;flex-direction:column}
+  .pad > *{flex-shrink:0}
 
-  /* メタ情報 */
-  .detail-meta-top {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-top: 16px;
-  }
-  .author {
-    font-size: 13.5px;
-    color: var(--ink);
-    font-weight: 500;
-  }
-  .genre-label {
-    font-size: 11px;
-    color: var(--seiji);
-    border: 1px solid var(--seiji);
-    padding: 4px 8px;
-    border-radius: 2px;
-    font-weight: 500;
-  }
+  /* 書影ブロック（帯 120px ＋ 帯からはみ出す書影カード）。Compose 側の正＝NovelDetailScreen。
+     ---- 帯 120px という値の来歴 ----
+     2026-07-31 ユーザー裁定: 190px → 120px。実機で「あらすじがスクロールしないと出てこない」＝
+     ファーストビューの押し下げが真因で、並び順（書影→作者→ステータス表→あらすじ）は変えず
+     ヒーローの高さだけを 80px 削った。
+     ⚠️ 2026-08-17 の実機画素実測で**この 80px 削減だけでは足りなかった**ことが確定している——
+     押し下げの主因はヒーローではなく**固定バーが版面の 229/285dp を占めていた**ことで、
+     ヒーロー高はその一部にすぎなかった（4アクション版では削っても本文可視0行のまま）。
+     2026-08-21 に案B（副アクション横一列）でバー側を 173dp へ畳んで決着（さらに注記撤去で 137dp）。
+     ---- 2026-08-21 案2-c: 帯は 120px のまま。ブロック高だけ 166px へ ----
+     ブロック 166px の内訳は「帯120 ＋ 書影カードが越える44 ＋ 下の逃げ2」。**帯そのものは 120px で不変**。
+     ブロック高が +46px でも、作者行 `.detail-meta-top`（16+36=52px）が帯の中へ吸収されて消えるため
+     版面は差引 −6px＝あらすじの初期可視は減らずむしろ 4.9→5.2行 に増える（値の導出は上のヘッダ）。 */
+  /* ---- 返し（書影ブロック）= 案2-c ＋ 案A追従（2026-08-26）----
+     ブロック高 = max(帯, 164) + 2。F=1 では書影カード下端 164 が支配的で **166px**（従来値と一致）、
+     F≥1.60 で帯が 164 を超え、そこからは帯 + 2 になる（F=2 で 196）。
+     ⚠️ **題名の箱をいじってもあらすじは1行も減らない**のはこの max のため（F<1.60 では 164 が効いている）。 */
+  .kaeshi{position:relative;flex-shrink:0;width:100%;height:max(calc(74px * var(--F) + 48px),166px)}
+  /* 帯 = **74·F + 46**（案A・F=1 で 120＝2026-07-31 裁定値と一致）。地は作品色から導くが
+     彩度14%・明度93%の固定窓へ圧縮する（JS bandTint）。どの色相でも明度が揃うので墨のコントラストは
+     13.88〜14.36:1＝振れ0.5以内。⚠️ 74 は sp で伸びる箱の総和（題名44＋作者16＋チップ字面14）、
+     46 は伸びない部分（アキ6×2＋チップ padding/枠10＋帯の上下内側余白24）＝**式の項が版面の内訳そのもの**。 */
+  .kaeshi .band{position:absolute;left:0;right:0;top:0;height:calc(74px * var(--F) + 46px);
+    border-bottom:1px solid rgba(28,31,38,.10)}
+  /* 書影カード 114×152＝3:4（本棚と同比）。左24＝S24（ページ余白）・上12。**カードは dp 固定＝追従しない**
+     （書影は字ではないので大きい文字設定で太らせる理由が無い）。よって下端は常に 164。
+     F=1 では帯の境界(120)を **44px 越える**（帯高の37%）＝「はみ出し」ではなく「面の上に置かれた本」の意図。
+     ⚠️ 越え = 164 − 帯 なので F と共に痩せる（1.3→21.8 / 1.5→7 / **1.60 以上→0＝帯が書影を飲む**）
+     ＝大きい文字設定ではこの意匠が消えることを 2026-08-26 に受諾した（案A の代償そのもの）。 */
+  .kaeshi .shiori{position:absolute;left:24px;top:12px;width:114px;height:152px}
+  /* 情報列 = **76·F + 22**（題名46F＋アキ6＋作者16F＋アキ6＋チップ(14F+10)）。
+     帯の上下内側余白 = **12 − F**（F=1 で 11／F=2 で 10）で **上下対称**は保つ。
+     ⚠️ 12 が 11 へ落ちるのは T2 の +2px を**帯を太らせずに**吸収したため（帯の式は 74F+46 のまま据え置き）。
+     水平はカード右138 と列左154 の間16（S16）／右余白24（S24）＝こちらは dp 固定。 */
+  .kaeshi .kmeta{position:absolute;left:154px;right:24px;top:calc(12px - 1px * var(--F));
+    height:calc(76px * var(--F) + 22px)}
 
-  /* ステータス表 */
-  .status-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    border-top: 1px solid var(--line);
-    border-bottom: 1px solid var(--line);
-    margin-top: 16px;
-  }
-  .status-item {
-    padding: 12px 0;
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-  }
-  .status-item:nth-child(odd) {
-    border-right: 1px solid var(--line);
-    padding-right: 16px;
-  }
-  .status-item:nth-child(even) {
-    padding-left: 16px;
-  }
-  .status-item:nth-child(1), .status-item:nth-child(2) {
-    border-bottom: 1px solid var(--line);
-  }
-  .status-item .lbl {
-    font-size: 10px;
-    color: var(--ink-soft);
-    letter-spacing: .06em;
-  }
-  .status-item .val {
-    font-size: 12.5px;
-    color: var(--ink);
-    font-weight: 500;
-  }
-  .status-item .val small {
-    font-size: 11px;
-    color: var(--ink-soft);
-  }
+  .shiori{border-radius:2px;overflow:hidden;box-shadow:0 3px 10px rgba(28,31,38,.22)}
+  .shiori canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+  .kmeta{display:flex;flex-direction:column;align-items:flex-start;gap:6px}
+  /* 情報列 76F+22 の内訳（内容には依らず、fontScale にだけ依る）:
+     題名 46F ＋ 間6 ＋ 作者 16F ＋ 間6 ＋ チップ(14F ＋ padding4×2 ＋ 枠1×2)。
+     line-height を明示するのはフォント既定の `normal` 依存を外すため——normal だと環境で1〜2px
+     ぶれ、「内訳が確定＝上下対称」の根拠そのものが崩れる。題名2行clamp・作者1行nowrap も寸法保証の一部。
+     ---- 題名の箱 = **46·F**（T2・2026-08-26 裁定）----
+     旧 44px は「2行ぶんのつもり」の値だったが、Compose 実測の自然行高 22.75×2 = 45.5px に 1.5px 足りず
+     **2行目が一度も描かれていなかった**。46 にすると 46/45.5 = 1.011 > 1 ＝**比**が立つので、
+     箱も字も F 倍される全 fontScale で2行が描かれる（44 のままだと 0.967 のまま＝どの F でも1行）。
+     ⚠️ 箱は F・字面は T で伸ばす（分離の理由は .phone の --F/--T のコメント）。 */
+  .kmeta .t{font-family:var(--mincho);font-size:calc(16px * var(--T));font-weight:600;
+    line-height:calc(22.75px * var(--T));height:calc(46px * var(--F));color:var(--ink);
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  /* 作者・チップの箱は F 倍。⚠️ 字面（T）より箱（F）が大きい向きにしかずれない＝字が切れる側へは倒れない。 */
+  .kmeta .au{font-size:calc(12.5px * var(--T));line-height:calc(16px * var(--F));color:var(--ink);font-weight:500;
+    align-self:stretch;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  /* チップは .kmeta の直下の flex item に置く（div で包むと親の行ボックスが高さを決めて24pxにならない）。 */
+  .kmeta .genre-label{line-height:calc(14px * var(--F));font-size:calc(11.5px * var(--T))}
 
-  /* セクション */
-  .sec{font-size:10.5px;letter-spacing:.28em;color:var(--ink-soft);margin:24px 0 12px}
+  /* ジャンルチップ。display:inline-block が要る＝span のままだと縦padding/borderが行ボックスに
+     算入されず、レイアウト高(約14px)より見た目(約24px)が10px高くなり、flex column の下端で
+     計算より下へはみ出す（帯の境界をまたぐ症状の真因その1）。
+     文字は濃青磁＝意味を運ぶので AA(4.5:1) が要る。枠線は装飾のため青磁のまま据え置く。 */
+  .genre-label{display:inline-block;font-size:11.5px;color:var(--seiji-ink);border:1px solid var(--seiji);padding:4px 8px;border-radius:2px;font-weight:500;white-space:nowrap;flex-shrink:0}
 
-  /* あらすじ */
-  .summary-p {
-    font-family: var(--mincho);
-    font-size: 14px;
-    line-height: 1.9;
-    color: var(--ink);
-    text-align: justify;
-  }
+  /* ステータス表（2×2・外郭ヘアライン＋中央縦罫）。
+     行高は golden 実測の「罫を含まない中身の高さ」＝上段84dp（読了目安が2行に折れる）・下段61dp。
+     既定の border-box のままだと下段の上罫が61dpの内側に食い込み、表が1dp縮んで版面全体がずれる。 */
+  .status-grid{border-top:1px solid var(--line);border-bottom:1px solid var(--line);margin-top:16px;display:flex;flex-direction:column}
+  .status-row{display:flex;box-sizing:content-box}
+  .status-row + .status-row{border-top:1px solid var(--line)}
+  .status-item{flex:1;min-width:0;padding:12px 0;display:flex;flex-direction:column;gap:4px}
+  .status-item:first-child{border-right:1px solid var(--line);padding-right:16px}
+  .status-item:last-child{padding-left:16px}
+  .status-item .lbl{font-size:10.5px;color:var(--ink-soft);letter-spacing:.06em}
+  .status-item .val{font-size:13px;color:var(--ink);font-weight:500;line-height:1.45}
+  .status-item .val small{font-size:11.5px;color:var(--ink-soft)}
 
-  /* キーワード */
-  .kw-chips {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-  }
-  .kw-chip {
-    font-size: 11px;
-    color: var(--seiji);
-    border: 1px solid var(--seiji);
-    border-radius: 2px;
-    padding: 4px 8px;
-    letter-spacing: .02em;
-  }
+  /* セクション見出し（行箱28dp＝実機実測 h=112px/density4。上アキ24dp・下アキ12dp） */
+  .sec{font-size:10.5px;letter-spacing:.28em;color:var(--ink-soft);font-weight:600;height:28px;line-height:28px;margin-top:24px}
+  .sec + *{margin-top:12px}
 
-  /* 評価表 */
-  .eval-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    border-top: 1px solid var(--line);
-    border-bottom: 1px solid var(--line);
-  }
-  .eval-item {
-    padding: 12px 0;
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-  }
-  .eval-item:nth-child(odd) {
-    border-right: 1px solid var(--line);
-    padding-right: 16px;
-  }
-  .eval-item:nth-child(even) {
-    padding-left: 16px;
-  }
-  .eval-item:nth-child(1), .eval-item:nth-child(2) {
-    border-bottom: 1px solid var(--line);
-  }
-  .eval-lbl {
-    font-size: 10px;
-    color: var(--ink-soft);
-  }
-  .eval-val {
-    font-size: 13.5px;
-    font-family: var(--mincho);
-    color: var(--ink);
-    font-weight: 600;
-  }
+  /* あらすじ本文（14sp / lineHeight 26sp＝実装値そのまま。行数制限は掛けない） */
+  .summary-p{font-family:var(--mincho);font-size:14px;line-height:26px;color:var(--ink);text-align:justify}
 
-  /* 更新日 */
-  .last-updated {
-    font-size: 11px;
-    color: var(--ink-soft);
-    margin-top: 16px;
-    text-align: right;
-  }
+  .kw-chips{display:flex;flex-wrap:wrap;gap:8px}
+  /* キーワードチップもジャンルチップと同じ規定＝文字は濃青磁（AA）・枠線は青磁のまま（装飾）。 */
+  .kw-chip{display:inline-block;font-size:11px;color:var(--seiji-ink);border:1px solid var(--seiji);border-radius:2px;padding:4px 8px;letter-spacing:.02em}
 
-  /* 下端固定バー */
-  .fixed-bar {
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    background: var(--base);
-    border-top: 1px solid var(--line);
-    padding: 12px 24px 24px;
-    z-index: 5;
-    display: flex;
-    flex-direction: column;
-  }
-  .btn-primary {
-    width: 100%;
-    padding: 12px;
-    background: var(--ai);
-    color: var(--base);
-    border: none;
-    border-radius: 2px;
-    font-family: var(--gothic);
-    font-size: 13px;
-    font-weight: 600;
-    cursor: pointer;
-    /* アイコン＋ラベルを中央に並べる（Compose 側は open-in-new/download/bookmark アイコン付き。実態に合わせ収載） */
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    letter-spacing: 0.1em;
-  }
-  .btn-ghost {
-    width: 100%;
-    padding: 12px;
-    background: transparent;
-    color: var(--ink-soft);
-    border: 1px solid var(--line);
-    border-radius: 2px;
-    font-family: var(--gothic);
-    font-size: 12px;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    letter-spacing: 0.1em;
-  }
-  /* 既読・未取込（案A・完全一貫）の最下位リンク＝枠も塗りも持たないテキストリンク（--ink-soft）。
-     続きから読む（ghost）より軽い、最も静かな階層。目次（作品トップ）への逃げ道。 */
-  .btn-textlink {
-    width: 100%;
-    padding: 8px 12px;
-    background: transparent;
-    border: none;
-    color: var(--ink-soft);
-    font-family: var(--gothic);
-    font-size: 12px;
-    letter-spacing: 0.1em;
-    text-align: center;
-    text-decoration: none;
-    display: block;
-    cursor: pointer;
-  }
-  /* 固定バーのボタンアイコン（.back svg と同じ stroke 流儀・currentColor で文字色に追従） */
-  .fixed-bar button svg { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-width: 1.5; flex-shrink: 0; }
-  /* 外部遷移の注記（実装済みの UX 監査対応をモックへ追認） */
-  .bar-note {
-    font-size: 10.5px;
-    color: var(--ink-soft);
-    text-align: center;
-    margin-top: 8px;
-  }
+  .eval-grid{border-top:1px solid var(--line);border-bottom:1px solid var(--line);display:flex;flex-direction:column}
+  .eval-row{display:flex;box-sizing:content-box}
+  .eval-row + .eval-row{border-top:1px solid var(--line)}
+  .eval-item{flex:1;min-width:0;padding:12px 0;display:flex;flex-direction:column;gap:4px}
+  .eval-item:first-child{border-right:1px solid var(--line);padding-right:16px}
+  .eval-item:last-child{padding-left:16px}
+  .eval-lbl{font-size:10px;color:var(--ink-soft)}
+  .eval-val{font-size:13.5px;font-family:var(--mincho);color:var(--ink);font-weight:600}
+
+  .last-updated{font-size:11px;color:var(--ink-soft);margin-top:16px;margin-bottom:24px;text-align:right}
+
+  /* ============ 下端固定バー（案B・2026-08-21 裁定） ============
+     寸法は golden 実測: 上罫1dp ＋ 上下padding 16dp ＋ タップ標的スロット48dp（ボタン可視は40dpで上下中央）
+     ＋ スロット間8dp。案Bの総高 = 1+16+48+8+48+16 = 137dp。
+     （2026-08-21 のバー注記撤去まではここに注記塊 36dp が乗って 173dp だった＝撤去ぶんがそのまま本文へ回る）
+     3アクション版（未取込・未読）と4アクション版（未取込・既読）で**総高が変わらない**のが案Bの要点
+     ＝どちらの状態でもあらすじの初期可視が同じ 5.2行になる（旧構成は 229dp / 285dp と 56dp 差があり、
+     4アクション版だけ本文が0行に落ちていた）。
+     ⚠️ 2026-09-04（案A）で**取込済みの2状態も同じ2スロット＝137dp へ揃った**（取込済・未読は 81→137dp）。
+     ＝4状態すべて同高で、あらすじの初期可視も全状態 5.2行になる。 */
+  /* ============ スクロール示唆の印＝**端フェード ＋ シェブロン**（印③・2026-08-26 裁定） ============
+     ⚠️ **2つで1組。片方だけ実装しない。**
+     ・端フェード＝紙が続いていることを地色の濃度で言う（読書画面の端フェードと同じ語彙＝アプリの中で
+       語彙が増えない）。ただし**下端に本文がある間しか効かない**——fontScale 2.0 では下端に来るのが
+       余白なので、地色に地色を重ねることになって何も見えない。
+     ・シェブロン＝「下へ」と方向を名指しする。フェードが効かない **2.0 を担うのはこちら**。
+       色は青磁 --seiji-ink の α.62＝意味を運ぶ小さな記号の既存スロット（新色を作らない）。
+     ⚠️ **どちらも .viewport への絶対配置＝版面を1dpも食わない**。だからあらすじの初期可視行数は
+     印の有無で1行も変わらない（印を足したせいで本文が減る、という取引をしていない）。
+     ⚠️ 実装は `canScrollForward` で出し分ける＝**下端に着いたら消す**。消えないと「まだ続く」と嘘をつく。 */
+  .afford{position:absolute;left:0;right:0;pointer-events:none}
+  /* 36px を地色 var(--base)=#FBFAF8 へ溶かす（α0 → α.97）。 */
+  .afford.fade{bottom:0;height:36px;background:linear-gradient(to bottom,rgba(251,250,248,0),rgba(251,250,248,.97))}
+  .afford.chev{bottom:10px;display:flex;justify-content:center;color:var(--seiji-ink);opacity:.62}
+  .afford.chev svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+
+  .fixed-bar{flex-shrink:0;background:var(--base);border-top:1px solid var(--line);padding:16px 24px;display:flex;flex-direction:column}
+  .slot{height:48px;display:flex;align-items:center;flex-shrink:0}
+  .slot + .slot{margin-top:8px}
+  .slot.row{gap:8px}
+  .slot.row > *{flex:1;min-width:0}
+  .btn-primary{height:40px;width:100%;background:var(--ai);color:var(--base);border:none;border-radius:2px;
+    font-family:var(--gothic);font-size:12.5px;font-weight:600;cursor:pointer;
+    display:flex;align-items:center;justify-content:center;gap:8px;letter-spacing:.1em;white-space:nowrap}
+  /* 副アクションは枠線のゴースト。案Bでは1行に横並べ＝**隠さずに畳む**（オーバーフローへの退避は
+     「せっかくの導線を隠すのは論外」で却下済み）。 */
+  .btn-ghost{height:40px;width:100%;background:transparent;color:var(--ink-soft);border:1px solid var(--line);border-radius:2px;
+    font-family:var(--gothic);font-size:12.5px;cursor:pointer;
+    display:flex;align-items:center;justify-content:center;gap:8px;letter-spacing:.1em;white-space:nowrap}
+  .btn-ghost.mini{font-size:11.5px;letter-spacing:.06em;gap:4px}
+  .fixed-bar button svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.5;flex-shrink:0}
+
+  /* ---- fontScale 追従の検分列（案A＋T2）。書影ブロックだけを切り出して4段で並べる ----
+     なぜ端末まるごとでなく書影ブロックだけか: 案A と T2 が規定するのは書影ブロックの中の寸法だけで、
+     格子・見出し・本文は sp が伸びるだけ（＝この面の裁定対象ではない）。切り出すほうが
+     「帯が伸び、越えが痩せ、題名が2行のまま」が一目で分かる。 */
+  /*==harness==*/
+  /* ⚠️ ここから harness＝**検分用コンテナの見せ方**であってアプリの版面ではない（.stage/.wrap と同じ扱い）。
+     余白がスケール外なのは意図（check_design_tokens.py の off-scale 検査から除外される領域）。
+     版面そのものの寸法は上の .kaeshi 一式が持っており、そちらは検査対象のまま。 */
+  .fs-head{max-width:1000px;width:100%;margin-top:34px;font-size:16px;font-family:var(--mincho);color:#2A2C28}
+  .fs-strip{display:flex;flex-wrap:wrap;gap:22px;justify-content:center;margin-top:14px}
+  .fs-tile{display:flex;flex-direction:column;gap:7px;width:360px}
+  .fs-tile .fs-mode{font-size:12px;letter-spacing:.2em;color:#6A6C67}
+  .fs-tile .fs-num{font-size:11.5px;line-height:1.75;color:#5A5C57}
+  .fs-tile .fs-num b{color:#1C1F26}
+  .fs-frame{width:360px;background:var(--base);position:relative;overflow:hidden;border-radius:6px;
+    box-shadow:0 8px 20px rgba(0,0,0,.16)}
+  /*==/harness==*/
 </style>
 </head>
 <body>
-  <p class="cap"><b>D. 作品詳細</b> ／ 上部にヘッダー化された書影風デザイン、ステータス＆評価の２列ヘアライン表、そして浮き上がらない下部固定アクションエリア。<br>固定バー＝3アクション（藍プライマリ「縦書きPDFを取り込む」＝手元に本を置く＝アプリの主目的を最優先／ghost「なろうで読む」＋注記／ghost「本棚に置く」＝(b) Web由来カードの入口・置いた後は「本棚から外す」）。※未読・未取込時の主従。取込済みなら下2つの ghost は消え、主CTAは「なろうで読む」になる。<br><b>既読・未取込（右パネル・案A 完全一貫／2026-07-16 裁定）</b>＝一度ブラウザで読んでも取込を藍の主CTAに保ち（状態依存で主従を入れ替えない）、「続きから読む」は ghost・「最初から（目次）」は最軽量のテキストリンクへ退避する。</p>
-  <div class="stage">
-    <!-- 作品詳細 -->
-    <div class="wrap"><span class="mode">作品詳細</span>
-    <div class="phone" role="img" aria-label="作品詳細">
-      <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
-      <div class="back"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>作品一覧</div>
-      
-      <div class="scroll">
-        <!-- 書影風ヒーロー -->
-        <div class="cv hero-cv" style="background:linear-gradient(160deg,#3A4F63,#28323E)">
-          <div class="rule"></div>
-          <div class="ttl-in">
-            <b>追放された万能薬師、辺境でスローライフを始める</b>
-          </div>
-        </div>
+  <p class="cap"><b>D. 作品詳細</b> ／ 帯の上に置いた栞書影（案2-c）、ステータス＆評価の2列ヘアライン表、浮き上がらない下部固定アクションエリア。<br>
+  <b>書影＝案2-c 淡地（2026-08-21 裁定）</b>: 本棚と1ピクセル同じ栞書影を 114×152 のカードで置き、その背後の帯の地を作品色から導く——ただし<b>彩度14%・明度93%の固定窓へ圧縮</b>するので、どの色相でも墨は 13.88〜14.36:1＝<b>変わるのは色みだけで版面の明暗は動かない</b>。
+  題名・作者・ジャンルは1つの情報列（高さ96px固定）にまとめ、帯120の内側から<b>上下12px（S12）の対称</b>で据える。<b>書影カードだけが境界を44px 越える</b>＝「面の上に置かれた本」の意図（半端な10pxのはみ出しとは桁が違う）。<br>
+  <b>固定バー＝案B（2026-08-21 裁定）</b>: 藍プライマリ「縦書きPDFを取り込む」を全幅で最上段に固定し（＝手元に本を置く＝アプリの主目的。案A「完全一貫」＝未取込である限り既読でも降格させない）、
+  <b>副アクションは1行に横並べ</b>する。<b>隠さずに畳む</b>のが要点で、オーバーフローメニューへの退避は「せっかくの導線を隠すのは論外」として却下済み。<br>
+  <b>この改訂で初期ビューポートを規定に含めた</b>——端末枠は実機と同寸の 360×792dp（1px=1dp）で、固定バーは実寸の要素。
+  <b>あらすじの初期可視は3アクション版・4アクション版とも 5.2行</b>（最低2行＝第1文が閉じる／推奨3行＝第2文の「追放」まで届く、を満たす）。
+  改訂前は 1.385行 / <b>0行</b>で、案B で 3.5行、2026-08-21 のバー注記撤去（36dp）で 4.9行、案2-c の作者行吸収（差引 −6px）で 5.2行。<br>
+  ⚠️ <b>旧記載（2026-08-21 まで）</b>: 「取込済みなら取込とその周辺は冗長で消え、主CTAは『なろうで読む』へ昇格する（＝副アクション行は『本棚に置く』だけになる）」。<b>2026-09-04 の案Aで無効</b>——かつ<b>当時から実装とも一致していなかった</b>（実装の副行は既読で「最初から読み直す（目次）」・未読では行そのものが出ていなかった）。<br>
+  <b>取込済み＝案A（2026-09-04 裁定）</b>: 取込とその周辺は冗長で消え、<b>主CTAは蔵書を開く「アプリで読む」へ移り、なろう系は副アクション行へ降りる</b>（消さない＝アプリ自身の新着通知の着地がなろうだけのため）。<b>スロットは増やさず入れ替える</b>ので総高 137dp を侵さず、取込済・未読も 81→137dp へ揃って<b>4状態すべてが 137dp</b>になる。アイコンは〈<b>手元＝MenuBook ／ なろう＝外部リンク</b>〉。<br>
+  <b>取込済みの「既読／未読」は手元の本の栞が決める（2026-09-04 監督裁定）</b>: この画面は<b>栞を2つ</b>運ぶ——<b>主＝手元の栞</b>（「アプリで続きから」／「アプリで読む」）・<b>副＝なろうの栞</b>（「なろうで第12話から」／「なろうで読む」）。<b>進捗が2つ在るのは不整合ではない</b>（手元は取込時点のスナップショット・なろうは連載が続く別の面）。顔（文言）と着地先は<b>同じ1つの値</b>から出すので、〈アプリで8割読了・なろう未訪〉が「未読」の顔で続きへ着地する旧来の食い違いは構造的に起きない。<br>
+  <b>fontScale＝BA ＋ T2 ＋ 印③（2026-08-26 裁定）</b>: <b>帯 = 74·F + 46</b> で書影帯を fontScale へ追従させ（2.0 で作者とジャンルが読めるようになる／代価は書影の「越え」が F≥1.60 で 0 になること）、
+  <b>題名の箱を 44→46dp</b> にして「2行」を初めて本当に描く（1.5dp 足りず2行目が落ちていた既存バグの修正＝<b>あらすじは1行も減らない</b>）。
+  下端には<b>端フェード ＋ シェブロンの2つ1組</b>を置く——<b>絶対配置で版面を1dpも食わず</b>、下端に着いたら両方消える。
+  ⚠️ <b>fontScale 2.0 であらすじが 0行になるのは受諾済み</b>（取り戻せる唯一の案＝あらすじを格子より前へ出す並び替えは、
+  「作品の素性を先に見せる構成」を守るために<b>不採用</b>にした）。伸びた姿の検分は下の<b>fontScale 追従の検分</b>列。</p>
 
-        <div style="padding: 0 24px;">
-          <!-- 作者とジャンル -->
-          <div class="detail-meta-top">
-            <span class="author">霧島あおい</span>
+  <div class="stage">
+
+    <!-- ============ 3アクション版（未取込・未読） ============ -->
+    <div class="wrap"><span class="mode">未取込・未読（3アクション）</span>
+    <div class="phone" role="img" aria-label="作品詳細 未取込・未読">
+      <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+      <div class="topbar"><span class="ic"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></span></div>
+
+      <div class="viewport">
+      <div class="scroll"><div class="col">
+        <div class="kaeshi">
+          <div class="band" data-band data-title="追放された万能薬師、辺境でスローライフを始める"></div>
+          <div class="shiori" data-shiori data-title="追放された万能薬師、辺境でスローライフを始める"></div>
+          <div class="kmeta">
+            <div class="t">追放された万能薬師、辺境でスローライフを始める</div>
+            <div class="au">霧島あおい</div>
             <span class="genre-label">ハイファンタジー</span>
           </div>
-
-          <!-- ステータス 2列表 -->
+        </div>
+        <div class="pad">
           <div class="status-grid">
-            <div class="status-item">
-              <span class="lbl">状態</span>
-              <span class="val">連載中・127話</span>
+            <div class="status-row" style="height:84px">
+              <div class="status-item"><span class="lbl">状態</span><span class="val">連載中・127話</span></div>
+              <div class="status-item"><span class="lbl">読了目安</span><span class="val">約8時間<br><small>（24.1万字）</small></span></div>
             </div>
-            <div class="status-item">
-              <span class="lbl">読了目安</span>
-              <span class="val">約8時間 <small>(24.1万字)</small></span>
-            </div>
-            <div class="status-item">
-              <span class="lbl">会話率</span>
-              <span class="val">42%</span>
-            </div>
-            <div class="status-item">
-              <span class="lbl">挿絵</span>
-              <span class="val">3枚</span>
+            <div class="status-row" style="height:61px">
+              <div class="status-item"><span class="lbl">会話率</span><span class="val">42%</span></div>
+              <div class="status-item"><span class="lbl">挿絵</span><span class="val">3枚</span></div>
             </div>
           </div>
 
-          <!-- あらすじ -->
           <div class="sec">あらすじ</div>
-          <p class="summary-p">
-            調薬の才能を見込まれ、宮廷薬師として働いていた万能薬師のアルス。しかし、無能と罵られ突如国を追放されてしまう。アルスは新天地を求め、たどり着いた世界の最果ての辺境の地で、のんびりとしたスローライフを始めることを決意する。そこで出会った人々との穏やかな日常を描くファンタジー。
-          </p>
+          <p class="summary-p">調薬の才能を見込まれ、宮廷薬師として働いていた万能薬師のアルス。しかし、無能と罵られ突如国を追放されてしまう。アルスは新天地を求め、たどり着いた世界の最果ての辺境の地で、のんびりとしたスローライフを始めることを決意する。薬草を育て、傷ついた獣を癒やし、村人の頼みごとに応えるうちに、小さな暮らしは少しずつ賑やかになっていく。宮廷が彼を手放したことの意味に、王都が気づくのはまだ先の話。</p>
 
-          <!-- キーワード -->
-          <div class="sec" style="margin-top: 24px;">キーワード</div>
+          <div class="sec">キーワード</div>
           <div class="kw-chips">
-            <span class="kw-chip">異世界転生</span>
-            <span class="kw-chip">ハーレム</span>
-            <span class="kw-chip">チート</span>
-            <span class="kw-chip">成り上がり</span>
-            <span class="kw-chip">スローライフ</span>
+            <span class="kw-chip">異世界転生</span><span class="kw-chip">ハーレム</span><span class="kw-chip">チート</span><span class="kw-chip">成り上がり</span><span class="kw-chip">スローライフ</span>
           </div>
 
-          <!-- 評価表 -->
-          <div class="sec" style="margin-top: 24px;">評価</div>
+          <div class="sec">評価</div>
           <div class="eval-grid">
-            <div class="eval-item">
-              <span class="eval-lbl">総合評価</span>
-              <span class="eval-val">123,456 pt</span>
+            <div class="eval-row">
+              <div class="eval-item"><span class="eval-lbl">総合評価</span><span class="eval-val">123,456 pt</span></div>
+              <div class="eval-item"><span class="eval-lbl">ブックマーク</span><span class="eval-val">45,678 件</span></div>
             </div>
-            <div class="eval-item">
-              <span class="eval-lbl">ブックマーク</span>
-              <span class="eval-val">45,678 件</span>
-            </div>
-            <div class="eval-item">
-              <span class="eval-lbl">評価者数</span>
-              <span class="eval-val">8,901 人</span>
-            </div>
-            <div class="eval-item">
-              <span class="eval-lbl">週間ポイント</span>
-              <span class="eval-val">12,345 pt</span>
+            <div class="eval-row">
+              <div class="eval-item"><span class="eval-lbl">評価者数</span><span class="eval-val">8,901 人</span></div>
+              <div class="eval-item"><span class="eval-lbl">週間ポイント</span><span class="eval-val">12,345 pt</span></div>
             </div>
           </div>
 
           <div class="last-updated">2026年7月6日 更新</div>
         </div>
+      </div></div>
+        <!-- 印③（端フェード＋シェブロン）＝2つで1組。下端に着いたら両方消す（canScrollForward）。 -->
+        <div class="afford fade"></div>
+        <div class="afford chev"><svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></div>
       </div>
 
-      <!-- 固定フッター（未読・未取込作品の状態＝主CTAは「縦書きPDFを取り込む」＝主目的を最優先。
-           取り込み済みなら PDF取り込みと「本棚に置く」は冗長で消え、「なろうで読む」が主CTA（藍）へ昇格／
-           「本棚に置く」は棚に置いた後「本棚から外す」へトグル） -->
+      <!-- 案B: 主CTA全幅 ＋ 副アクション横一列（未取込・未読は「なろうで読む」「本棚に置く」の2つ） -->
       <div class="fixed-bar">
-        <button class="btn-primary"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>縦書きPDFを取り込む</button>
-        <button class="btn-ghost" style="margin-top: 8px;"><svg viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>なろうで読む</button>
-        <div class="bar-note">外部サイト syosetu.com へ移動します</div>
-        <button class="btn-ghost" style="margin-top: 8px;"><svg viewBox="0 0 24 24"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h5"/><line x1="12" y1="7" x2="18" y2="7"/><line x1="15" y1="4" x2="15" y2="10"/></svg>本棚に置く</button>
+        <div class="slot">
+          <button class="btn-primary"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>縦書きPDFを取り込む</button>
+        </div>
+        <div class="slot row">
+          <button class="btn-ghost mini"><svg viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>なろうで読む</button>
+          <button class="btn-ghost mini"><svg viewBox="0 0 24 24"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h5"/><line x1="12" y1="7" x2="18" y2="7"/><line x1="15" y1="4" x2="15" y2="10"/></svg>本棚に置く</button>
+        </div>
       </div>
+
+      <div class="navbar"><i></i></div>
     </div></div>
 
-    <!-- 作品詳細（既読・未取込・案A 完全一貫）＝一度読んでも取込を藍の主CTAに保つ -->
-    <div class="wrap"><span class="mode">既読・未取込（案A）</span>
-    <div class="phone" role="img" aria-label="作品詳細 既読・未取込 案A">
+    <!-- ============ 4アクション版（未取込・既読＝lastReadEpisode>0） ============ -->
+    <div class="wrap"><span class="mode">未取込・既読（4アクション）</span>
+    <div class="phone" role="img" aria-label="作品詳細 未取込・既読">
       <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
-      <div class="back"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>作品一覧</div>
-      <div class="scroll">
-        <div class="cv hero-cv" style="background:linear-gradient(160deg,#3A4F63,#28323E)">
-          <div class="rule"></div>
-          <div class="ttl-in"><b>追放された万能薬師、辺境でスローライフを始める</b></div>
-        </div>
-        <div style="padding: 0 24px;">
-          <div class="detail-meta-top">
-            <span class="author">霧島あおい ／ 第12話まで読了</span>
+      <div class="topbar"><span class="ic"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></span></div>
+
+      <div class="viewport">
+      <div class="scroll"><div class="col">
+        <div class="kaeshi">
+          <div class="band" data-band data-title="追放された万能薬師、辺境でスローライフを始める"></div>
+          <div class="shiori" data-shiori data-title="追放された万能薬師、辺境でスローライフを始める"></div>
+          <div class="kmeta">
+            <div class="t">追放された万能薬師、辺境でスローライフを始める</div>
+            <div class="au">霧島あおい</div>
             <span class="genre-label">ハイファンタジー</span>
           </div>
+        </div>
+        <div class="pad">
+          <div class="status-grid">
+            <div class="status-row" style="height:84px">
+              <div class="status-item"><span class="lbl">状態</span><span class="val">連載中・127話</span></div>
+              <div class="status-item"><span class="lbl">読了目安</span><span class="val">約8時間<br><small>（24.1万字）</small></span></div>
+            </div>
+            <div class="status-row" style="height:61px">
+              <div class="status-item"><span class="lbl">会話率</span><span class="val">42%</span></div>
+              <div class="status-item"><span class="lbl">挿絵</span><span class="val">3枚</span></div>
+            </div>
+          </div>
+
           <div class="sec">あらすじ</div>
-          <p class="summary-p">調薬の才能を見込まれ、宮廷薬師として働いていた万能薬師のアルス。しかし、無能と罵られ突如国を追放されてしまう。新天地を求め、世界の最果ての辺境でのんびりとしたスローライフを始める。</p>
+          <p class="summary-p">調薬の才能を見込まれ、宮廷薬師として働いていた万能薬師のアルス。しかし、無能と罵られ突如国を追放されてしまう。アルスは新天地を求め、たどり着いた世界の最果ての辺境の地で、のんびりとしたスローライフを始めることを決意する。薬草を育て、傷ついた獣を癒やし、村人の頼みごとに応えるうちに、小さな暮らしは少しずつ賑やかになっていく。宮廷が彼を手放したことの意味に、王都が気づくのはまだ先の話。</p>
+
+          <div class="sec">キーワード</div>
+          <div class="kw-chips">
+            <span class="kw-chip">異世界転生</span><span class="kw-chip">ハーレム</span><span class="kw-chip">チート</span><span class="kw-chip">成り上がり</span><span class="kw-chip">スローライフ</span>
+          </div>
+
+          <div class="sec">評価</div>
+          <div class="eval-grid">
+            <div class="eval-row">
+              <div class="eval-item"><span class="eval-lbl">総合評価</span><span class="eval-val">123,456 pt</span></div>
+              <div class="eval-item"><span class="eval-lbl">ブックマーク</span><span class="eval-val">45,678 件</span></div>
+            </div>
+            <div class="eval-row">
+              <div class="eval-item"><span class="eval-lbl">評価者数</span><span class="eval-val">8,901 人</span></div>
+              <div class="eval-item"><span class="eval-lbl">週間ポイント</span><span class="eval-val">12,345 pt</span></div>
+            </div>
+          </div>
+
+          <div class="last-updated">2026年7月6日 更新</div>
+        </div>
+      </div></div>
+        <!-- 印③（端フェード＋シェブロン）＝2つで1組。下端に着いたら両方消す（canScrollForward）。 -->
+        <div class="afford fade"></div>
+        <div class="afford chev"><svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></div>
+      </div>
+
+      <!-- 案B: 副アクションが3つに増えても**行は増えない**（横一列のまま）＝バー総高は3アクション版と同じ137dp。
+           旧構成はここで「最初から読み直す（目次）」が1段まるごと増え、バーが 229→285dp に膨らんで
+           あらすじが本文0行まで押し出されていた。 -->
+      <div class="fixed-bar">
+        <div class="slot">
+          <button class="btn-primary"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>縦書きPDFを取り込む</button>
+        </div>
+        <div class="slot row">
+          <button class="btn-ghost mini"><svg viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>第13話から</button>
+          <button class="btn-ghost mini"><svg viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>目次</button>
+          <button class="btn-ghost mini"><svg viewBox="0 0 24 24"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h5"/><line x1="12" y1="7" x2="18" y2="7"/><line x1="15" y1="4" x2="15" y2="10"/></svg>本棚</button>
         </div>
       </div>
-      <!-- 案A: 未取込である限り「縦書きPDFを取り込む」を藍の主CTA最上段に固定（既読でも降格させない）。
-           続きから読むは ghost・「最初から（目次）」は最軽量のテキストリンク。本棚に置くは末尾 ghost。 -->
-      <div class="fixed-bar">
-        <button class="btn-primary"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>縦書きPDFを取り込む</button>
-        <button class="btn-ghost" style="margin-top: 8px;"><svg viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>第13話のはじめから読む</button>
-        <a class="btn-textlink">最初から読み直す（目次）</a>
-        <div class="bar-note">外部サイト syosetu.com へ移動します</div>
-        <button class="btn-ghost" style="margin-top: 8px;"><svg viewBox="0 0 24 24"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h5"/><line x1="12" y1="7" x2="18" y2="7"/><line x1="15" y1="4" x2="15" y2="10"/></svg>本棚に置く</button>
-      </div>
+
+      <div class="navbar"><i></i></div>
     </div></div>
+
+    <!-- ============ 取込済・手元に栞あり × なろう未訪（2026-09-04 栞裁定の新分岐） ============ -->
+    <div class="wrap"><span class="mode">取込済・手元に栞あり／なろう未訪</span>
+    <div class="phone" role="img" aria-label="作品詳細 取込済 手元に栞あり なろう未訪">
+      <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+      <div class="topbar"><span class="ic"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></span></div>
+
+      <div class="viewport">
+      <div class="scroll"><div class="col">
+        <div class="kaeshi">
+          <div class="band" data-band data-title="追放された万能薬師、辺境でスローライフを始める"></div>
+          <div class="shiori" data-shiori data-title="追放された万能薬師、辺境でスローライフを始める"></div>
+          <div class="kmeta">
+            <div class="t">追放された万能薬師、辺境でスローライフを始める</div>
+            <div class="au">霧島あおい</div>
+            <span class="genre-label">ハイファンタジー</span>
+          </div>
+        </div>
+        <div class="pad">
+          <div class="status-grid">
+            <div class="status-row" style="height:84px">
+              <div class="status-item"><span class="lbl">状態</span><span class="val">連載中・127話</span></div>
+              <div class="status-item"><span class="lbl">読了目安</span><span class="val">約8時間<br><small>（24.1万字）</small></span></div>
+            </div>
+            <div class="status-row" style="height:61px">
+              <div class="status-item"><span class="lbl">会話率</span><span class="val">42%</span></div>
+              <div class="status-item"><span class="lbl">挿絵</span><span class="val">3枚</span></div>
+            </div>
+          </div>
+
+          <div class="sec">あらすじ</div>
+          <p class="summary-p">調薬の才能を見込まれ、宮廷薬師として働いていた万能薬師のアルス。しかし、無能と罵られ突如国を追放されてしまう。アルスは新天地を求め、たどり着いた世界の最果ての辺境の地で、のんびりとしたスローライフを始めることを決意する。薬草を育て、傷ついた獣を癒やし、村人の頼みごとに応えるうちに、小さな暮らしは少しずつ賑やかになっていく。宮廷が彼を手放したことの意味に、王都が気づくのはまだ先の話。</p>
+
+          <div class="sec">キーワード</div>
+          <div class="kw-chips">
+            <span class="kw-chip">異世界転生</span><span class="kw-chip">ハーレム</span><span class="kw-chip">チート</span><span class="kw-chip">成り上がり</span><span class="kw-chip">スローライフ</span>
+          </div>
+
+          <div class="sec">評価</div>
+          <div class="eval-grid">
+            <div class="eval-row">
+              <div class="eval-item"><span class="eval-lbl">総合評価</span><span class="eval-val">123,456 pt</span></div>
+              <div class="eval-item"><span class="eval-lbl">ブックマーク</span><span class="eval-val">45,678 件</span></div>
+            </div>
+            <div class="eval-row">
+              <div class="eval-item"><span class="eval-lbl">評価者数</span><span class="eval-val">8,901 人</span></div>
+              <div class="eval-item"><span class="eval-lbl">週間ポイント</span><span class="eval-val">12,345 pt</span></div>
+            </div>
+          </div>
+
+          <div class="last-updated">2026年7月6日 更新</div>
+        </div>
+      </div></div>
+        <!-- 印③（端フェード＋シェブロン）＝2つで1組。下端に着いたら両方消す（canScrollForward）。 -->
+        <div class="afford fade"></div>
+        <div class="afford chev"><svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></div>
+      </div>
+
+      <!-- 案A（2026-09-04）: 主CTA を蔵書へ差し替え。**スロット数は増やさず入れ替える**ので総高は 137dp のまま
+           ＝取込済みはここで 81→137dp になり、4状態が同高で揃う。なろう系は消さず副へ降ろす。
+           ⚠️ この枠が**栞裁定の新しい分岐**: 手元の栞があるので主は「アプリで続きから」だが、
+           なろうは未訪＝話数が無いので副は「なろうで読む」1つ。**行ごと消さない**（消すと 81dp へ落ちて
+           4状態同高が壊れる／「なろうで最初から」は新語で、位置が無いことは既存の語が既に言える）。 -->
+      <div class="fixed-bar">
+        <div class="slot">
+          <button class="btn-primary"><svg viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>アプリで続きから</button>
+        </div>
+        <div class="slot row">
+          <button class="btn-ghost mini"><svg viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>なろうで読む</button>
+        </div>
+      </div>
+
+      <div class="navbar"><i></i></div>
+    </div></div>
+
+    <!-- ============ 取込済・手元に栞なし × なろう既訪（2026-09-04 栞裁定） ============ -->
+    <div class="wrap"><span class="mode">取込済・手元に栞なし／なろう既訪</span>
+    <div class="phone" role="img" aria-label="作品詳細 取込済 手元に栞なし なろう既訪">
+      <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+      <div class="topbar"><span class="ic"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></span></div>
+
+      <div class="viewport">
+      <div class="scroll"><div class="col">
+        <div class="kaeshi">
+          <div class="band" data-band data-title="追放された万能薬師、辺境でスローライフを始める"></div>
+          <div class="shiori" data-shiori data-title="追放された万能薬師、辺境でスローライフを始める"></div>
+          <div class="kmeta">
+            <div class="t">追放された万能薬師、辺境でスローライフを始める</div>
+            <div class="au">霧島あおい</div>
+            <span class="genre-label">ハイファンタジー</span>
+          </div>
+        </div>
+        <div class="pad">
+          <div class="status-grid">
+            <div class="status-row" style="height:84px">
+              <div class="status-item"><span class="lbl">状態</span><span class="val">連載中・127話</span></div>
+              <div class="status-item"><span class="lbl">読了目安</span><span class="val">約8時間<br><small>（24.1万字）</small></span></div>
+            </div>
+            <div class="status-row" style="height:61px">
+              <div class="status-item"><span class="lbl">会話率</span><span class="val">42%</span></div>
+              <div class="status-item"><span class="lbl">挿絵</span><span class="val">3枚</span></div>
+            </div>
+          </div>
+
+          <div class="sec">あらすじ</div>
+          <p class="summary-p">調薬の才能を見込まれ、宮廷薬師として働いていた万能薬師のアルス。しかし、無能と罵られ突如国を追放されてしまう。アルスは新天地を求め、たどり着いた世界の最果ての辺境の地で、のんびりとしたスローライフを始めることを決意する。薬草を育て、傷ついた獣を癒やし、村人の頼みごとに応えるうちに、小さな暮らしは少しずつ賑やかになっていく。宮廷が彼を手放したことの意味に、王都が気づくのはまだ先の話。</p>
+
+          <div class="sec">キーワード</div>
+          <div class="kw-chips">
+            <span class="kw-chip">異世界転生</span><span class="kw-chip">ハーレム</span><span class="kw-chip">チート</span><span class="kw-chip">成り上がり</span><span class="kw-chip">スローライフ</span>
+          </div>
+
+          <div class="sec">評価</div>
+          <div class="eval-grid">
+            <div class="eval-row">
+              <div class="eval-item"><span class="eval-lbl">総合評価</span><span class="eval-val">123,456 pt</span></div>
+              <div class="eval-item"><span class="eval-lbl">ブックマーク</span><span class="eval-val">45,678 件</span></div>
+            </div>
+            <div class="eval-row">
+              <div class="eval-item"><span class="eval-lbl">評価者数</span><span class="eval-val">8,901 人</span></div>
+              <div class="eval-item"><span class="eval-lbl">週間ポイント</span><span class="eval-val">12,345 pt</span></div>
+            </div>
+          </div>
+
+          <div class="last-updated">2026年7月6日 更新</div>
+        </div>
+      </div></div>
+        <!-- 印③（端フェード＋シェブロン）＝2つで1組。下端に着いたら両方消す（canScrollForward）。 -->
+        <div class="afford fade"></div>
+        <div class="afford chev"><svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></div>
+      </div>
+
+      <!-- 案A（2026-09-04）＋栞裁定: **手元に栞が無い**ので主は「アプリで読む」（押すと目次から）。
+           ⚠️ なろうを第12話まで読んでいても主の顔は変わらない＝**主は手元の栞だけを見る**。
+           副は**「なろうで」を前置**＝主が蔵書側へ移った以上、前置が無いと「第12話」が何の話数か言えない。
+           実効幅124dp に対し 103.5dp（4桁話数でも 115dp）。 -->
+      <div class="fixed-bar">
+        <div class="slot">
+          <button class="btn-primary"><svg viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>アプリで読む</button>
+        </div>
+        <div class="slot row">
+          <button class="btn-ghost mini"><svg viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>なろうで第12話から</button>
+          <button class="btn-ghost mini"><svg viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>なろうの目次</button>
+        </div>
+      </div>
+
+      <div class="navbar"><i></i></div>
+    </div></div>
+
   </div>
+
+  <div class="fs-head">fontScale 追従の検分（案A ＝ 帯 74·F + 46 ／ T2 ＝ 題名の箱 46·F）</div>
+  <p class="cap" style="margin-top:8px">1.0 の版面では<b>案A も T2 も差がほとんど見えない</b>（帯は 120 のまま・題名が2行になるだけ）。
+  規定しているのは「F が上がったときにどう伸びるか」なので、伸びた姿をここで検分できるようにする。
+  <b>書影カードは追従しない</b>（dp 固定 114×152・下端 164）ので、<b>帯が伸びるぶんだけ「越え」が痩せて F≥1.60 で 0 になる</b>——
+  「面の上に置かれた本」が大きい文字設定で消えるのが案A の代償で、2026-08-26 に受諾済み。<br>
+  ⚠️ 字面は非線形 sp 拡大で実機のほうが小さくなる（設定 2.0 の実測は 1.92 倍）。ここは <b>--T = --F の線形＝実機より厳しい側</b>で描いてあり、
+  それでも題名は全段で2行が描かれる（箱 46F ÷ 行 45.5T の<b>比</b>が F に依らないため）。</p>
+  <div class="fs-strip">
+      <div class="fs-tile">
+        <span class="fs-mode">fontScale 1.0</span>
+        <div class="fs-frame" style="--F:1.0;--T:1">
+          <div class="kaeshi">
+            <div class="band" data-band data-title="追放された万能薬師、辺境でスローライフを始める"></div>
+            <div class="shiori" data-shiori data-title="追放された万能薬師、辺境でスローライフを始める"></div>
+            <div class="kmeta">
+              <div class="t">追放された万能薬師、辺境でスローライフを始める</div>
+              <div class="au">霧島あおい</div>
+              <span class="genre-label">ハイファンタジー</span>
+            </div>
+          </div>
+        </div>
+        <span class="fs-num">帯 <b>120.0</b>（74·F+46） ／ 情報列 <b>98</b> ／ 上下の内側余白 <b>11.0</b>（対称） ／
+          書影の越え <b>44.0</b> ／ ブロック <b>166</b> ／ 題名の箱 <b>46.0</b>（2行 45.5＝<b>2行が描かれる</b>）<br>既定。帯・ブロックとも従来値のまま＝<b>この面の版面は1dpも動いていない</b>。</span>
+      </div>
+      <div class="fs-tile">
+        <span class="fs-mode">fontScale 1.3</span>
+        <div class="fs-frame" style="--F:1.3;--T:1.3">
+          <div class="kaeshi">
+            <div class="band" data-band data-title="追放された万能薬師、辺境でスローライフを始める"></div>
+            <div class="shiori" data-shiori data-title="追放された万能薬師、辺境でスローライフを始める"></div>
+            <div class="kmeta">
+              <div class="t">追放された万能薬師、辺境でスローライフを始める</div>
+              <div class="au">霧島あおい</div>
+              <span class="genre-label">ハイファンタジー</span>
+            </div>
+          </div>
+        </div>
+        <span class="fs-num">帯 <b>142.2</b>（74·F+46） ／ 情報列 <b>120.8</b> ／ 上下の内側余白 <b>10.7</b>（対称） ／
+          書影の越え <b>21.8</b> ／ ブロック <b>166</b> ／ 題名の箱 <b>59.8</b>（2行 59.15＝<b>2行が描かれる</b>）<br>帯が書影下端 164 に近づき越えが半分以下へ。<b>ブロック高は 166 のまま＝あらすじは1行も減らない</b>。</span>
+      </div>
+      <div class="fs-tile">
+        <span class="fs-mode">fontScale 1.5</span>
+        <div class="fs-frame" style="--F:1.5;--T:1.5">
+          <div class="kaeshi">
+            <div class="band" data-band data-title="追放された万能薬師、辺境でスローライフを始める"></div>
+            <div class="shiori" data-shiori data-title="追放された万能薬師、辺境でスローライフを始める"></div>
+            <div class="kmeta">
+              <div class="t">追放された万能薬師、辺境でスローライフを始める</div>
+              <div class="au">霧島あおい</div>
+              <span class="genre-label">ハイファンタジー</span>
+            </div>
+          </div>
+        </div>
+        <span class="fs-num">帯 <b>157.0</b>（74·F+46） ／ 情報列 <b>136.0</b> ／ 上下の内側余白 <b>10.5</b>（対称） ／
+          書影の越え <b>7.0</b> ／ ブロック <b>166</b> ／ 題名の箱 <b>69.0</b>（2行 68.25＝<b>2行が描かれる</b>）<br>越えは 7dp まで痩せる（意匠としては消える手前）。ここまでは<b>ブロック 166 で版面への影響ゼロ</b>。</span>
+      </div>
+      <div class="fs-tile">
+        <span class="fs-mode">fontScale 2.0</span>
+        <div class="fs-frame" style="--F:2.0;--T:2">
+          <div class="kaeshi">
+            <div class="band" data-band data-title="追放された万能薬師、辺境でスローライフを始める"></div>
+            <div class="shiori" data-shiori data-title="追放された万能薬師、辺境でスローライフを始める"></div>
+            <div class="kmeta">
+              <div class="t">追放された万能薬師、辺境でスローライフを始める</div>
+              <div class="au">霧島あおい</div>
+              <span class="genre-label">ハイファンタジー</span>
+            </div>
+          </div>
+        </div>
+        <span class="fs-num">帯 <b>194.0</b>（74·F+46） ／ 情報列 <b>174.0</b> ／ 上下の内側余白 <b>10.0</b>（対称） ／
+          書影の越え <b>0（帯が書影を 30dp 飲む）</b> ／ ブロック <b>196</b> ／ 題名の箱 <b>92.0</b>（2行 91.0＝<b>2行が描かれる</b>）<br>帯が書影を飲み、ブロックが初めて +30dp 伸びる。<b>作者とジャンルはここで読めるようになる</b>——これが案A の目的で、代価が上の越え 0。⚠️ この段では<b>あらすじは 0行</b>（受諾済み・並び替えはしない）で、「続きがある」は<b>シェブロン</b>が言う（端フェードは下端が余白なので効かない）。</span>
+      </div>
+  </div>
+
+<script>
+/* ============================================================================
+   栞書影の生成（本棚の ShioriGenerator と同一系列＝**書影そのものは本棚と1ピクセル同じ**）。
+   ここでは描画に使うだけで生成規則には一切手を入れない。案2-c が作品色から導くのは
+   「書影の背後にある帯の地」であって書影の色ではない＝「同じ本なのに色が違う」は起きない。
+   先端意匠は正本174種（ShioriTips.kt ／ shiori-tips-D.html）のうち代表15種だけを載せる
+   ——このモックが規定するのは版面であって先端の絵柄ではないため。
+   ============================================================================ */
+function hashStr(s){let h=2166136261>>>0;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619);}return h>>>0;}
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+function rand(r,lo,hi){return lo+(hi-lo)*r();}
+function pick(r,a){return a[Math.floor(r()*a.length)];}
+function hsl(h,s,l){return 'hsl('+h+' '+s+'% '+l+'%)';}
+const PALETTE=[20,70,140,175,200,210,260,330];
+function coverHue(t){return pick(mulberry32(hashStr(t)),PALETTE);}
+/* 帯の地（案2-c）＝作品色の色相だけを借り、彩度14%・明度93%の固定窓へ圧縮する。
+   窓を固定するので8色相のどれでも明度が揃い、版面の明暗（墨のコントラスト）が動かない。 */
+function bandTint(t){return hsl(coverHue(t),14,93);}
+function SS(c,a){c.strokeStyle=a;c.lineCap='round';c.lineJoin='round';}
+const MIN='"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif';
+const TIPS=[
+ (c,x,y,a)=>{SS(c,a);c.lineWidth=2.6;c.beginPath();c.moveTo(x,y);c.lineTo(x-6,y+12);c.moveTo(x,y);c.lineTo(x+6,y+12);c.stroke();},
+ (c,x,y,a)=>{c.fillStyle=a;c.beginPath();c.arc(x,y+7,4,0,7);c.fill();},
+ (c,x,y,a)=>{c.fillStyle=a;c.beginPath();c.arc(x,y+6,6,0,7);c.fill();},
+ (c,x,y,a)=>{SS(c,a);c.lineWidth=2.4;c.beginPath();c.moveTo(x,y);c.lineTo(x-5,y+18);c.moveTo(x,y);c.lineTo(x+5,y+18);c.stroke();},
+ (c,x,y,a)=>{c.fillStyle=a;c.beginPath();c.arc(x,y+3,3.2,0,7);c.fill();SS(c,a);c.lineWidth=2;c.beginPath();c.moveTo(x,y+5);c.lineTo(x-6,y+22);c.moveTo(x,y+5);c.lineTo(x,y+23);c.moveTo(x,y+5);c.lineTo(x+6,y+22);c.stroke();},
+ (c,x,y,a)=>{c.fillStyle=a;c.beginPath();c.arc(x,y+4,4,0,7);c.fill();SS(c,a);c.lineWidth=1.6;for(let k=-2;k<=2;k++){c.beginPath();c.moveTo(x,y+7);c.lineTo(x+k*4,y+24);c.stroke();}},
+ (c,x,y,a)=>{SS(c,a);c.lineWidth=1.8;c.beginPath();c.moveTo(x,y+4);c.quadraticCurveTo(x-11,y-2,x-9,y+4);c.quadraticCurveTo(x-11,y+10,x,y+4);c.moveTo(x,y+4);c.quadraticCurveTo(x+11,y-2,x+9,y+4);c.quadraticCurveTo(x+11,y+10,x,y+4);c.stroke();c.fillStyle=a;c.beginPath();c.arc(x,y+4,2,0,7);c.fill();},
+ (c,x,y,a)=>{c.fillStyle=a;c.beginPath();c.arc(x,y+5,4,0,7);c.fill();SS(c,a);c.lineWidth=2;c.beginPath();c.moveTo(x,y+9);c.lineTo(x,y+20);c.stroke();},
+ (c,x,y,a,pp)=>{c.fillStyle=a;c.beginPath();c.rect(x-2,y+5,8,4);c.fill();c.beginPath();c.arc(x+6,y+7,2,0,7);c.fill();c.beginPath();c.arc(x-3,y+14,5,0,7);c.fill();c.strokeStyle=pp;c.lineWidth=1.4;c.beginPath();c.arc(x-3,y+14,2,0,7);c.stroke();},
+ (c,x,y,a,pp)=>{c.fillStyle=a;c.beginPath();c.rect(x-6,y+12,12,8);c.fill();c.beginPath();c.rect(x-7,y+8,14,5);c.fill();c.fillStyle=pp;c.beginPath();c.arc(x,y+10,1.5,0,7);c.fill();},
+ (c,x,y,a)=>{c.fillStyle=a;c.beginPath();c.moveTo(x-5,y+12);c.lineTo(x+5,y+12);c.arc(x+5,y+15,3,-Math.PI/2,Math.PI/2);c.lineTo(x-5,y+18);c.arc(x-5,y+15,3,Math.PI/2,Math.PI*1.5);c.closePath();c.fill();SS(c,a);c.lineWidth=1.8;c.beginPath();c.moveTo(x-3,y+12);c.quadraticCurveTo(x,y+5,x+3,y+12);c.stroke();},
+ (c,x,y,a)=>{c.fillStyle=a;c.beginPath();c.moveTo(x-8,y+18);c.lineTo(x-8,y+14);c.quadraticCurveTo(x-6,y+8,x-4,y+13);c.quadraticCurveTo(x-2,y+16,x,y+11);c.quadraticCurveTo(x+2,y+16,x+4,y+13);c.quadraticCurveTo(x+6,y+8,x+8,y+14);c.lineTo(x+8,y+18);c.closePath();c.fill();},
+ (c,x,y,a)=>{SS(c,a);c.lineWidth=1.6;c.beginPath();c.arc(x-4,y+12,4,0,7);c.stroke();c.beginPath();c.arc(x+4,y+12,4,0,7);c.stroke();c.beginPath();c.moveTo(x-1,y+11);c.quadraticCurveTo(x,y+9,x+1,y+11);c.stroke();},
+ (c,x,y,a,pp)=>{c.fillStyle=a;c.beginPath();c.moveTo(x-5,y+8);c.lineTo(x+5,y+8);c.lineTo(x+4,y+19);c.lineTo(x-4,y+19);c.closePath();c.fill();c.strokeStyle=pp;c.lineWidth=1.4;c.beginPath();c.moveTo(x-4,y+11);c.lineTo(x+4,y+11);c.stroke();},
+ (c,x,y,a)=>{SS(c,a);c.lineWidth=1.6;c.beginPath();c.moveTo(x-6,y+6);c.lineTo(x+6,y+6);c.lineTo(x+6,y+17);c.lineTo(x-6,y+17);c.closePath();c.stroke();c.lineWidth=1.2;c.beginPath();c.moveTo(x-2,y+6);c.lineTo(x-2,y+17);c.moveTo(x+2,y+6);c.lineTo(x+2,y+17);c.stroke();c.lineWidth=2;c.beginPath();c.moveTo(x-7,y+4);c.lineTo(x+7,y+4);c.stroke();}
+];
+/* カード内の縦組み題字。114幅では 10.0dp＝本棚（140幅）の12.3dp より一段小さく、
+   文字というより刷り物の肌理として見える（題名は情報列に16pxで別に組んであるので情報は落ちない）。 */
+function vtitle(c,text,w,h,ink){
+  const S=w/150, fs=Math.round(w*0.088), lineGap=fs*1.16, colGap=Math.round(w*0.108);
+  const yTop=fs+5*S, yBottom=h-11*S, x0=w-fs-3*S, maxCols=3;
+  const perCol=Math.floor((yBottom-yTop)/lineGap); if(perCol<1||fs<1)return;
+  c.fillStyle=ink;c.font='600 '+fs+'px '+MIN;c.textAlign='center';c.textBaseline='middle';
+  const ch=[...text];
+  for(let col=0;col<maxCols;col++){const st=col*perCol;if(st>=ch.length)break;const cx=x0-col*colGap;
+    for(let i=0;i<perCol;i++){const idx=st+i;if(idx>=ch.length)break;
+      let g=ch[idx]; if(col===maxCols-1&&i===perCol-1&&idx<ch.length-1)g='⋮';
+      c.fillText(g,cx,yTop+i*lineGap+lineGap/2);}}
+}
+function drawShiori(c,w,h,title){
+  const S=w/150, paper='#FBFAF8', ink='#1C1F26';
+  c.fillStyle=paper;c.fillRect(0,0,w,h);
+  c.strokeStyle='rgba(28,31,38,.05)';c.lineWidth=1;c.strokeRect(.5,.5,w-1,h-1);
+  const acc=hsl(coverHue(title),48,52);
+  const rng=mulberry32(hashStr(title+'|B'));
+  const x=Math.round(rand(rng,.14,.36)*w)+.5, len=Math.round(rand(rng,.30,.60)*h);
+  c.strokeStyle=acc;c.lineWidth=2.5*S;c.lineCap='butt';
+  c.beginPath();c.moveTo(x,0);c.lineTo(x,len);c.stroke();
+  const ti=Math.floor(rng()*TIPS.length);
+  c.save();c.translate(x,len);c.scale(S,S);c.translate(-x,-len);
+  TIPS[ti](c,x,len,acc,paper);
+  c.restore();
+  vtitle(c,title,w,h,ink);
+}
+document.querySelectorAll('[data-band]').forEach(el=>{el.style.background=bandTint(el.dataset.title);});
+document.querySelectorAll('[data-shiori]').forEach(el=>{
+  const cv=document.createElement('canvas');el.appendChild(cv);
+  const w=el.clientWidth,h=el.clientHeight,dpr=2;
+  cv.width=w*dpr;cv.height=h*dpr;const c=cv.getContext('2d');c.setTransform(dpr,0,0,dpr,0,0);
+  drawShiori(c,w,h,el.dataset.title);
+});
+</script>
 </body>
 </html>

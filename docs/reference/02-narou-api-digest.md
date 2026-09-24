@@ -31,7 +31,7 @@
 
 | パラメータ | 使いどころ |
 |---|---|
-| `order` | ランキング切替の中核。`hyoka`(総合) / `daily_point` / `weekly` / `favnovelcnt`(ブックマーク) / `new`(新着) / `quarterpoint` 等 |
+| `order` | ランキング切替の中核。`hyoka`(総合) / `dailypoint`(日間) / `weeklypoint`(週間ポイント) / `favnovelcnt`(ブックマーク) / `new`(新着) / `quarterpoint` 等。⚠ ポイント順はアンダースコア無し（`daily_point` は `of` の**出力項目名**で order 値ではない）・`weekly` は別指標（週間ユニークユーザ順）＝正本 `narou_api_manual.md` の order 節 |
 | `word` / `notword` | フリーワード検索（AND・部分一致）。`title=1`/`ex=1`/`keyword=1`/`wname=1` で対象範囲指定 |
 | `ncode` | Nコード直接指定（既にNコードを知っている作品の情報取得。ハイフンでOR） |
 | `biggenre` / `genre` | ジャンル絞り込み（1:恋愛 2:ファンタジー 3:文芸 4:SF 99:その他 98:ノンジャンル …） |

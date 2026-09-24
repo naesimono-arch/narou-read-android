@@ -1,0 +1,432 @@
+<!-- @dsCard group="UI-n / 一時ドラフト（裁定用）" name="読書 上下バーのわずかな透過 — 3案＋対照（2026-09-03）" -->
+<!--
+  ✅ 裁定済み（2026-09-04）＝**案B（α.92）を採用**。正本 docs/design-candidates/reading-D.html の
+     `.topbar`/`.bottombar` へ差し戻し済み（`rgba(var(--bar-rgb),.92)`・why も同所）。近縁の
+     reading-vertical-scroll-D.html / reading-settings-livepreview-D.html も同時に追従させた。
+     ⚠️ **この頁はまだ消していない**——正本側の why コメントが「比較モック …案B」として本頁を名指しで
+     参照しており、消すと参照が切れるため（CLAUDE.md「削除で他ファイルからの参照が切れるなら張り替えるか
+     参照ごと消す」）。消すなら正本の参照文言も同じコミットで畳むこと。判断は監督に委ねる。
+  ── 以下は裁定前の記述（当時の判断材料として残す）──────────────────────────────
+  ⚠️ 一時ドラフト（複数案比較）＝正本ではない。裁定が付いたら**採用案だけ**を正本
+     docs/design-candidates/reading-D.html（.topbar / .bottombar）へ差し戻し、この頁は削除する
+     （CLAUDE.md「一時ファイルは抽出→集約→削除まで1セット」／visual-language「複数案比較のみ一時ドラフト」）。
+
+  ── 動機（handover.md「[意匠] 小口3件 ③新規提起」2026-09-03）────────────────────────
+  「読書の上下バーにわずかな透過」。理由は2つ＝①**境界が読めない** ②**臨場感が欲しい**。
+  ①の機序ははっきりしている: D/K はバー地を本文素地と**同じ色**に揃えてあり（SkinD.kt:139-142 の why＝
+  「D はトップ/ボトムバーを本文素地と同色に揃え、藍のヘアラインだけで境界を示す」）、ライトでは
+  navBackground #FBFAF8 と本文 --bg #FBFAF8 が**完全に同値**。境界を語るのは 1px のヘアラインだけで、
+  面としてのバーは存在しないに等しい。透過を入れると「本文がバーの下を流れる」＝層が見える。
+
+  ── 下敷きにした正本（新意匠を発明しない。色・寸法は逐語複製）──────────────────────
+  版面・配色・上下バーの構造        = docs/design-candidates/reading-D.html（.topbar 50px / .bottombar 60px）
+  バーが本文の上に浮く根拠          = docs/design-candidates/reading-vertical-scroll-D.html の .reader ★注記
+                                      （「バー表示中は列の端がバーの下へ潜るのを許容する／横書きが本文行の
+                                        バー下通過を許容するのと同じ取引」＝2026-08-17 実装同期）
+  テーマ別トークン（ライト/ダーク） = reading-D.html .t-light / .t-dark
+
+  ── 実装の現在値（2026-09-03 実測）────────────────────────────────────────────
+  ・上バー  NativeReadingScreen.kt   TopAppBar containerColor = colors.topBarBackground（**不透明**）
+  ・下バー  NativeReadingScreen.kt:1296  BottomAppBar containerColor = colors.navBackground（**不透明**）
+  ・トークン（D/K）  ライト #FBFAF8 ／ セピア #ECDFC0 ／ ダーク #181C22
+  ・本文素地          ライト #FBFAF8 ／ セピア #F2E7CE ／ ダーク #14171C
+    → **ライトはバーと本文が同値**（セピアは近似・ダークだけ僅かに明るい）
+  ・出没はスライド（translationY × collapsedFraction）＝**フェードではない**。本頁は「表示中の定常の地」だけを扱う。
+
+  ── 踏んではいけない地雷（実機で一度出た真因。案の要件に織り込んである）──────────────
+  2026-07-29 実機・NativeReadingScreen.kt:1291-1295 の why が正本:
+  旧実装の <code>.copy(alpha=0.95f)</code> は、BottomAppBar の Surface が**ナビゲーションバーの inset 帯まで
+  同じ色で塗る**ため、5% の透過が**ボタン行の下の無地部分**で本文の透けとして見えた（＝上下バー非対称の真因）。
+  よって本頁の3案はいずれも「**ナビ inset 帯は不透明のまま**」を要件に含む（下段の図を参照）。
+  実装形は containerColor に α を掛ける形ではなく、バー自身の地を「面＝半透明／inset 帯＝不透明」の
+  2段で塗る形になる。
+
+  ── 各案の意図（振っているのは面の α だけ。ヘアライン・高さ・字色・出没は全案共通で現行値）──────
+  案A「α.96」: ぎりぎり気づく程度。臨場感より**安全**（バーのラベル 9.5px の可読を最優先）。
+  案B「α.92」: 3ピル（復帰ヒント／続きに戻る）と**同値**＝「クロームの面は一律 .92」で規則が1本になる。
+  案C「α.86」: はっきり流れる。臨場感は最大だがバーのラベルが本文の影を踏む。
+  対照R「不透明」: 現行実装そのもの。
+
+  ── 推奨案とその理由 ──────────────────────────────────────────────────
+  **案B（α.92）**。①「境界が読めない」に実際に効く最小値＝本文が通った箇所のバー面が **#FBFAF8 → #E9E8E7** へ
+  沈み、ライトでも層として読める（案A の #F2F1F0 は素地との差が小さく、動いて初めて気づく程度）。
+  ②既に 3ピルが .92 なので、**新しい数を1つも増やさずに**クローム全体の規則が「面は α.92」で1本にまとまる。
+  ③案C は本文の影が濃く（#DCDBDB）、9.5px のバーラベル（--soft #7C808B）が影を踏んだとき可読が落ちる。
+  ⚠️ ただし α.92 でもラベルが影を踏む瞬間はある。**モックは構図の裁定・実機は実データ衝突の検出**
+  （visual-language モック恒久ルール5）＝実機で気になれば案A へ落とす、が正しい退き方。
+  ※ピル（reading-toppill-translucency-candidates.html）は .86＋枠を推している。値が割れるのは意図的で、
+    **面（画面端に固定・輪郭は画面端とヘアラインが担う）と浮遊物（周囲に何も無く自前の枠が要る）で層が違う**ため。
+-->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>読書 上下バーのわずかな透過 — 3案＋対照</title>
+<style>
+  /*==harness==*/
+  :root{
+    --mincho:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
+    --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#E4E3DD;display:flex;flex-direction:column;align-items:center;min-height:100vh;
+    padding:26px;font-family:var(--gothic)}
+  .ttl{font-family:var(--mincho);font-size:19px;color:#1C1F26;letter-spacing:.06em;margin-bottom:8px}
+  .cap{color:#5A5C57;font-size:13px;margin-bottom:6px;text-align:center;line-height:1.7;max-width:860px}
+  .cap b{color:#2A2C28}
+  .warn{color:#6A6C67;font-size:11.5px;margin-bottom:18px;text-align:center;line-height:1.7;max-width:860px}
+  .sec{width:100%;max-width:1000px;margin:32px 0 12px;font-size:13px;letter-spacing:.14em;
+    color:#2A2C28;border-bottom:1px solid #C8C6BF;padding-bottom:6px}
+  table{border-collapse:collapse;margin:0 auto;font-size:11.5px;background:#FBFAF8}
+  th,td{border:1px solid #D9D7D0;padding:5px 10px;text-align:left;color:#3A3C38}
+  th{background:#F1F0EC;color:#1C1F26;font-weight:600}
+  td b{color:#1C1F26}
+  .sw{display:inline-block;width:34px;height:12px;border:1px solid #C8C6BF;vertical-align:-2px;margin-right:6px}
+  .notes{max-width:1000px;display:flex;flex-direction:column;gap:14px}
+  .note{background:#FBFAF8;border:1px solid #D9D7D0;border-radius:4px;padding:14px 18px;
+    font-size:12px;line-height:1.85;color:#3A3C38}
+  .note h3{font-size:13px;color:#1C3D5A;margin-bottom:6px;letter-spacing:.06em}
+  .note code{font-family:ui-monospace,Consolas,monospace;font-size:11.5px;background:#F1F0EC;padding:0 3px}
+  .note b{color:#1C1F26}
+  .stage{display:flex;gap:22px;flex-wrap:wrap;justify-content:center;max-width:1640px}
+  .wrap{display:flex;flex-direction:column;align-items:center;gap:8px}
+  .wrap .mode{font-size:11.5px;letter-spacing:.1em;color:#3A3C38;text-align:center;line-height:1.5}
+  .wrap .mode b{color:#1C3D5A}
+  .wrap .val{font-family:ui-monospace,Consolas,monospace;font-size:10.5px;color:#6A6C67}
+  .wrap.reco .mode b{background:#1C3D5A;color:#fff;padding:1px 7px;border-radius:3px}
+  /*==/harness==*/
+
+  /* ---- テーマ別トークン（reading-D.html の実値。1文字も変えない）---- */
+  .t-light{ --bg:#FBFAF8; --ink:#1C1F26; --soft:#7C808B; --ruby:#616C77; --rule:#1C3D5A;
+            --bar-rgb:251,250,248; --bar-line:#ECEAE4; --accent:#1C3D5A; }
+  .t-dark{  --bg:#14171C; --ink:#C7CDD3; --soft:#7B838C; --ruby:#7F8994; --rule:#5E7E9C;
+            --bar-rgb:24,28,34;  --bar-line:#2A2F38; --accent:#6E96B8; }
+
+  /* ---- 比較用の枠 ----
+     幅 372px は正本 .phone と同値。高さだけ 460px に詰めた**縦詰めの枠**（上バー・本文・下バーの
+     取り合いだけが判定対象で、本文の行数は判定に効かないため）。バー高 50/60px・ヘアラインは正本どおり。 */
+  .frame{width:372px;height:460px;position:relative;overflow:hidden;border-radius:12px;
+    background:var(--bg);font-family:var(--mincho);box-shadow:0 8px 22px rgba(0,0,0,.24)}
+  .sb{position:absolute;top:0;left:0;right:0;height:34px;display:flex;align-items:center;
+    justify-content:space-between;padding:0 24px;font-size:11px;color:var(--soft);
+    font-family:var(--gothic);z-index:5}
+  /* ★本文はバーの下を通す（＝この頁の判定対象そのもの）。
+     根拠＝reading-vertical-scroll-D.html .reader の★注記「バー表示中は列の端がバーの下へ潜るのを許容する／
+     横書きが本文行のバー下通過を許容するのと同じ取引」（2026-08-17 実装同期）。
+     不透明なら潜っても見えないだけで、潜っている事実は現行実装でも同じ。 */
+  .reader{position:absolute;top:34px;left:0;right:0;bottom:0;padding:14px 24px;overflow:hidden;
+    color:var(--ink);font-size:16.5px;line-height:2.4;text-indent:1em}
+  .reader ruby rt{font-size:.5em;color:var(--ruby);font-weight:400;letter-spacing:.04em}
+  .reader p{margin-bottom:.3em}
+
+  .topbar{position:absolute;top:34px;left:0;right:0;z-index:4;height:50px;display:flex;align-items:center;
+    gap:4px;padding:0 16px;border-bottom:1px solid var(--bar-line)}
+  .topbar .ib{width:38px;height:38px;border:none;background:transparent;border-radius:10px;display:grid;
+    place-items:center;color:var(--ink);cursor:pointer;flex:none}
+  .topbar .ib svg{width:21px;height:21px;stroke:currentColor;fill:none;stroke-width:1.6}
+  .topbar .ct{flex:1;font-family:var(--gothic);font-size:13.5px;color:var(--ink);letter-spacing:.04em;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .bottombar{position:absolute;left:0;right:0;bottom:0;z-index:4;height:60px;display:flex;align-items:center;
+    border-top:1px solid var(--bar-line)}
+  .bottombar button{flex:1;height:100%;border:none;background:transparent;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;gap:4px;color:var(--ink);cursor:pointer}
+  .bottombar svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.5}
+  .bottombar .bl{font-family:var(--gothic);font-size:9.5px;color:var(--soft);letter-spacing:.02em}
+  .bottombar .set svg{stroke:var(--accent)}
+  .bottombar .set .bl{color:var(--accent);font-weight:600}
+
+  /* ---- 本件の比較対象＝上下バーの地の α だけ（高さ・ヘアライン・字色・アイコンは全案共通）---- */
+  .r .topbar,.r .bottombar{background:rgba(var(--bar-rgb),1)}
+  .a .topbar,.a .bottombar{background:rgba(var(--bar-rgb),.96)}
+  .b .topbar,.b .bottombar{background:rgba(var(--bar-rgb),.92)}
+  .c .topbar,.c .bottombar{background:rgba(var(--bar-rgb),.86)}
+
+  /* ---- ナビ inset 帯の図（2026-07-29 の真因の再現と、案の要件）---- */
+  .fig{display:flex;gap:26px;flex-wrap:wrap;justify-content:center}
+  .figcol{display:flex;flex-direction:column;align-items:center;gap:8px;max-width:372px}
+  .figcol .lbl{font-size:11.5px;line-height:1.6;color:#3A3C38;text-align:center}
+  .figcol .lbl b{color:#1C1F26}
+  .figcol .bad{color:#8C3A2E}
+  .figcol .ok{color:#2E6B4F}
+  .navfig{width:372px;height:150px;position:relative;overflow:hidden;border-radius:10px;
+    background:var(--bg);font-family:var(--mincho);box-shadow:0 6px 16px rgba(0,0,0,.2)}
+  .navfig .txt{position:absolute;inset:0;padding:10px 24px;color:var(--ink);font-size:16.5px;
+    line-height:2.4;text-indent:1em}
+  /* 素朴に「面ぜんぶへ α」: ナビ帯まで透け、ボタン行の下の無地部分で本文が覗く＝2026-07-29 の症状 */
+  .navfig.naive .navbar{position:absolute;left:0;right:0;bottom:0;height:84px;
+    background:rgba(var(--bar-rgb),.92);border-top:1px solid var(--bar-line)}
+  /* 案の要件: 面＝半透明／ナビ inset 帯＝不透明の2段塗り */
+  .navfig.fixed .navbar{position:absolute;left:0;right:0;bottom:0;height:84px;border-top:1px solid var(--bar-line);
+    background:linear-gradient(to bottom,
+      rgba(var(--bar-rgb),.92) 0,   rgba(var(--bar-rgb),.92) 60px,
+      rgba(var(--bar-rgb),1)   60px, rgba(var(--bar-rgb),1)   84px)}
+  .navfig .btns{position:absolute;left:0;right:0;bottom:24px;height:60px;display:flex;align-items:center;z-index:2}
+  .navfig .btns button{flex:1;height:100%;border:none;background:transparent;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;gap:4px;color:var(--ink)}
+  .navfig .btns svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.5}
+  .navfig .btns .bl{font-family:var(--gothic);font-size:9.5px;color:var(--soft)}
+  .navfig .gest{position:absolute;left:50%;bottom:9px;transform:translateX(-50%);width:108px;height:4px;
+    border-radius:2px;background:var(--soft);opacity:.55;z-index:3}
+  .navfig .tag{position:absolute;right:8px;bottom:4px;font-family:var(--gothic);font-size:9px;
+    letter-spacing:.06em;color:var(--soft);z-index:3}
+</style>
+</head>
+<body>
+  <h1 class="ttl">読書 上下バーのわずかな透過 — 3案＋対照</h1>
+  <p class="cap"><b>争点</b>: ライトではバー地 #FBFAF8 と本文素地 #FBFAF8 が<b>完全に同値</b>で、境界を語るのは 1px の
+  ヘアラインだけ＝面としてのバーが見えない。どれだけ透かせば「本文がバーの下を流れている」と読めるか。<br>
+  全案とも<b>高さ・ヘアライン・字色・アイコン・出没（スライド）は現行値に固定</b>し、<b>面の α だけ</b>を変えてある。</p>
+  <p class="warn">⚠️ 本文の行が<b>バーの下を通っている</b>のは正本どおり（reading-vertical-scroll-D.html ★注記＝
+  「横書きが本文行のバー下通過を許容するのと同じ取引」）。現行の不透明でも潜っている事実は同じで、見えていないだけ。</p>
+
+  <div class="sec">α と「本文が通ったところのバー面の実値」（ライト・本文 #1C1F26 × バー #FBFAF8）</div>
+  <table>
+    <tr><th>案</th><th>α</th><th>素のバー面</th><th>本文が真下を通った箇所</th><th>素地との差</th><th>評</th></tr>
+    <tr><td>対照R（現行）</td><td>1.00</td><td><span class="sw" style="background:#FBFAF8"></span>#FBFAF8</td>
+        <td><span class="sw" style="background:#FBFAF8"></span>#FBFAF8</td><td>0</td><td>層が見えない＝提起の「境界が読めない」</td></tr>
+    <tr><td>案A</td><td>0.96</td><td><span class="sw" style="background:#FBFAF8"></span>#FBFAF8</td>
+        <td><span class="sw" style="background:#F2F1F0"></span><b>#F2F1F0</b></td><td>約 4%</td><td>動いて初めて気づく</td></tr>
+    <tr><td><b>案B（推奨）</b></td><td><b>0.92</b></td><td><span class="sw" style="background:#FBFAF8"></span>#FBFAF8</td>
+        <td><span class="sw" style="background:#E9E8E7"></span><b>#E9E8E7</b></td><td>約 8%</td><td>静止画でも層として読める・3ピルと同値</td></tr>
+    <tr><td>案C</td><td>0.86</td><td><span class="sw" style="background:#FBFAF8"></span>#FBFAF8</td>
+        <td><span class="sw" style="background:#DCDBDB"></span><b>#DCDBDB</b></td><td>約 14%</td><td>臨場感は最大・ラベルが影を踏む</td></tr>
+  </table>
+
+  <div class="sec">ライト（D／K 既定）— 4案</div>
+  <div class="stage">
+
+    <div class="wrap"><span class="mode"><b>対照R</b> ／ 不透明（現行）<br><span class="val">alpha 1.00</span></span>
+    <div class="frame t-light r" role="img" aria-label="対照R ライト 不透明バー">
+      <div class="reader">
+        <p><ruby>辺境<rt>へんきょう</rt></ruby>の<ruby>城門<rt>じょうもん</rt></ruby>に<ruby>辿<rt>たど</rt></ruby>り<ruby>着<rt>つ</rt></ruby>いたのは、<ruby>長<rt>なが</rt></ruby>い<ruby>雨<rt>あめ</rt></ruby>がようやく<ruby>上<rt>あ</rt></ruby>がった<ruby>頃<rt>ころ</rt></ruby>だった。<ruby>濡<rt>ぬ</rt></ruby>れた<ruby>石畳<rt>いしだたみ</rt></ruby>が<ruby>夕陽<rt>ゆうひ</rt></ruby>を<ruby>照<rt>て</rt></ruby>り<ruby>返<rt>かえ</rt></ruby>している。</p>
+        <p>「——ここまで、よく<ruby>付<rt>つ</rt></ruby>いてきてくれた」</p>
+        <p><ruby>彼女<rt>かのじょ</rt></ruby>はそう<ruby>呟<rt>つぶや</rt></ruby>くと、<ruby>腰<rt>こし</rt></ruby>の<ruby>剣<rt>つるぎ</rt></ruby>をそっと<ruby>地<rt>じ</rt></ruby>に<ruby>置<rt>お</rt></ruby>いた。</p>
+      </div>
+      <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+      <div class="topbar">
+        <button class="ib" aria-label="本棚に戻る"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+        <div class="ct">第百二十七話　雨上がりの城門にて、彼女は静かに剣を置いた</div>
+      </div>
+      <div class="bottombar">
+        <button aria-label="前章"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg><span class="bl">前章</span></button>
+        <button aria-label="目次"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/></svg><span class="bl">目次</span></button>
+        <button class="set" aria-label="表示設定"><svg viewBox="0 0 24 24"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="9" cy="8" r="2.4" fill="none"/><circle cx="15" cy="16" r="2.4" fill="none"/></svg><span class="bl">表示設定</span></button>
+        <button aria-label="次章"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg><span class="bl">次章</span></button>
+      </div>
+    </div></div>
+
+    <div class="wrap"><span class="mode"><b>案A</b> ／ α.96（ぎりぎり気づく）<br><span class="val">alpha 0.96 → #F2F1F0</span></span>
+    <div class="frame t-light a" role="img" aria-label="案A ライト α.96">
+      <div class="reader">
+        <p><ruby>辺境<rt>へんきょう</rt></ruby>の<ruby>城門<rt>じょうもん</rt></ruby>に<ruby>辿<rt>たど</rt></ruby>り<ruby>着<rt>つ</rt></ruby>いたのは、<ruby>長<rt>なが</rt></ruby>い<ruby>雨<rt>あめ</rt></ruby>がようやく<ruby>上<rt>あ</rt></ruby>がった<ruby>頃<rt>ころ</rt></ruby>だった。<ruby>濡<rt>ぬ</rt></ruby>れた<ruby>石畳<rt>いしだたみ</rt></ruby>が<ruby>夕陽<rt>ゆうひ</rt></ruby>を<ruby>照<rt>て</rt></ruby>り<ruby>返<rt>かえ</rt></ruby>している。</p>
+        <p>「——ここまで、よく<ruby>付<rt>つ</rt></ruby>いてきてくれた」</p>
+        <p><ruby>彼女<rt>かのじょ</rt></ruby>はそう<ruby>呟<rt>つぶや</rt></ruby>くと、<ruby>腰<rt>こし</rt></ruby>の<ruby>剣<rt>つるぎ</rt></ruby>をそっと<ruby>地<rt>じ</rt></ruby>に<ruby>置<rt>お</rt></ruby>いた。</p>
+      </div>
+      <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+      <div class="topbar">
+        <button class="ib" aria-label="本棚に戻る"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+        <div class="ct">第百二十七話　雨上がりの城門にて、彼女は静かに剣を置いた</div>
+      </div>
+      <div class="bottombar">
+        <button aria-label="前章"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg><span class="bl">前章</span></button>
+        <button aria-label="目次"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/></svg><span class="bl">目次</span></button>
+        <button class="set" aria-label="表示設定"><svg viewBox="0 0 24 24"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="9" cy="8" r="2.4" fill="none"/><circle cx="15" cy="16" r="2.4" fill="none"/></svg><span class="bl">表示設定</span></button>
+        <button aria-label="次章"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg><span class="bl">次章</span></button>
+      </div>
+    </div></div>
+
+    <div class="wrap reco"><span class="mode"><b>推奨 案B</b> ／ α.92（3ピルと同値）<br><span class="val">alpha 0.92 → #E9E8E7</span></span>
+    <div class="frame t-light b" role="img" aria-label="案B ライト α.92">
+      <div class="reader">
+        <p><ruby>辺境<rt>へんきょう</rt></ruby>の<ruby>城門<rt>じょうもん</rt></ruby>に<ruby>辿<rt>たど</rt></ruby>り<ruby>着<rt>つ</rt></ruby>いたのは、<ruby>長<rt>なが</rt></ruby>い<ruby>雨<rt>あめ</rt></ruby>がようやく<ruby>上<rt>あ</rt></ruby>がった<ruby>頃<rt>ころ</rt></ruby>だった。<ruby>濡<rt>ぬ</rt></ruby>れた<ruby>石畳<rt>いしだたみ</rt></ruby>が<ruby>夕陽<rt>ゆうひ</rt></ruby>を<ruby>照<rt>て</rt></ruby>り<ruby>返<rt>かえ</rt></ruby>している。</p>
+        <p>「——ここまで、よく<ruby>付<rt>つ</rt></ruby>いてきてくれた」</p>
+        <p><ruby>彼女<rt>かのじょ</rt></ruby>はそう<ruby>呟<rt>つぶや</rt></ruby>くと、<ruby>腰<rt>こし</rt></ruby>の<ruby>剣<rt>つるぎ</rt></ruby>をそっと<ruby>地<rt>じ</rt></ruby>に<ruby>置<rt>お</rt></ruby>いた。</p>
+      </div>
+      <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+      <div class="topbar">
+        <button class="ib" aria-label="本棚に戻る"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+        <div class="ct">第百二十七話　雨上がりの城門にて、彼女は静かに剣を置いた</div>
+      </div>
+      <div class="bottombar">
+        <button aria-label="前章"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg><span class="bl">前章</span></button>
+        <button aria-label="目次"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/></svg><span class="bl">目次</span></button>
+        <button class="set" aria-label="表示設定"><svg viewBox="0 0 24 24"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="9" cy="8" r="2.4" fill="none"/><circle cx="15" cy="16" r="2.4" fill="none"/></svg><span class="bl">表示設定</span></button>
+        <button aria-label="次章"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg><span class="bl">次章</span></button>
+      </div>
+    </div></div>
+
+    <div class="wrap"><span class="mode"><b>案C</b> ／ α.86（はっきり流れる）<br><span class="val">alpha 0.86 → #DCDBDB</span></span>
+    <div class="frame t-light c" role="img" aria-label="案C ライト α.86">
+      <div class="reader">
+        <p><ruby>辺境<rt>へんきょう</rt></ruby>の<ruby>城門<rt>じょうもん</rt></ruby>に<ruby>辿<rt>たど</rt></ruby>り<ruby>着<rt>つ</rt></ruby>いたのは、<ruby>長<rt>なが</rt></ruby>い<ruby>雨<rt>あめ</rt></ruby>がようやく<ruby>上<rt>あ</rt></ruby>がった<ruby>頃<rt>ころ</rt></ruby>だった。<ruby>濡<rt>ぬ</rt></ruby>れた<ruby>石畳<rt>いしだたみ</rt></ruby>が<ruby>夕陽<rt>ゆうひ</rt></ruby>を<ruby>照<rt>て</rt></ruby>り<ruby>返<rt>かえ</rt></ruby>している。</p>
+        <p>「——ここまで、よく<ruby>付<rt>つ</rt></ruby>いてきてくれた」</p>
+        <p><ruby>彼女<rt>かのじょ</rt></ruby>はそう<ruby>呟<rt>つぶや</rt></ruby>くと、<ruby>腰<rt>こし</rt></ruby>の<ruby>剣<rt>つるぎ</rt></ruby>をそっと<ruby>地<rt>じ</rt></ruby>に<ruby>置<rt>お</rt></ruby>いた。</p>
+      </div>
+      <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+      <div class="topbar">
+        <button class="ib" aria-label="本棚に戻る"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+        <div class="ct">第百二十七話　雨上がりの城門にて、彼女は静かに剣を置いた</div>
+      </div>
+      <div class="bottombar">
+        <button aria-label="前章"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg><span class="bl">前章</span></button>
+        <button aria-label="目次"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/></svg><span class="bl">目次</span></button>
+        <button class="set" aria-label="表示設定"><svg viewBox="0 0 24 24"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="9" cy="8" r="2.4" fill="none"/><circle cx="15" cy="16" r="2.4" fill="none"/></svg><span class="bl">表示設定</span></button>
+        <button aria-label="次章"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg><span class="bl">次章</span></button>
+      </div>
+    </div></div>
+
+  </div>
+
+  <div class="sec">ダーク — 同じ4案（暗面では地と本文の関係が反転する）</div>
+  <p class="warn">ダークはバー #181C22 が本文素地 #14171C より<b>僅かに明るい</b>＝もともと面が薄く見えている。
+  透かすとバーが素地へ近づき<b>境界はむしろ弱まる</b>一方で、明るい本文の影は出る。ライトとは効き方が逆なので別に見る。</p>
+  <div class="stage">
+
+    <div class="wrap"><span class="mode"><b>対照R</b> ／ 不透明<br><span class="val">alpha 1.00</span></span>
+    <div class="frame t-dark r" role="img" aria-label="対照R ダーク 不透明バー">
+      <div class="reader">
+        <p><ruby>辺境<rt>へんきょう</rt></ruby>の<ruby>城門<rt>じょうもん</rt></ruby>に<ruby>辿<rt>たど</rt></ruby>り<ruby>着<rt>つ</rt></ruby>いたのは、<ruby>長<rt>なが</rt></ruby>い<ruby>雨<rt>あめ</rt></ruby>がようやく<ruby>上<rt>あ</rt></ruby>がった<ruby>頃<rt>ころ</rt></ruby>だった。<ruby>濡<rt>ぬ</rt></ruby>れた<ruby>石畳<rt>いしだたみ</rt></ruby>が<ruby>夕陽<rt>ゆうひ</rt></ruby>を<ruby>照<rt>て</rt></ruby>り<ruby>返<rt>かえ</rt></ruby>している。</p>
+        <p>「——ここまで、よく<ruby>付<rt>つ</rt></ruby>いてきてくれた」</p>
+        <p><ruby>彼女<rt>かのじょ</rt></ruby>はそう<ruby>呟<rt>つぶや</rt></ruby>くと、<ruby>腰<rt>こし</rt></ruby>の<ruby>剣<rt>つるぎ</rt></ruby>をそっと<ruby>地<rt>じ</rt></ruby>に<ruby>置<rt>お</rt></ruby>いた。</p>
+      </div>
+      <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+      <div class="topbar">
+        <button class="ib" aria-label="本棚に戻る"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+        <div class="ct">第百二十七話　雨上がりの城門にて、彼女は静かに剣を置いた</div>
+      </div>
+      <div class="bottombar">
+        <button aria-label="前章"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg><span class="bl">前章</span></button>
+        <button aria-label="目次"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/></svg><span class="bl">目次</span></button>
+        <button class="set" aria-label="表示設定"><svg viewBox="0 0 24 24"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="9" cy="8" r="2.4" fill="none"/><circle cx="15" cy="16" r="2.4" fill="none"/></svg><span class="bl">表示設定</span></button>
+        <button aria-label="次章"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg><span class="bl">次章</span></button>
+      </div>
+    </div></div>
+
+    <div class="wrap"><span class="mode"><b>案A</b> ／ α.96<br><span class="val">alpha 0.96</span></span>
+    <div class="frame t-dark a" role="img" aria-label="案A ダーク α.96">
+      <div class="reader">
+        <p><ruby>辺境<rt>へんきょう</rt></ruby>の<ruby>城門<rt>じょうもん</rt></ruby>に<ruby>辿<rt>たど</rt></ruby>り<ruby>着<rt>つ</rt></ruby>いたのは、<ruby>長<rt>なが</rt></ruby>い<ruby>雨<rt>あめ</rt></ruby>がようやく<ruby>上<rt>あ</rt></ruby>がった<ruby>頃<rt>ころ</rt></ruby>だった。<ruby>濡<rt>ぬ</rt></ruby>れた<ruby>石畳<rt>いしだたみ</rt></ruby>が<ruby>夕陽<rt>ゆうひ</rt></ruby>を<ruby>照<rt>て</rt></ruby>り<ruby>返<rt>かえ</rt></ruby>している。</p>
+        <p>「——ここまで、よく<ruby>付<rt>つ</rt></ruby>いてきてくれた」</p>
+        <p><ruby>彼女<rt>かのじょ</rt></ruby>はそう<ruby>呟<rt>つぶや</rt></ruby>くと、<ruby>腰<rt>こし</rt></ruby>の<ruby>剣<rt>つるぎ</rt></ruby>をそっと<ruby>地<rt>じ</rt></ruby>に<ruby>置<rt>お</rt></ruby>いた。</p>
+      </div>
+      <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+      <div class="topbar">
+        <button class="ib" aria-label="本棚に戻る"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+        <div class="ct">第百二十七話　雨上がりの城門にて、彼女は静かに剣を置いた</div>
+      </div>
+      <div class="bottombar">
+        <button aria-label="前章"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg><span class="bl">前章</span></button>
+        <button aria-label="目次"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/></svg><span class="bl">目次</span></button>
+        <button class="set" aria-label="表示設定"><svg viewBox="0 0 24 24"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="9" cy="8" r="2.4" fill="none"/><circle cx="15" cy="16" r="2.4" fill="none"/></svg><span class="bl">表示設定</span></button>
+        <button aria-label="次章"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg><span class="bl">次章</span></button>
+      </div>
+    </div></div>
+
+    <div class="wrap reco"><span class="mode"><b>推奨 案B</b> ／ α.92<br><span class="val">alpha 0.92</span></span>
+    <div class="frame t-dark b" role="img" aria-label="案B ダーク α.92">
+      <div class="reader">
+        <p><ruby>辺境<rt>へんきょう</rt></ruby>の<ruby>城門<rt>じょうもん</rt></ruby>に<ruby>辿<rt>たど</rt></ruby>り<ruby>着<rt>つ</rt></ruby>いたのは、<ruby>長<rt>なが</rt></ruby>い<ruby>雨<rt>あめ</rt></ruby>がようやく<ruby>上<rt>あ</rt></ruby>がった<ruby>頃<rt>ころ</rt></ruby>だった。<ruby>濡<rt>ぬ</rt></ruby>れた<ruby>石畳<rt>いしだたみ</rt></ruby>が<ruby>夕陽<rt>ゆうひ</rt></ruby>を<ruby>照<rt>て</rt></ruby>り<ruby>返<rt>かえ</rt></ruby>している。</p>
+        <p>「——ここまで、よく<ruby>付<rt>つ</rt></ruby>いてきてくれた」</p>
+        <p><ruby>彼女<rt>かのじょ</rt></ruby>はそう<ruby>呟<rt>つぶや</rt></ruby>くと、<ruby>腰<rt>こし</rt></ruby>の<ruby>剣<rt>つるぎ</rt></ruby>をそっと<ruby>地<rt>じ</rt></ruby>に<ruby>置<rt>お</rt></ruby>いた。</p>
+      </div>
+      <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+      <div class="topbar">
+        <button class="ib" aria-label="本棚に戻る"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+        <div class="ct">第百二十七話　雨上がりの城門にて、彼女は静かに剣を置いた</div>
+      </div>
+      <div class="bottombar">
+        <button aria-label="前章"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg><span class="bl">前章</span></button>
+        <button aria-label="目次"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/></svg><span class="bl">目次</span></button>
+        <button class="set" aria-label="表示設定"><svg viewBox="0 0 24 24"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="9" cy="8" r="2.4" fill="none"/><circle cx="15" cy="16" r="2.4" fill="none"/></svg><span class="bl">表示設定</span></button>
+        <button aria-label="次章"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg><span class="bl">次章</span></button>
+      </div>
+    </div></div>
+
+    <div class="wrap"><span class="mode"><b>案C</b> ／ α.86<br><span class="val">alpha 0.86</span></span>
+    <div class="frame t-dark c" role="img" aria-label="案C ダーク α.86">
+      <div class="reader">
+        <p><ruby>辺境<rt>へんきょう</rt></ruby>の<ruby>城門<rt>じょうもん</rt></ruby>に<ruby>辿<rt>たど</rt></ruby>り<ruby>着<rt>つ</rt></ruby>いたのは、<ruby>長<rt>なが</rt></ruby>い<ruby>雨<rt>あめ</rt></ruby>がようやく<ruby>上<rt>あ</rt></ruby>がった<ruby>頃<rt>ころ</rt></ruby>だった。<ruby>濡<rt>ぬ</rt></ruby>れた<ruby>石畳<rt>いしだたみ</rt></ruby>が<ruby>夕陽<rt>ゆうひ</rt></ruby>を<ruby>照<rt>て</rt></ruby>り<ruby>返<rt>かえ</rt></ruby>している。</p>
+        <p>「——ここまで、よく<ruby>付<rt>つ</rt></ruby>いてきてくれた」</p>
+        <p><ruby>彼女<rt>かのじょ</rt></ruby>はそう<ruby>呟<rt>つぶや</rt></ruby>くと、<ruby>腰<rt>こし</rt></ruby>の<ruby>剣<rt>つるぎ</rt></ruby>をそっと<ruby>地<rt>じ</rt></ruby>に<ruby>置<rt>お</rt></ruby>いた。</p>
+      </div>
+      <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+      <div class="topbar">
+        <button class="ib" aria-label="本棚に戻る"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+        <div class="ct">第百二十七話　雨上がりの城門にて、彼女は静かに剣を置いた</div>
+      </div>
+      <div class="bottombar">
+        <button aria-label="前章"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg><span class="bl">前章</span></button>
+        <button aria-label="目次"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/></svg><span class="bl">目次</span></button>
+        <button class="set" aria-label="表示設定"><svg viewBox="0 0 24 24"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="9" cy="8" r="2.4" fill="none"/><circle cx="15" cy="16" r="2.4" fill="none"/></svg><span class="bl">表示設定</span></button>
+        <button aria-label="次章"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg><span class="bl">次章</span></button>
+      </div>
+    </div></div>
+
+  </div>
+
+  <div class="sec">どの案を採っても必須の要件 — ナビ inset 帯は不透明のまま</div>
+  <div class="fig">
+    <div class="figcol">
+      <div class="navfig t-light naive" role="img" aria-label="素朴に面全部へαを掛けた場合 ナビ帯まで透ける">
+        <div class="txt"><ruby>彼女<rt>かのじょ</rt></ruby>はそう<ruby>呟<rt>つぶや</rt></ruby>くと、<ruby>腰<rt>こし</rt></ruby>の<ruby>剣<rt>つるぎ</rt></ruby>をそっと<ruby>地<rt>じ</rt></ruby>に<ruby>置<rt>お</rt></ruby>いた。もう<ruby>戦<rt>たたか</rt></ruby>う<ruby>理由<rt>りゆう</rt></ruby>はない。</div>
+        <div class="navbar"></div>
+        <div class="btns">
+          <button><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg><span class="bl">前章</span></button>
+          <button><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/></svg><span class="bl">目次</span></button>
+          <button><svg viewBox="0 0 24 24"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/></svg><span class="bl">表示設定</span></button>
+          <button><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg><span class="bl">次章</span></button>
+        </div>
+        <div class="gest"></div>
+        <div class="tag">ナビ帯</div>
+      </div>
+      <div class="lbl"><b class="bad">✕ 素朴に containerColor へ α を掛ける</b><br>
+        BottomAppBar の Surface は<b>ナビ inset 帯まで同じ色で塗る</b>ので、ボタン行の下の無地部分で本文が覗く
+        ＝2026-07-29 実機で「上下バー非対称」の真因になった形。</div>
+    </div>
+    <div class="figcol">
+      <div class="navfig t-light fixed" role="img" aria-label="案の要件 面は半透明でナビ帯は不透明">
+        <div class="txt"><ruby>彼女<rt>かのじょ</rt></ruby>はそう<ruby>呟<rt>つぶや</rt></ruby>くと、<ruby>腰<rt>こし</rt></ruby>の<ruby>剣<rt>つるぎ</rt></ruby>をそっと<ruby>地<rt>じ</rt></ruby>に<ruby>置<rt>お</rt></ruby>いた。もう<ruby>戦<rt>たたか</rt></ruby>う<ruby>理由<rt>りゆう</rt></ruby>はない。</div>
+        <div class="navbar"></div>
+        <div class="btns">
+          <button><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg><span class="bl">前章</span></button>
+          <button><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/></svg><span class="bl">目次</span></button>
+          <button><svg viewBox="0 0 24 24"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/></svg><span class="bl">表示設定</span></button>
+          <button><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg><span class="bl">次章</span></button>
+        </div>
+        <div class="gest"></div>
+        <div class="tag">ナビ帯</div>
+      </div>
+      <div class="lbl"><b class="ok">○ 案の要件＝2段塗り</b><br>
+        <b>ボタン行の面＝半透明／ナビ inset 帯＝不透明</b>。透けるのは「指が触れる面」だけで、
+        システムの帯には本文を出さない。上バーもステータスバー帯を同じ扱いにする。</div>
+    </div>
+  </div>
+
+  <div class="sec">波及メモ</div>
+  <div class="notes">
+    <div class="note"><h3>ヘアラインは触っていない（＝この頁で振っていない軸）</h3>
+      「境界が読めない」には <b>ヘアラインを濃くする</b>という別解もあるが、提起は<b>透過</b>で
+      「臨場感」も同時に求めている。ヘアライン（--bar-line ライト #ECEAE4）は全案で現行のまま固定してある。
+      透過を入れてなお境界が弱いと感じたら、ヘアラインは<b>次の別裁定</b>として扱う（同時に2軸動かすと効いた方が分からない）。
+    </div>
+    <div class="note"><h3>9.5px のバーラベルが本文の影を踏む</h3>
+      ラベルは <code>--soft</code> #7C808B。案B では影の濃いところが #E9E8E7、案C では #DCDBDB になるので、
+      本文の行がちょうどラベルの裏を通った瞬間だけコントラストが落ちる。<b>静止画では最悪ケースが写らない</b>ので、
+      ここは<b>実機の二段検分</b>で見る（visual-language モック恒久ルール5）。気になれば案A（.96）へ落とすのが退き方。
+    </div>
+    <div class="note"><h3>他スキンへの波及</h3>
+      navBackground はスキンごとに別値で、<b>M と P は「焼き込み済み不透明トークン」＝使用側で α を掛けない前提</b>
+      （<code>SkinM.kt</code> は reading-M の <code>rgba(14,21,48,.82)</code> を、<code>SkinP.kt</code> は
+      plastic 面を焼き込んである）。透過を入れるなら<b>D/K・C・J に限る</b>か、M/P は焼き込み値をやめて
+      素の面色＋α へ組み替えるかを、翻訳の前に決める必要がある（この頁は D/K の裁定だけを求めている）。
+    </div>
+    <div class="note"><h3>没入（バー非表示）には影響しない</h3>
+      没入中は上下バーごと退避するので、本頁の裁定は<b>クローム表示中の見え</b>だけに効く。
+      出没はスライド（<code>translationY × collapsedFraction</code>）で、2026-07-17 に
+      「フェード中にバー面が半透明化して本文と重なる」を避けるため意図的にフェードを捨てた経緯がある。
+      定常の透過を入れても<b>出没をフェードへ戻す話ではない</b>（そこは触らない）。
+    </div>
+  </div>
+</body>
+</html>

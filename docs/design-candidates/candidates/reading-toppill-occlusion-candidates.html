@@ -1,0 +1,717 @@
+<!-- @dsCard group="UI-n / 一時ドラフト（裁定用）" name="読書「最上部へ」ピルの被覆 — 透過とは別の3軸（器・出現・位置）／対照＝現行 α.78" -->
+<!--
+  ✅ 裁定済み（2026-09-05）＝**S4 ＋ A1 ＋ 初回だけラベル付き の3点セットを採用／P1（端へ寄せる）は不採用**。
+     P1 を落とした理由（監督）＝「縦横で寄せる向きが逆になる代償に対して、救う量 −8% が小さい」。
+     正本 docs/design-candidates/reading-backtotop-D.html の `.toppill` へ差し戻し済み（why も同所）。
+     ⚠️ **Compose も翻訳済み**（2026-09-05）＝`NativeReadingScreen.kt` のピルを〈外側 48dp の透明な標的 ×
+        内側 32dp の見える器〉の2枚重ねにし、出現条件へ `!isScrollInProgress` を足し、ラベルは prefs
+        `top_pill_label_shown` で通算初回だけ出す。寸法は `NativeReadingScreenTopPillTest` が両方向で固定。
+     ⚠️ **翻訳して分かった訂正が1つ**（この頁の数値の前提）: 語つきの器は 32px では収まらず**実測 36px**。
+        11px の字面がフォントの上下余白ごと積まれるため。よって器の 32px は**下限であって固定寸ではない**
+        （固定にすると字を大きくした端末設定で語が欠ける）。⚠️ アイコンのみ（＝通算2回目以降＝ほぼ常時）は
+        設計どおり 32×32 なので、**本頁の被覆量 1.6字／−79% は訂正不要**。語つきで出るのは通算1回だけ。
+     ⚠️ **この頁はまだ消していない**——正本側の why が本頁を名指しで参照しているため（消すなら参照文言も
+        同じコミットで畳む）。判断は監督に委ねる。
+  ── 以下は裁定前の記述（当時の判断材料として残す）──────────────────────────────
+  ⚠️ 一時ドラフト（複数案比較）＝正本ではない。裁定が付いたら**採用案だけ**を正本
+     docs/design-candidates/reading-backtotop-D.html（.toppill＝ピルの器の正本）へ差し戻し、この頁は削除する
+     （CLAUDE.md「一時ファイルは抽出→集約→削除まで1セット」／visual-language「複数案比較のみ一時ドラフト」）。
+     ⚠️ 本頁は**モックと裁定材料だけ**で、Compose の実装は含まない（実装は裁定後に別便）。
+
+  ── なぜこの頁が要るのか（透過の裁定が終わった後に残った問題）──────────────────────
+  監督の不満（2026-09-04・原文）＝「**不透明だから本文が隠れてしまう**」。
+  これを受けて透過を α.78＋1px枠＋淡影で裁定・実装・実機検分まで済ませた
+  （比較モック candidates/reading-toppill-translucency-candidates.html 案D）。
+  ⚠️ **実機実測（2026-09-04・PGEM10）＝ピル下の本文の対比 1.74:1**（同じ行のピル外は 11.21:1）。
+     設計値 1.87:1 とほぼ一致＝**透過は設計どおり効いているが、覆われた字は読めない**。
+     実機検分の判定は「**まだ隠れると感じる／文が続くことは分かるが、読んでいる途中なら止まる**」。
+  ∴ **α をこれ以上下げる道は閉じている**（α.74 で ADR 0014-D の 4.5:1 を割る。⚠️ 限界は暗色でなく
+     **明色側**＝ピル字 #4A4F58 が中間色）。残っているのは〈**器**〉〈**出現**〉〈**位置**〉の3軸だけ。
+     本頁はその3軸を振る。**透過はもう振らない**（全案とも α.78＋枠＋淡影に固定＝差が透過から来ない）。
+
+  ── 対照の取り方（ここを間違えると量が測れない）──────────────────────────────
+  対照Rは「不透明」ではなく **現行＝α.78＋1px枠＋淡影の実装済みの見え**。透過モックの対照（不透明）から
+  一段進んだ状態が出発点で、そこからの**差分**として3軸を測る。
+
+  ── 下敷きにした正本（新意匠を発明しない。色・寸法は逐語複製）──────────────────────
+  版面・配色・本文組み（D ライト）      = docs/design-candidates/reading-D.html:79-101（.reader / p / .bottombar）
+  縦書き本文の組み                      = docs/design-candidates/reading-vertical-scroll-D.html
+  ピルの器（角丸・余白・枠・影・字面）   = docs/design-candidates/reading-backtotop-D.html:96-104（.toppill）
+  透過の裁定値と限界                    = candidates/reading-toppill-translucency-candidates.html
+  J ダークのトークン・章末印            = docs/design-candidates/skins/reading-J.html
+
+  ── 実装の現在値（本頁の全案がここから始まる）──────────────────────────────────
+  ・器      角丸999・padding 左右16dp/上下8dp・**最小高 48dp**・地 α.78（ChromeTopPillAlpha）
+            ＋1px 枠（divider）＋淡影（ReadingChromePillSurface.kt）
+  ・字      11sp ゴシック（FontLabel）・行箱 17.6sp・色 text／アイコン 16dp・色 text
+  ・ラベル  **「最上部へ」**（⚠️「本棚へ戻る」ではない＝NativeReadingScreen.kt の Text が正）
+  ・位置    下端バー実高 ＋ Spacing.S12 の高さに **画面中央**（BottomCenter）
+  ・出現    `chromeVisibleForPill && pastThreshold`
+            = ①クローム表示中（topAppBarState.collapsedFraction < 0.5）②章の3割以上（firstVisibleItemIndex*10 >= total*3）
+  ・入退場  fadeIn/fadeOut(MotionDurationCrossfade = 250ms)
+
+  ── ⚠️ 本頁で新たに実測して分かった2つの事実（案の成否を分ける）────────────────────
+  (1) **クロームはスクロールで自動退避しない**。上下バーの出没は**画面タップのトグルだけ**
+      （ChapterScreen.kt の scrollBehavior は heightOffsetLimit の測定用で **nestedScroll 未接続**。
+      自動なのは章入場時の初期退避 didInitialCollapse ただ1回）。
+      ∴「**本文を読んでいる間は出さない**」は現行条件で**すでにほぼ達成されている**——ピルが本文を覆うのは
+      **読者が自分でクロームを出した状態**に限られる。軸2の実効は「クロームを出したまま読み続ける人」だけに効く。
+  (2) **縦書きの版面は下端バーの裏まで伸びている**（VerticalChapterContent.kt の contentPadding は
+      status/navigation の**システムインセットだけ**で、自作バー実高ぶんの余白が無い）。横書きは
+      ChapterContent.kt が bottom に Insets.ReadingBodyBottomExtra(80dp) を足すが、これは**末尾 item の後ろの
+      余白**なので中盤では効かない。∴ **どちらの組み方でも「下端の空き帯」は存在しない**＝
+      軸3「余白帯へ載せる」は帯を**作るところから**始まる（＝版面が縮む。P3 で数値化した）。
+
+  ── 測り方（面積と字数の実数。透過モックが対比で測ったのと同じ厳しさで、こちらは被覆量で測る）──────
+  座標系＝正本と同じ 372×800px 端末。本文 16.5px／行送り 2.4（＝39.6px）。
+    ・1字が占める面積（セル）    = 字送り 16.5 × 行送り 39.6 = **653.4px²**（縦書き・横書きで同値）
+    ・クローム表示中に見えている版面 = 幅 324（372−24×2）× 高 656（800−34−50−60）= **212,544px²＝325字**
+    ・**覆う字数**＝器の面積 ÷ 653.4（面積換算＝スクロール位置に依らない期待値）
+    ・**欠け方**＝横書きは「器の幅 ÷ 16.5 字ぶん × 器の高さ ÷ 39.6 行ぶん」、縦書きは軸が入れ替わる
+  ⚠️ 対照Rの被覆は版面の **2.3%** にすぎない。それでも読者が止まるのは、消える場所が
+     **いま読んでいる行のちょうど中央**で、横書きなら 1行19.6字のうち **6字**（32%）が2行にわたって抜けるから。
+     ∴ 合否は「版面の何%」ではなく「**読んでいる字が覆われないこと**」で見る。
+-->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>読書「最上部へ」ピルの被覆 — 器・出現・位置の3軸（対照＝現行 α.78）</title>
+<style>
+  /*==harness==*/
+  :root{
+    --mincho:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
+    --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#E4E3DD;display:flex;flex-direction:column;align-items:center;min-height:100vh;
+    padding:26px;font-family:var(--gothic)}
+  .ttl{font-family:var(--mincho);font-size:19px;color:#1C1F26;letter-spacing:.06em;margin-bottom:8px}
+  .cap{color:#5A5C57;font-size:13px;margin-bottom:6px;text-align:center;line-height:1.7;max-width:880px}
+  .cap b{color:#2A2C28}
+  .warn{color:#6A6C67;font-size:11.5px;margin-bottom:18px;text-align:center;line-height:1.7;max-width:880px}
+  .warn b{color:#2A2C28}
+  .sec{width:100%;max-width:960px;margin:32px 0 12px;font-size:13px;letter-spacing:.14em;
+    color:#2A2C28;border-bottom:1px solid #C8C6BF;padding-bottom:6px}
+  .sec .axis{font-size:11px;letter-spacing:.06em;color:#6A6C67;margin-left:10px}
+  table{border-collapse:collapse;margin:0 auto;font-size:11.5px;background:#FBFAF8}
+  th,td{border:1px solid #D9D7D0;padding:5px 10px;text-align:left;color:#3A3C38}
+  th{background:#F1F0EC;color:#1C1F26;font-weight:600}
+  td b{color:#1C1F26}
+  td.ng{background:#FBF0EE;color:#8A2F22}
+  td.ok{color:#2A4A2A}
+  td.best{background:#EEF3F7;color:#1C3D5A}
+  .notes{max-width:960px;display:flex;flex-direction:column;gap:14px}
+  .note{background:#FBFAF8;border:1px solid #D9D7D0;border-radius:4px;padding:14px 18px;
+    font-size:12px;line-height:1.85;color:#3A3C38}
+  .note h3{font-size:13px;color:#1C3D5A;margin-bottom:6px;letter-spacing:.06em}
+  .note code{font-family:ui-monospace,Consolas,monospace;font-size:11.5px;background:#F1F0EC;padding:0 3px}
+  .note b{color:#1C1F26}
+  .note.drop h3{color:#8A2F22}
+  .note.drop{border-color:#E0CFC9}
+  /*==/harness==*/
+
+  /* ---- テーマ別トークン（reading-D.html / skins/reading-J.html の実値。1文字も変えない）---- */
+  .t-light{ --bg:#FBFAF8; --ink:#1C1F26; --soft:#7C808B; --ruby:#616C77; --accent:#1C3D5A;
+            --bar:#FBFAF8; --bar-line:#ECEAE4; --pill-ink:#4A4F58; }
+  .t-jdark{ --bg:#0F1712; --ink:#E4E9DE; --soft:#8E998C; --ruby:#A2AC9C; --accent:#E2C878;
+            --bar:#101913; --bar-line:#22301F; --pill-ink:#C8D2C4; }
+
+  /* ---- 比較用の切り出し枠（透過モックと同じ 372×300px。判定に要るのは画面下部だけ）---- */
+  .crop{width:372px;height:300px;position:relative;overflow:hidden;border-radius:10px;
+    background:var(--bg);font-family:var(--mincho);box-shadow:0 8px 22px rgba(0,0,0,.24)}
+  /* 縦書き本文（reading-vertical-scroll-D の組み）。ピルの真下に必ず列が来るように敷く。 */
+  .crop .body{position:absolute;inset:0;padding:18px 22px;color:var(--ink);
+    writing-mode:vertical-rl;-webkit-writing-mode:vertical-rl;overflow:hidden}
+  .crop .body p{font-size:16.5px;line-height:2.4;text-indent:1em;margin:0}
+  .crop .body ruby rt{font-size:.5em;color:var(--ruby);font-weight:400;letter-spacing:.04em}
+  /* 横書き＝実装の既定（reading_vertical 既定 false）。組みは reading-D .reader / p と同値（左右 24px）。 */
+  .crop.h .body{writing-mode:horizontal-tb;-webkit-writing-mode:horizontal-tb;padding:16px 24px}
+  /* 章末印（reading-J .chapend .mark の逐語複製）＝2026-07-17 に不透明化の根拠になった条件を保つ。 */
+  .chapend{position:absolute;left:0;right:0;bottom:84px;text-align:center;text-indent:0;z-index:2;
+    font-family:var(--gothic);font-size:10.5px;letter-spacing:.34em;color:var(--soft)}
+  /* 下端バー（reading-D .bottombar の逐語複製・4分割） */
+  .bottombar{position:absolute;left:0;right:0;bottom:0;z-index:4;height:60px;display:flex;align-items:center;
+    background:var(--bar);border-top:1px solid var(--bar-line)}
+  .bottombar button{flex:1;height:100%;border:none;background:transparent;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;gap:4px;color:var(--ink);cursor:pointer}
+  .bottombar svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.5}
+  .bottombar .bl{font-family:var(--gothic);font-size:9.5px;color:var(--soft);letter-spacing:.02em}
+  .bottombar .set svg{stroke:var(--accent)}
+  .bottombar .set .bl{color:var(--accent);font-weight:600}
+  /* P2 用の5分割バー。追加項目だけ判別できるよう薄い当たりを敷く（比較用の目印＝意匠ではない）。 */
+  .bottombar.b5 .added{background:rgba(28,61,90,.06)}
+  .bottombar.b5 .added .bl{color:var(--ink)}
+
+  /* ---- 全案共通の器＝現行実装そのもの（α.78＋1px枠＋淡影・11px ゴシック・最小高48）---- */
+  .toppill{position:absolute;left:50%;bottom:72px;transform:translateX(-50%);z-index:6;
+    display:flex;align-items:center;gap:6px;font-family:var(--gothic);font-size:11px;line-height:1.6;
+    color:var(--pill-ink);letter-spacing:.08em;border-radius:999px;padding:8px 16px;white-space:nowrap;
+    border:1px solid var(--bar-line);cursor:pointer;min-height:48px;justify-content:center}
+  .toppill svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:1.8}
+  .t-light .toppill{background:rgba(251,250,248,.78);box-shadow:0 2px 10px rgba(0,0,0,.08)}
+  .t-jdark .toppill{background:rgba(16,25,19,.78);box-shadow:0 2px 10px rgba(0,0,0,.45)}
+
+  /* ---- 軸1: 器 ---- */
+  /* S1 アイコンのみ＝ラベルを削る。46px しか無いので 48px の円へ揃える（最小タップ標的をそのまま器にする）。 */
+  .s1 .toppill{min-width:48px;padding:8px 16px}
+  /* S3 視覚の器だけ 32px へ詰め、48px のタップ標的は**透明な当たり**で保つ（下の .tgt が標的の実寸）。 */
+  .s3 .toppill,.s4 .toppill{min-height:32px;padding:0 16px}
+  /* S4 ＝ S1＋S3（アイコンのみ＋32px）。アイコン14＋左右9＝32px の正方形。 */
+  .s4 .toppill{min-width:32px;padding:0 9px}
+  /* 透明タップ標的の可視化（点線＝実際は見えない。裁定で「標的を割っていない」ことを目で確かめるため）。 */
+  .tgt::after{content:"";position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+    width:calc(100% + 32px);height:48px;border:1px dashed rgba(28,61,90,.55);border-radius:999px;pointer-events:none}
+  .s4 .tgt::after{width:48px}
+
+  /* ---- 軸2: 出現（静止画では出没を描けないので「出ている瞬間／退場した瞬間」の2枚で見る）---- */
+  .gone .toppill{display:none}
+
+  /* ---- 軸3: 位置 ---- */
+  /* P1 端へ寄せる。横書き＝右端（行末側）／縦書き＝左端（既読の列側）。版面外の 16px ぶんだけ被覆が減る。 */
+  .p1 .toppill{left:auto;right:16px;transform:none}
+  .p1.v-left .toppill{left:16px;right:auto}
+  /* P3 版面に下端クリアランス帯（60px）を作る＝本文のほうを避けさせる。列高・行数が減る。 */
+  .p3 .body{inset:0 0 60px 0}
+  .p3 .toppill{bottom:72px}
+  /* 帯の可視化（裁定用の目印＝意匠ではない）。 */
+  .p3::after{content:"";position:absolute;left:0;right:0;bottom:60px;height:60px;z-index:1;
+    background:repeating-linear-gradient(45deg,rgba(28,61,90,.05) 0 6px,transparent 6px 12px)}
+
+  /* ---- 案の並べ方 ---- */
+  .cases{display:flex;flex-direction:column;gap:26px;align-items:center}
+  .case{background:#FBFAF8;border:1px solid #D9D7D0;border-radius:6px;padding:16px 18px;
+    display:flex;flex-direction:column;gap:10px;max-width:960px}
+  .case .hd{font-size:13.5px;color:#1C1F26;letter-spacing:.04em}
+  .case .hd b{color:#1C3D5A}
+  .case .hd .val{font-family:ui-monospace,Consolas,monospace;font-size:11.5px;background:#F1F0EC;
+    padding:1px 5px;margin-left:8px;color:#3A3C38}
+  .pair{display:flex;gap:22px;flex-wrap:wrap;justify-content:center}
+  .col{display:flex;flex-direction:column;align-items:center;gap:7px}
+  .col .mode{font-size:11px;letter-spacing:.16em;color:#6A6C67}
+  .case .sub{font-size:11.5px;line-height:1.85;color:#5A5C57}
+  .case .sub b{color:#1C1F26}
+  .case .sub code{font-family:ui-monospace,Consolas,monospace;font-size:11px;background:#F1F0EC;padding:0 3px}
+  .case.reco{border-color:#1C3D5A;box-shadow:0 0 0 2px rgba(28,61,90,.12)}
+  .case.over{border-color:#C9A79E}
+  .badge{display:inline-block;background:#1C3D5A;color:#fff;font-size:10.5px;letter-spacing:.1em;
+    border-radius:3px;padding:2px 8px;margin-right:8px}
+  .badge.warnb{background:#8A2F22}
+  .badge.axis{background:#5A5C57}
+</style>
+</head>
+<body>
+  <h1 class="ttl">読書「最上部へ」ピルの被覆 — 透過とは別の3軸（器・出現・位置）</h1>
+  <p class="cap"><b>争点</b>: 透過は α.78 で裁定・実装・実機検分まで終わったのに、実機で
+  <b>ピル下の本文は 1.74:1</b>（同じ行のピル外 11.21:1）＝<b>覆われた字はやはり読めない</b>。
+  α.74 で 4.5:1 を割るので<b>透過の道は閉じた</b>。残る3軸＝<b>器を小さくする</b>／<b>出現を絞る</b>／<b>位置を寄せる</b>を振る。<br>
+  <b>対照Rは「不透明」ではなく現行＝α.78＋1px枠＋淡影</b>。全案ともこの器から出発し、<b>透過は一切動かさない</b>。</p>
+  <p class="warn">⚠️ 合否は「版面の何%」ではなく <b>「読んでいる字が覆われないこと」</b>。対照の被覆は版面の 2.3% にすぎないが、
+  消えるのが<b>いま読んでいる行の中央</b>（横書きで1行19.6字のうち6字が2行ぶん）なので読みが止まる。<br>
+  ⚠️ 各案 <b>左＝横書き（実装の既定）／中＝縦書き／右＝J ダーク×章末印</b>。都合のよい地で隠さず、
+  2026-07-17 に不透明化の根拠になった条件（明色の章末印がピルの裏を通る）を毎枚並べる。</p>
+  <div class="sec">出発点（現行実装の実測値）と、測り方</div>
+  <table>
+    <tr><th>項目</th><th>現行の値</th><th>出所</th></tr>
+    <tr><td>器</td><td>角丸999・左右16dp/上下8dp・<b>最小高 48dp</b>・地 α.78＋1px枠＋淡影</td><td><code>NativeReadingScreen.kt</code>／<code>ReadingChromePillSurface.kt</code></td></tr>
+    <tr><td>字・アイコン</td><td>11sp ゴシック（行箱17.6sp）／アイコン 16dp・ラベル <b>「最上部へ」</b></td><td>同上（⚠️「本棚へ戻る」ではない）</td></tr>
+    <tr><td>位置</td><td>下端バー実高 ＋ S12 の高さに<b>画面中央</b></td><td>同上（BottomCenter）</td></tr>
+    <tr><td>出現</td><td>①<b>クローム表示中</b>（collapsedFraction&lt;0.5）かつ ②<b>章の3割以上</b></td><td>同上（2026-07-16 実機較正）</td></tr>
+    <tr><td>器の実寸（本頁座標）</td><td><b>100 × 48px</b>＝面積 <b>4,800px²</b>（16+14+6+47.5+16 × 48）</td><td>正本 <code>reading-backtotop-D.html:96-104</code></td></tr>
+    <tr><td>1字のセル</td><td>字送り16.5 × 行送り39.6 ＝ <b>653.4px²</b>（縦横で同値）</td><td><code>reading-D.html:84</code> の <code>p{16.5px/2.4}</code></td></tr>
+    <tr><td>見えている版面</td><td>324 × 656 ＝ 212,544px² ＝ <b>325字</b>（19.6字/行 × 16.6行）</td><td>372×800 端末・左右24px・上下バー</td></tr>
+  </table>
+
+  <div class="sec">各案が本文を救う量（<span class="axis">覆う字数＝器の面積 ÷ 653.4。スクロール位置に依らない期待値</span>）</div>
+  <table>
+    <tr>
+      <th>案</th><th>軸</th><th>器（px）</th><th>覆う面積</th><th>対照比</th>
+      <th>覆う字数</th><th>横書きの欠け</th><th>縦書きの欠け</th><th>48dp 標的</th>
+    </tr>
+    <tr><td><b>対照R</b>（現行）</td><td>—</td><td>100 × 48</td><td>4,800px²</td><td>100%</td><td><b>7.3字</b></td><td>2行 × 各6.1字</td><td>3列 × 各2.9字</td><td class="ok">○</td></tr>
+    <tr><td><b>S1</b> アイコンのみ</td><td>器</td><td>48 × 48</td><td>2,304px²</td><td class="ok"><b>−52%</b></td><td>3.5字</td><td>2行 × 各2.9字</td><td>2列 × 各2.9字</td><td class="ok">○（器＝標的）</td></tr>
+    <tr><td><b>S2</b> 語を詰める「上へ」</td><td>器</td><td>76 × 48</td><td>3,648px²</td><td>−24%</td><td>5.6字</td><td>2行 × 各4.6字</td><td>2列 × 各2.9字</td><td class="ok">○</td></tr>
+    <tr><td><b>S3</b> 器の高さを32へ</td><td>器</td><td>100 × 32</td><td>3,200px²</td><td>−33%</td><td>4.9字</td><td>1〜2行 × 各6.1字</td><td>3列 × 各1.9字</td><td class="ok">○（透明標的48）</td></tr>
+    <tr><td class="best"><b>S4</b> ＝S1＋S3</td><td>器</td><td>32 × 32</td><td>1,024px²</td><td class="best"><b>−79%</b></td><td class="best"><b>1.6字</b></td><td>1〜2行 × 各1.9字</td><td>1〜2列 × 各1.9字</td><td class="ok">○（透明標的48）</td></tr>
+    <tr><td><b>S5</b> 器を34へ（標的も34）</td><td>器</td><td>100 × 34</td><td>3,400px²</td><td>−29%</td><td>5.2字</td><td>—</td><td>—</td><td class="ng"><b>×＝不可</b></td></tr>
+    <tr><td><b>A1</b> スクロール中は退場</td><td>出現</td><td>100 × 48</td><td>4,800 / <b>0</b></td><td class="ok"><b>読書中 −100%</b></td><td>静止 7.3字 / 移動中 <b>0字</b></td><td colspan="2">面積は変わらない。変わるのは<b>覆っている時間</b></td><td class="ok">○</td></tr>
+    <tr><td><b>A2</b> 2.6秒で自動退場</td><td>出現</td><td>100 × 48</td><td>4,800 / <b>0</b></td><td class="ok">2.6秒後 −100%</td><td>最初の2.6秒だけ 7.3字</td><td colspan="2">同上</td><td class="ok">○</td></tr>
+    <tr><td><b>A3</b> 上方向スクロール中だけ出す</td><td>出現</td><td>100 × 48</td><td>4,800 / <b>0</b></td><td class="ok">読み進み中 −100%</td><td>戻り操作中だけ 7.3字</td><td colspan="2">同上</td><td class="ok">○</td></tr>
+    <tr><td><b>P1</b> 端へ寄せる</td><td>位置</td><td>100 × 48</td><td>4,416px² が版面内</td><td>−8%</td><td>6.8字</td><td>2行 × 各5.6字</td><td>3列（<b>最左＝既読側</b>）</td><td class="ok">○</td></tr>
+    <tr><td><b>P2</b> 下端バーへ収容</td><td>位置</td><td>バー内 74.4 × 60</td><td class="ok"><b>0px²</b></td><td class="ok"><b>−100%</b></td><td class="ok"><b>0字</b></td><td colspan="2">本文の上に浮遊物が無くなる</td><td class="ok">○（74.4&gt;48）</td></tr>
+    <tr><td><b>P3</b> 版面に60px帯を作る</td><td>位置</td><td>帯 372 × 60</td><td class="ok">0px²</td><td class="ok">−100%</td><td class="ok">0字</td><td class="ng">版面 −1.5行（<b>−29字</b>）</td><td class="ng">列高 −9%（1列 −3.7字）</td><td class="ok">○</td></tr>
+    <tr><td colspan="9">
+      <b>横書きの欠け</b>＝器の幅÷16.5 が「1行あたり消える字数」・器の高さ48は行送り39.6 を跨ぐので<b>2行</b>に掛かる。
+      <b>縦書き</b>は軸が入れ替わり、器の幅÷39.6 が「掛かる列数」・器の高さ÷16.5 が「1列あたり消える字数」。<br>
+      <b>S5 は不可</b>＝視覚の器もタップ標的も 34px にすると Material の最小タップ標的 48dp を割る（2026-09-03 裁定・正本6ファイルへ追記済み）。
+      <b>S3/S4 が合法なのは「見える器」だけを縮め、当たり判定を透明のまま 48dp で残す</b>から（下の点線が標的の実寸）。
+    </td></tr>
+  </table>
+  <div class="sec">軸1: 器を小さくする<span class="axis">ラベルを削る／語を詰める／高さを詰める。⚠️ タップ標的 48dp を割る案は不可</span></div>
+  <div class="cases">
+
+    <div class="case">
+      <div class="hd"><span class="badge axis">対照</span>対照R ／ <b>現行＝α.78＋1px枠＋淡影・ラベル「最上部へ」</b><span class="val">100×48px・4,800px²・7.3字</span></div>
+      <div class="pair">
+        <div class="col"><span class="mode">D／K ライト（横書き＝実装の既定）</span>
+          <div class="crop t-light r h" role="img" aria-label="D／K ライト（横書き＝実装の既定）">
+            <div class="body"><p><ruby>峠<rt>とうげ</rt></ruby>の<ruby>茶屋<rt>ちゃや</rt></ruby>を<ruby>出<rt>で</rt></ruby>るころには、<ruby>霧<rt>きり</rt></ruby>はもう<ruby>谷<rt>たに</rt></ruby>の<ruby>底<rt>そこ</rt></ruby>へ<ruby>沈<rt>しず</rt></ruby>みきっていた。<ruby>杖<rt>つえ</rt></ruby>の<ruby>先<rt>さき</rt></ruby>で<ruby>石<rt>いし</rt></ruby>を<ruby>探<rt>さぐ</rt></ruby>りながら<ruby>一歩<rt>いっぽ</rt></ruby>ずつ<ruby>下<rt>くだ</rt></ruby>ってゆくと、<ruby>足元<rt>あしもと</rt></ruby>の<ruby>草<rt>くさ</rt></ruby>が<ruby>露<rt>つゆ</rt></ruby>を<ruby>含<rt>ふく</rt></ruby>んで<ruby>重<rt>おも</rt></ruby>く、<ruby>裾<rt>すそ</rt></ruby>はたちまち<ruby>濡<rt>ぬ</rt></ruby>れていった。<ruby>遠<rt>とお</rt></ruby>くで<ruby>鐘<rt>かね</rt></ruby>が<ruby>鳴<rt>な</rt></ruby>っている。<ruby>数<rt>かぞ</rt></ruby>えるともなく<ruby>数<rt>かぞ</rt></ruby>えて、<ruby>六<rt>むっ</rt></ruby>つ<ruby>目<rt>め</rt></ruby>で<ruby>足<rt>あし</rt></ruby>を<ruby>止<rt>と</rt></ruby>めた。<ruby>約束<rt>やくそく</rt></ruby>の<ruby>刻<rt>とき</rt></ruby>にはまだ<ruby>間<rt>ま</rt></ruby>がある。</p></div>
+            <button class="toppill"><svg viewBox="0 0 24 24"><line x1="5" y1="4" x2="19" y2="4"/><polyline points="7 13 12 8 17 13"/><line x1="12" y1="8" x2="12" y2="20"/></svg><span>最上部へ</span></button>
+            <div class="bottombar"><button aria-label="前章"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg><span class="bl">前章</span></button><button aria-label="目次"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/></svg><span class="bl">目次</span></button><button class="set" aria-label="表示設定"><svg viewBox="0 0 24 24"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="9" cy="8" r="2.4" fill="var(--bar)"/><circle cx="15" cy="16" r="2.4" fill="var(--bar)"/></svg><span class="bl">表示設定</span></button><button aria-label="次章"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg><span class="bl">次章</span></button></div>
+          </div>
+        </div>
+        <div class="col"><span class="mode">D／K ライト（縦書き）</span>
+          <div class="crop t-light r" role="img" aria-label="D／K ライト（縦書き）">
+            <div class="body"><p><ruby>峠<rt>とうげ</rt></ruby>の<ruby>茶屋<rt>ちゃや</rt></ruby>を<ruby>出<rt>で</rt></ruby>るころには、<ruby>霧<rt>きり</rt></ruby>はもう<ruby>谷<rt>たに</rt></ruby>の<ruby>底<rt>そこ</rt></ruby>へ<ruby>沈<rt>しず</rt></ruby>みきっていた。<ruby>杖<rt>つえ</rt></ruby>の<ruby>先<rt>さき</rt></ruby>で<ruby>石<rt>いし</rt></ruby>を<ruby>探<rt>さぐ</rt></ruby>りながら<ruby>一歩<rt>いっぽ</rt></ruby>ずつ<ruby>下<rt>くだ</rt></ruby>ってゆくと、<ruby>足元<rt>あしもと</rt></ruby>の<ruby>草<rt>くさ</rt></ruby>が<ruby>露<rt>つゆ</rt></ruby>を<ruby>含<rt>ふく</rt></ruby>んで<ruby>重<rt>おも</rt></ruby>く、<ruby>裾<rt>すそ</rt></ruby>はたちまち<ruby>濡<rt>ぬ</rt></ruby>れていった。<ruby>遠<rt>とお</rt></ruby>くで<ruby>鐘<rt>かね</rt></ruby>が<ruby>鳴<rt>な</rt></ruby>っている。<ruby>数<rt>かぞ</rt></ruby>えるともなく<ruby>数<rt>かぞ</rt></ruby>えて、<ruby>六<rt>むっ</rt></ruby>つ<ruby>目<rt>め</rt></ruby>で<ruby>足<rt>あし</rt></ruby>を<ruby>止<rt>と</rt></ruby>めた。<ruby>約束<rt>やくそく</rt></ruby>の<ruby>刻<rt>とき</rt></ruby>にはまだ<ruby>間<rt>ま</rt></ruby>がある。</p></div>
+            <button class="toppill"><svg viewBox="0 0 24 24"><line x1="5" y1="4" x2="19" y2="4"/><polyline points="7 13 12 8 17 13"/><line x1="12" y1="8" x2="12" y2="20"/></svg><span>最上部へ</span></button>
+            <div class="bottombar"><button aria-label="前章"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg><span class="bl">前章</span></button><button aria-label="目次"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/></svg><span class="bl">目次</span></button><button class="set" aria-label="表示設定"><svg viewBox="0 0 24 24"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="9" cy="8" r="2.4" fill="var(--bar)"/><circle cx="15" cy="16" r="2.4" fill="var(--bar)"/></svg><span class="bl">表示設定</span></button><button aria-label="次章"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg><span class="bl">次章</span></button></div>
+          </div>
+        </div>
+        <div class="col"><span class="mode">J ダーク（縦書き＋章末印）</span>
+          <div class="crop t-jdark r" role="img" aria-label="J ダーク（縦書き＋章末印）">
+            <div class="body"><p><ruby>峠<rt>とうげ</rt></ruby>の<ruby>茶屋<rt>ちゃや</rt></ruby>を<ruby>出<rt>で</rt></ruby>るころには、<ruby>霧<rt>きり</rt></ruby>はもう<ruby>谷<rt>たに</rt></ruby>の<ruby>底<rt>そこ</rt></ruby>へ<ruby>沈<rt>しず</rt></ruby>みきっていた。<ruby>杖<rt>つえ</rt></ruby>の<ruby>先<rt>さき</rt></ruby>で<ruby>石<rt>いし</rt></ruby>を<ruby>探<rt>さぐ</rt></ruby>りながら<ruby>一歩<rt>いっぽ</rt></ruby>ずつ<ruby>下<rt>くだ</rt></ruby>ってゆくと、<ruby>足元<rt>あしもと</rt></ruby>の<ruby>草<rt>くさ</rt></ruby>が<ruby>露<rt>つゆ</rt></ruby>を<ruby>含<rt>ふく</rt></ruby>んで<ruby>重<rt>おも</rt></ruby>く、<ruby>裾<rt>すそ</rt></ruby>はたちまち<ruby>濡<rt>ぬ</rt></ruby>れていった。<ruby>遠<rt>とお</rt></ruby>くで<ruby>鐘<rt>かね</rt></ruby>が<ruby>鳴<rt>な</rt></ruby>っている。<ruby>数<rt>かぞ</rt></ruby>えるともなく<ruby>数<rt>かぞ</rt></ruby>えて、<ruby>六<rt>むっ</rt></ruby>つ<ruby>目<rt>め</rt></ruby>で<ruby>足<rt>あし</rt></ruby>を<ruby>止<rt>と</rt></ruby>めた。<ruby>約束<rt>やくそく</rt></ruby>の<ruby>刻<rt>とき</rt></ruby>にはまだ<ruby>間<rt>ま</rt></ruby>がある。</p></div>
+            <div class="chapend">— 第百二十七話 了 —</div><button class="toppill"><svg viewBox="0 0 24 24"><line x1="5" y1="4" x2="19" y2="4"/><polyline points="7 13 12 8 17 13"/><line x1="12" y1="8" x2="12" y2="20"/></svg><span>最上部へ</span></button>
+            <div class="bottombar"><button aria-label="前章"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg><span class="bl">前章</span></button><button aria-label="目次"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/></svg><span class="bl">目次</span></button><button class="set" aria-label="表示設定"><svg viewBox="0 0 24 24"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="9" cy="8" r="2.4" fill="var(--bar)"/><circle cx="15" cy="16" r="2.4" fill="var(--bar)"/></svg><span class="bl">表示設定</span></button><button aria-label="次章"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg><span class="bl">次章</span></button></div>
+          </div>
+        </div>
+      </div>
+      <div class="sub">ピルの下の本文は<b>ほぼ読めない</b>（実機実測 1.74:1）。横書きでは<b>2行にまたがって各6字</b>が抜け、縦書きでは<b>3列の途中が各3字</b>欠ける。⚠️ 欠け方の質が違う——横書きは<b>行の途中が消える</b>（読みが止まる）、縦書きは<b>列が途切れる</b>（文が続くことは分かるが目が飛ぶ）。監督の実機判定「文が続くことは分かるが、読んでいる途中なら止まる」はこの両方に一致する。</div>
+    </div>
+
+    <div class="case">
+      <div class="hd"><span class="badge axis">軸1</span>案S1 ／ <b>ラベルを削ってアイコンのみ</b>（48×48 の円＝器そのものが最小タップ標的）<span class="val">48×48px・2,304px²・3.5字・−52%</span></div>
+      <div class="pair">
+        <div class="col"><span class="mode">D／K ライト（横書き＝実装の既定）</span>
+          <div class="crop t-light s1 h" role="img" aria-label="D／K ライト（横書き＝実装の既定）">
+            <div class="body"><p><ruby>峠<rt>とうげ</rt></ruby>の<ruby>茶屋<rt>ちゃや</rt></ruby>を<ruby>出<rt>で</rt></ruby>るころには、<ruby>霧<rt>きり</rt></ruby>はもう<ruby>谷<rt>たに</rt></ruby>の<ruby>底<rt>そこ</rt></ruby>へ<ruby>沈<rt>しず</rt></ruby>みきっていた。<ruby>杖<rt>つえ</rt></ruby>の<ruby>先<rt>さき</rt></ruby>で<ruby>石<rt>いし</rt></ruby>を<ruby>探<rt>さぐ</rt></ruby>りながら<ruby>一歩<rt>いっぽ</rt></ruby>ずつ<ruby>下<rt>くだ</rt></ruby>ってゆくと、<ruby>足元<rt>あしもと</rt></ruby>の<ruby>草<rt>くさ</rt></ruby>が<ruby>露<rt>つゆ</rt></ruby>を<ruby>含<rt>ふく</rt></ruby>んで<ruby>重<rt>おも</rt></ruby>く、<ruby>裾<rt>すそ</rt></ruby>はたちまち<ruby>濡<rt>ぬ</rt></ruby>れていった。<ruby>遠<rt>とお</rt></ruby>くで<ruby>鐘<rt>かね</rt></ruby>が<ruby>鳴<rt>な</rt></ruby>っている。<ruby>数<rt>かぞ</rt></ruby>えるともなく<ruby>数<rt>かぞ</rt></ruby>えて、<ruby>六<rt>むっ</rt></ruby>つ<ruby>目<rt>め</rt></ruby>で<ruby>足<rt>あし</rt></ruby>を<ruby>止<rt>と</rt></ruby>めた。<ruby>約束<rt>やくそく</rt></ruby>の<ruby>刻<rt>とき</rt></ruby>にはまだ<ruby>間<rt>ま</rt></ruby>がある。</p></div>
+            <button class="toppill" aria-label="最上部へ"><svg viewBox="0 0 24 24"><line x1="5" y1="4" x2="19" y2="4"/><polyline points="7 13 12 8 17 13"/><line x1="12" y1="8" x2="12" y2="20"/></svg></button>
+            <div class="bottombar"><button aria-label="前章"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg><span class="bl">前章</span></button><button aria-label="目次"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/></svg><span class="bl">目次</span></button><button class="set" aria-label="表示設定"><svg viewBox="0 0 24 24"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="9" cy="8" r="2.4" fill="var(--bar)"/><circle cx="15" cy="16" r="2.4" fill="var(--bar)"/></svg><span class="bl">表示設定</span></button><button aria-label="次章"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg><span class="bl">次章</span></button></div>
+          </div>
+        </div>
+        <div class="col"><span class="mode">D／K ライト（縦書き）</span>
+          <div class="crop t-light s1" role="img" aria-label="D／K ライト（縦書き）">
+            <div class="body"><p><ruby>峠<rt>とうげ</rt></ruby>の<ruby>茶屋<rt>ちゃや</rt></ruby>を<ruby>出<rt>で</rt></ruby>るころには、<ruby>霧<rt>きり</rt></ruby>はもう<ruby>谷<rt>たに</rt></ruby>の<ruby>底<rt>そこ</rt></ruby>へ<ruby>沈<rt>しず</rt></ruby>みきっていた。<ruby>杖<rt>つえ</rt></ruby>の<ruby>先<rt>さき</rt></ruby>で<ruby>石<rt>いし</rt></ruby>を<ruby>探<rt>さぐ</rt></ruby>りながら<ruby>一歩<rt>いっぽ</rt></ruby>ずつ<ruby>下<rt>くだ</rt></ruby>ってゆくと、<ruby>足元<rt>あしもと</rt></ruby>の<ruby>草<rt>くさ</rt></ruby>が<ruby>露<rt>つゆ</rt></ruby>を<ruby>含<rt>ふく</rt></ruby>んで<ruby>重<rt>おも</rt></ruby>く、<ruby>裾<rt>すそ</rt></ruby>はたちまち<ruby>濡<rt>ぬ</rt></ruby>れていった。<ruby>遠<rt>とお</rt></ruby>くで<ruby>鐘<rt>かね</rt></ruby>が<ruby>鳴<rt>な</rt></ruby>っている。<ruby>数<rt>かぞ</rt></ruby>えるともなく<ruby>数<rt>かぞ</rt></ruby>えて、<ruby>六<rt>むっ</rt></ruby>つ<ruby>目<rt>め</rt></ruby>で<ruby>足<rt>あし</rt></ruby>を<ruby>止<rt>と</rt></ruby>めた。<ruby>約束<rt>やくそく</rt></ruby>の<ruby>刻<rt>とき</rt></ruby>にはまだ<ruby>間<rt>ま</rt></ruby>がある。</p></div>
+            <button class="toppill" aria-label="最上部へ"><svg viewBox="0 0 24 24"><line x1="5" y1="4" x2="19" y2="4"/><polyline points="7 13 12 8 17 13"/><line x1="12" y1="8" x2="12" y2="20"/></svg></button>
+            <div class="bottombar"><button aria-label="前章"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg><span class="bl">前章</span></button><button aria-label="目次"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/></svg><span class="bl">目次</span></button><button class="set" aria-label="表示設定"><svg viewBox="0 0 24 24"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="9" cy="8" r="2.4" fill="var(--bar)"/><circle cx="15" cy="16" r="2.4" fill="var(--bar)"/></svg><span class="bl">表示設定</span></button><button aria-label="次章"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg><span class="bl">次章</span></button></div>
+          </div>
+        </div>
+        <div class="col"><span class="mode">J ダーク（縦書き＋章末印）</span>
+          <div class="crop t-jdark s1" role="img" aria-label="J ダーク（縦書き＋章末印）">
+            <div class="body"><p><ruby>峠<rt>とうげ</rt></ruby>の<ruby>茶屋<rt>ちゃや</rt></ruby>を<ruby>出<rt>で</rt></ruby>るころには、<ruby>霧<rt>きり</rt></ruby>はもう<ruby>谷<rt>たに</rt></ruby>の<ruby>底<rt>そこ</rt></ruby>へ<ruby>沈<rt>しず</rt></ruby>みきっていた。<ruby>杖<rt>つえ</rt></ruby>の<ruby>先<rt>さき</rt></ruby>で<ruby>石<rt>いし</rt></ruby>を<ruby>探<rt>さぐ</rt></ruby>りながら<ruby>一歩<rt>いっぽ</rt></ruby>ずつ<ruby>下<rt>くだ</rt></ruby>ってゆくと、<ruby>足元<rt>あしもと</rt></ruby>の<ruby>草<rt>くさ</rt></ruby>が<ruby>露<rt>つゆ</rt></ruby>を<ruby>含<rt>ふく</rt></ruby>んで<ruby>重<rt>おも</rt></ruby>く、<ruby>裾<rt>すそ</rt></ruby>はたちまち<ruby>濡<rt>ぬ</rt></ruby>れていった。<ruby>遠<rt>とお</rt></ruby>くで<ruby>鐘<rt>かね</rt></ruby>が<ruby>鳴<rt>な</rt></ruby>っている。<ruby>数<rt>かぞ</rt></ruby>えるともなく<ruby>数<rt>かぞ</rt></ruby>えて、<ruby>六<rt>むっ</rt></ruby>つ<ruby>目<rt>め</rt></ruby>で<ruby>足<rt>あし</rt></ruby>を<ruby>止<rt>と</rt></ruby>めた。<ruby>約束<rt>やくそく</rt></ruby>の<ruby>刻<rt>とき</rt></ruby>にはまだ<ruby>間<rt>ま</rt></ruby>がある。</p></div>
+            <div class="chapend">— 第百二十七話 了 —</div><button class="toppill" aria-label="最上部へ"><svg viewBox="0 0 24 24"><line x1="5" y1="4" x2="19" y2="4"/><polyline points="7 13 12 8 17 13"/><line x1="12" y1="8" x2="12" y2="20"/></svg></button>
+            <div class="bottombar"><button aria-label="前章"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg><span class="bl">前章</span></button><button aria-label="目次"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/></svg><span class="bl">目次</span></button><button class="set" aria-label="表示設定"><svg viewBox="0 0 24 24"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="9" cy="8" r="2.4" fill="var(--bar)"/><circle cx="15" cy="16" r="2.4" fill="var(--bar)"/></svg><span class="bl">表示設定</span></button><button aria-label="次章"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg><span class="bl">次章</span></button></div>
+          </div>
+        </div>
+      </div>
+      <div class="sub">面積が<b>半分</b>に落ちる。横書きでは1行あたり6.1字→<b>2.9字</b>、縦書きでは掛かる列が3→<b>2列</b>。器がそのまま 48dp の標的なので<b>透明な当たりを足す必要がない</b>のが利点（実装が最も単純）。<br><b>失うもの＝「何のボタンか」が分からなくなる</b>。境目は3条件で、<b>3つ揃えば通じる／1つでも欠けたら通じない</b>: ①アイコンが標準語彙であること（天井線＋上矢印＝<code>Icons.Filled.VerticalAlignTop</code>＝Material 標準で満たす）②同じ画面に紛れる別アイコンが無いこと（<b>満たさない</b>＝下端バーに 前章／目次／表示設定／次章 の4アイコンが並ぶ）③一度は語で見せてあること（<b>満たさない</b>＝現状ずっと語で出る）。<br>∴ S1 を採るなら<b>③を作る</b>のが筋＝<b>初回だけラベル付き・以後アイコンのみ</b>（復帰ヒントが使っている「アプリ通算初回だけ prefs で焼く」型がそのまま使える＝新機構を発明しない）。②は下の「3ピルの規則」で扱う。</div>
+    </div>
+
+    <div class="case">
+      <div class="hd"><span class="badge axis">軸1</span>案S2 ／ <b>語を詰める「上へ」</b>（アイコンは残す）<span class="val">76×48px・3,648px²・5.6字・−24%</span></div>
+      <div class="pair">
+        <div class="col"><span class="mode">D／K ライト（横書き＝実装の既定）</span>
+          <div class="crop t-light s2 h" role="img" aria-label="D／K ライト（横書き＝実装の既定）">
+            <div class="body"><p><ruby>峠<rt>とうげ</rt></ruby>の<ruby>茶屋<rt>ちゃや</rt></ruby>を<ruby>出<rt>で</rt></ruby>るころには、<ruby>霧<rt>きり</rt></ruby>はもう<ruby>谷<rt>たに</rt></ruby>の<ruby>底<rt>そこ</rt></ruby>へ<ruby>沈<rt>しず</rt></ruby>みきっていた。<ruby>杖<rt>つえ</rt></ruby>の<ruby>先<rt>さき</rt></ruby>で<ruby>石<rt>いし</rt></ruby>を<ruby>探<rt>さぐ</rt></ruby>りながら<ruby>一歩<rt>いっぽ</rt></ruby>ずつ<ruby>下<rt>くだ</rt></ruby>ってゆくと、<ruby>足元<rt>あしもと</rt></ruby>の<ruby>草<rt>くさ</rt></ruby>が<ruby>露<rt>つゆ</rt></ruby>を<ruby>含<rt>ふく</rt></ruby>んで<ruby>重<rt>おも</rt></ruby>く、<ruby>裾<rt>すそ</rt></ruby>はたちまち<ruby>濡<rt>ぬ</rt></ruby>れていった。<ruby>遠<rt>とお</rt></ruby>くで<ruby>鐘<rt>かね</rt></ruby>が<ruby>鳴<rt>な</rt></ruby>っている。<ruby>数<rt>かぞ</rt></ruby>えるともなく<ruby>数<rt>かぞ</rt></ruby>えて、<ruby>六<rt>むっ</rt></ruby>つ<ruby>目<rt>め</rt></ruby>で<ruby>足<rt>あし</rt></ruby>を<ruby>止<rt>と</rt></ruby>めた。<ruby>約束<rt>やくそく</rt></ruby>の<ruby>刻<rt>とき</rt></ruby>にはまだ<ruby>間<rt>ま</rt></ruby>がある。</p></div>
+            <button class="toppill"><svg viewBox="0 0 24 24"><line x1="5" y1="4" x2="19" y2="4"/><polyline points="7 13 12 8 17 13"/><line x1="12" y1="8" x2="12" y2="20"/></svg><span>上へ</span></button>
+            <div class="bottombar"><button aria-label="前章"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg><span class="bl">前章</span></button><button aria-label="目次"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/></svg><span class="bl">目次</span></button><button class="set" aria-label="表示設定"><svg viewBox="0 0 24 24"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="9" cy="8" r="2.4" fill="var(--bar)"/><circle cx="15" cy="16" r="2.4" fill="var(--bar)"/></svg><span class="bl">表示設定</span></button><button aria-label="次章"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg><span class="bl">次章</span></button></div>
+          </div>
+        </div>
+        <div class="col"><span class="mode">D／K ライト（縦書き）</span>
+          <div class="crop t-light s2" role="img" aria-label="D／K ライト（縦書き）">
+            <div class="body"><p><ruby>峠<rt>とうげ</rt></ruby>の<ruby>茶屋<rt>ちゃや</rt></ruby>を<ruby>出<rt>で</rt></ruby>るころには、<ruby>霧<rt>きり</rt></ruby>はもう<ruby>谷<rt>たに</rt></ruby>の<ruby>底<rt>そこ</rt></ruby>へ<ruby>沈<rt>しず</rt></ruby>みきっていた。<ruby>杖<rt>つえ</rt></ruby>の<ruby>先<rt>さき</rt></ruby>で<ruby>石<rt>いし</rt></ruby>を<ruby>探<rt>さぐ</rt></ruby>りながら<ruby>一歩<rt>いっぽ</rt></ruby>ずつ<ruby>下<rt>くだ</rt></ruby>ってゆくと、<ruby>足元<rt>あしもと</rt></ruby>の<ruby>草<rt>くさ</rt></ruby>が<ruby>露<rt>つゆ</rt></ruby>を<ruby>含<rt>ふく</rt></ruby>んで<ruby>重<rt>おも</rt></ruby>く、<ruby>裾<rt>すそ</rt></ruby>はたちまち<ruby>濡<rt>ぬ</rt></ruby>れていった。<ruby>遠<rt>とお</rt></ruby>くで<ruby>鐘<rt>かね</rt></ruby>が<ruby>鳴<rt>な</rt></ruby>っている。<ruby>数<rt>かぞ</rt></ruby>えるともなく<ruby>数<rt>かぞ</rt></ruby>えて、<ruby>六<rt>むっ</rt></ruby>つ<ruby>目<rt>め</rt></ruby>で<ruby>足<rt>あし</rt></ruby>を<ruby>止<rt>と</rt></ruby>めた。<ruby>約束<rt>やくそく</rt></ruby>の<ruby>刻<rt>とき</rt></ruby>にはまだ<ruby>間<rt>ま</rt></ruby>がある。</p></div>
+            <button class="toppill"><svg viewBox="0 0 24 24"><line x1="5" y1="4" x2="19" y2="4"/><polyline points="7 13 12 8 17 13"/><line x1="12" y1="8" x2="12" y2="20"/></svg><span>上へ</span></button>
+            <div class="bottombar"><button aria-label="前章"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg><span class="bl">前章</span></button><button aria-label="目次"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/></svg><span class="bl">目次</span></button><button class="set" aria-label="表示設定"><svg viewBox="0 0 24 24"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="9" cy="8" r="2.4" fill="var(--bar)"/><circle cx="15" cy="16" r="2.4" fill="var(--bar)"/></svg><span class="bl">表示設定</span></button><button aria-label="次章"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg><span class="bl">次章</span></button></div>
+          </div>
+        </div>
+        <div class="col"><span class="mode">J ダーク（縦書き＋章末印）</span>
+          <div class="crop t-jdark s2" role="img" aria-label="J ダーク（縦書き＋章末印）">
+            <div class="body"><p><ruby>峠<rt>とうげ</rt></ruby>の<ruby>茶屋<rt>ちゃや</rt></ruby>を<ruby>出<rt>で</rt></ruby>るころには、<ruby>霧<rt>きり</rt></ruby>はもう<ruby>谷<rt>たに</rt></ruby>の<ruby>底<rt>そこ</rt></ruby>へ<ruby>沈<rt>しず</rt></ruby>みきっていた。<ruby>杖<rt>つえ</rt></ruby>の<ruby>先<rt>さき</rt></ruby>で<ruby>石<rt>いし</rt></ruby>を<ruby>探<rt>さぐ</rt></ruby>りながら<ruby>一歩<rt>いっぽ</rt></ruby>ずつ<ruby>下<rt>くだ</rt></ruby>ってゆくと、<ruby>足元<rt>あしもと</rt></ruby>の<ruby>草<rt>くさ</rt></ruby>が<ruby>露<rt>つゆ</rt></ruby>を<ruby>含<rt>ふく</rt></ruby>んで<ruby>重<rt>おも</rt></ruby>く、<ruby>裾<rt>すそ</rt></ruby>はたちまち<ruby>濡<rt>ぬ</rt></ruby>れていった。<ruby>遠<rt>とお</rt></ruby>くで<ruby>鐘<rt>かね</rt></ruby>が<ruby>鳴<rt>な</rt></ruby>っている。<ruby>数<rt>かぞ</rt></ruby>えるともなく<ruby>数<rt>かぞ</rt></ruby>えて、<ruby>六<rt>むっ</rt></ruby>つ<ruby>目<rt>め</rt></ruby>で<ruby>足<rt>あし</rt></ruby>を<ruby>止<rt>と</rt></ruby>めた。<ruby>約束<rt>やくそく</rt></ruby>の<ruby>刻<rt>とき</rt></ruby>にはまだ<ruby>間<rt>ま</rt></ruby>がある。</p></div>
+            <div class="chapend">— 第百二十七話 了 —</div><button class="toppill"><svg viewBox="0 0 24 24"><line x1="5" y1="4" x2="19" y2="4"/><polyline points="7 13 12 8 17 13"/><line x1="12" y1="8" x2="12" y2="20"/></svg><span>上へ</span></button>
+            <div class="bottombar"><button aria-label="前章"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg><span class="bl">前章</span></button><button aria-label="目次"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/></svg><span class="bl">目次</span></button><button class="set" aria-label="表示設定"><svg viewBox="0 0 24 24"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="9" cy="8" r="2.4" fill="var(--bar)"/><circle cx="15" cy="16" r="2.4" fill="var(--bar)"/></svg><span class="bl">表示設定</span></button><button aria-label="次章"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg><span class="bl">次章</span></button></div>
+          </div>
+        </div>
+      </div>
+      <div class="sub">4字→2字で幅が 100→76px。<b>−24% にしかならない</b>——器の幅の 32px（左右16px）と アイコン＋間隔 20px は語を削っても残るからで、<b>字を削る効き目は上限が低い</b>。「最上部へ」→「上へ」は意味も落ちる（「上」がスクロールの上なのか章の上なのか曖昧になる）。<br>⚠️ S2 は<b>S1 の劣化版</b>＝発見性を落としながら量は半分しか救えない。単独では推さない。</div>
+    </div>
+
+    <div class="case">
+      <div class="hd"><span class="badge axis">軸1</span>案S3 ／ <b>見える器の高さだけ 48→32px へ詰め、タップ標的は透明のまま 48dp</b><span class="val">100×32px・3,200px²・4.9字・−33%</span></div>
+      <div class="pair">
+        <div class="col"><span class="mode">D／K ライト（横書き＝実装の既定）</span>
+          <div class="crop t-light s3 h" role="img" aria-label="D／K ライト（横書き＝実装の既定）">
+            <div class="body"><p><ruby>峠<rt>とうげ</rt></ruby>の<ruby>茶屋<rt>ちゃや</rt></ruby>を<ruby>出<rt>で</rt></ruby>るころには、<ruby>霧<rt>きり</rt></ruby>はもう<ruby>谷<rt>たに</rt></ruby>の<ruby>底<rt>そこ</rt></ruby>へ<ruby>沈<rt>しず</rt></ruby>みきっていた。<ruby>杖<rt>つえ</rt></ruby>の<ruby>先<rt>さき</rt></ruby>で<ruby>石<rt>いし</rt></ruby>を<ruby>探<rt>さぐ</rt></ruby>りながら<ruby>一歩<rt>いっぽ</rt></ruby>ずつ<ruby>下<rt>くだ</rt></ruby>ってゆくと、<ruby>足元<rt>あしもと</rt></ruby>の<ruby>草<rt>くさ</rt></ruby>が<ruby>露<rt>つゆ</rt></ruby>を<ruby>含<rt>ふく</rt></ruby>んで<ruby>重<rt>おも</rt></ruby>く、<ruby>裾<rt>すそ</rt></ruby>はたちまち<ruby>濡<rt>ぬ</rt></ruby>れていった。<ruby>遠<rt>とお</rt></ruby>くで<ruby>鐘<rt>かね</rt></ruby>が<ruby>鳴<rt>な</rt></ruby>っている。<ruby>数<rt>かぞ</rt></ruby>えるともなく<ruby>数<rt>かぞ</rt></ruby>えて、<ruby>六<rt>むっ</rt></ruby>つ<ruby>目<rt>め</rt></ruby>で<ruby>足<rt>あし</rt></ruby>を<ruby>止<rt>と</rt></ruby>めた。<ruby>約束<rt>やくそく</rt></ruby>の<ruby>刻<rt>とき</rt></ruby>にはまだ<ruby>間<rt>ま</rt></ruby>がある。</p></div>
+            <button class="toppill tgt"><svg viewBox="0 0 24 24"><line x1="5" y1="4" x2="19" y2="4"/><polyline points="7 13 12 8 17 13"/><line x1="12" y1="8" x2="12" y2="20"/></svg><span>最上部へ</span></button>
+            <div class="bottombar"><button aria-label="前章"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg><span class="bl">前章</span></button><button aria-label="目次"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/></svg><span class="bl">目次</span></button><button class="set" aria-label="表示設定"><svg viewBox="0 0 24 24"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="9" cy="8" r="2.4" fill="var(--bar)"/><circle cx="15" cy="16" r="2.4" fill="var(--bar)"/></svg><span class="bl">表示設定</span></button><button aria-label="次章"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg><span class="bl">次章</span></button></div>
+          </div>
+        </div>
+        <div class="col"><span class="mode">D／K ライト（縦書き）</span>
+          <div class="crop t-light s3" role="img" aria-label="D／K ライト（縦書き）">
+            <div class="body"><p><ruby>峠<rt>とうげ</rt></ruby>の<ruby>茶屋<rt>ちゃや</rt></ruby>を<ruby>出<rt>で</rt></ruby>るころには、<ruby>霧<rt>きり</rt></ruby>はもう<ruby>谷<rt>たに</rt></ruby>の<ruby>底<rt>そこ</rt></ruby>へ<ruby>沈<rt>しず</rt></ruby>みきっていた。<ruby>杖<rt>つえ</rt></ruby>の<ruby>先<rt>さき</rt></ruby>で<ruby>石<rt>いし</rt></ruby>を<ruby>探<rt>さぐ</rt></ruby>りながら<ruby>一歩<rt>いっぽ</rt></ruby>ずつ<ruby>下<rt>くだ</rt></ruby>ってゆくと、<ruby>足元<rt>あしもと</rt></ruby>の<ruby>草<rt>くさ</rt></ruby>が<ruby>露<rt>つゆ</rt></ruby>を<ruby>含<rt>ふく</rt></ruby>んで<ruby>重<rt>おも</rt></ruby>く、<ruby>裾<rt>すそ</rt></ruby>はたちまち<ruby>濡<rt>ぬ</rt></ruby>れていった。<ruby>遠<rt>とお</rt></ruby>くで<ruby>鐘<rt>かね</rt></ruby>が<ruby>鳴<rt>な</rt></ruby>っている。<ruby>数<rt>かぞ</rt></ruby>えるともなく<ruby>数<rt>かぞ</rt></ruby>えて、<ruby>六<rt>むっ</rt></ruby>つ<ruby>目<rt>め</rt></ruby>で<ruby>足<rt>あし</rt></ruby>を<ruby>止<rt>と</rt></ruby>めた。<ruby>約束<rt>やくそく</rt></ruby>の<ruby>刻<rt>とき</rt></ruby>にはまだ<ruby>間<rt>ま</rt></ruby>がある。</p></div>
+            <button class="toppill tgt"><svg viewBox="0 0 24 24"><line x1="5" y1="4" x2="19" y2="4"/><polyline points="7 13 12 8 17 13"/><line x1="12" y1="8" x2="12" y2="20"/></svg><span>最上部へ</span></button>
+            <div class="bottombar"><button aria-label="前章"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg><span class="bl">前章</span></button><button aria-label="目次"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/></svg><span class="bl">目次</span></button><button class="set" aria-label="表示設定"><svg viewBox="0 0 24 24"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="9" cy="8" r="2.4" fill="var(--bar)"/><circle cx="15" cy="16" r="2.4" fill="var(--bar)"/></svg><span class="bl">表示設定</span></button><button aria-label="次章"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg><span class="bl">次章</span></button></div>
+          </div>
+        </div>
+        <div class="col"><span class="mode">J ダーク（縦書き＋章末印）</span>
+          <div class="crop t-jdark s3" role="img" aria-label="J ダーク（縦書き＋章末印）">
+            <div class="body"><p><ruby>峠<rt>とうげ</rt></ruby>の<ruby>茶屋<rt>ちゃや</rt></ruby>を<ruby>出<rt>で</rt></ruby>るころには、<ruby>霧<rt>きり</rt></ruby>はもう<ruby>谷<rt>たに</rt></ruby>の<ruby>底<rt>そこ</rt></ruby>へ<ruby>沈<rt>しず</rt></ruby>みきっていた。<ruby>杖<rt>つえ</rt></ruby>の<ruby>先<rt>さき</rt></ruby>で<ruby>石<rt>いし</rt></ruby>を<ruby>探<rt>さぐ</rt></ruby>りながら<ruby>一歩<rt>いっぽ</rt></ruby>ずつ<ruby>下<rt>くだ</rt></ruby>ってゆくと、<ruby>足元<rt>あしもと</rt></ruby>の<ruby>草<rt>くさ</rt></ruby>が<ruby>露<rt>つゆ</rt></ruby>を<ruby>含<rt>ふく</rt></ruby>んで<ruby>重<rt>おも</rt></ruby>く、<ruby>裾<rt>すそ</rt></ruby>はたちまち<ruby>濡<rt>ぬ</rt></ruby>れていった。<ruby>遠<rt>とお</rt></ruby>くで<ruby>鐘<rt>かね</rt></ruby>が<ruby>鳴<rt>な</rt></ruby>っている。<ruby>数<rt>かぞ</rt></ruby>えるともなく<ruby>数<rt>かぞ</rt></ruby>えて、<ruby>六<rt>むっ</rt></ruby>つ<ruby>目<rt>め</rt></ruby>で<ruby>足<rt>あし</rt></ruby>を<ruby>止<rt>と</rt></ruby>めた。<ruby>約束<rt>やくそく</rt></ruby>の<ruby>刻<rt>とき</rt></ruby>にはまだ<ruby>間<rt>ま</rt></ruby>がある。</p></div>
+            <div class="chapend">— 第百二十七話 了 —</div><button class="toppill tgt"><svg viewBox="0 0 24 24"><line x1="5" y1="4" x2="19" y2="4"/><polyline points="7 13 12 8 17 13"/><line x1="12" y1="8" x2="12" y2="20"/></svg><span>最上部へ</span></button>
+            <div class="bottombar"><button aria-label="前章"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg><span class="bl">前章</span></button><button aria-label="目次"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/></svg><span class="bl">目次</span></button><button class="set" aria-label="表示設定"><svg viewBox="0 0 24 24"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="9" cy="8" r="2.4" fill="var(--bar)"/><circle cx="15" cy="16" r="2.4" fill="var(--bar)"/></svg><span class="bl">表示設定</span></button><button aria-label="次章"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg><span class="bl">次章</span></button></div>
+          </div>
+        </div>
+      </div>
+      <div class="sub">点線が<b>実際の当たり判定（48dp）</b>＝目に見える器だけが 32px。Compose では <code>minimumInteractiveComponentSize</code> 相当（器の外側へ透明な標的を張る）で普通に書ける。⚠️ 下端バーまでの隙間は S12（12dp）なので、標的が上下 8dp ずつはみ出しても<b>バーの標的と重ならない</b>。<br>横書きでは<b>掛かる行が2行→1〜2行</b>に減り（帯 32px が行送り 39.6px より薄い＝運が良ければ1行で済む）、縦書きでは1列あたり2.9字→<b>1.9字</b>。字面（11px×1.6＝17.6px）＋上下余白は 32px に収まるので<b>字は縮まない</b>。</div>
+    </div>
+
+    <div class="case reco">
+      <div class="hd"><span class="badge">推奨の片割れ</span><span class="badge axis">軸1</span>案S4 ／ <b>S1＋S3＝アイコンのみ＋32px</b>（標的は透明のまま 48dp）<span class="val">32×32px・1,024px²・1.6字・−79%</span></div>
+      <div class="pair">
+        <div class="col"><span class="mode">D／K ライト（横書き＝実装の既定）</span>
+          <div class="crop t-light s4 h" role="img" aria-label="D／K ライト（横書き＝実装の既定）">
+            <div class="body"><p><ruby>峠<rt>とうげ</rt></ruby>の<ruby>茶屋<rt>ちゃや</rt></ruby>を<ruby>出<rt>で</rt></ruby>るころには、<ruby>霧<rt>きり</rt></ruby>はもう<ruby>谷<rt>たに</rt></ruby>の<ruby>底<rt>そこ</rt></ruby>へ<ruby>沈<rt>しず</rt></ruby>みきっていた。<ruby>杖<rt>つえ</rt></ruby>の<ruby>先<rt>さき</rt></ruby>で<ruby>石<rt>いし</rt></ruby>を<ruby>探<rt>さぐ</rt></ruby>りながら<ruby>一歩<rt>いっぽ</rt></ruby>ずつ<ruby>下<rt>くだ</rt></ruby>ってゆくと、<ruby>足元<rt>あしもと</rt></ruby>の<ruby>草<rt>くさ</rt></ruby>が<ruby>露<rt>つゆ</rt></ruby>を<ruby>含<rt>ふく</rt></ruby>んで<ruby>重<rt>おも</rt></ruby>く、<ruby>裾<rt>すそ</rt></ruby>はたちまち<ruby>濡<rt>ぬ</rt></ruby>れていった。<ruby>遠<rt>とお</rt></ruby>くで<ruby>鐘<rt>かね</rt></ruby>が<ruby>鳴<rt>な</rt></ruby>っている。<ruby>数<rt>かぞ</rt></ruby>えるともなく<ruby>数<rt>かぞ</rt></ruby>えて、<ruby>六<rt>むっ</rt></ruby>つ<ruby>目<rt>め</rt></ruby>で<ruby>足<rt>あし</rt></ruby>を<ruby>止<rt>と</rt></ruby>めた。<ruby>約束<rt>やくそく</rt></ruby>の<ruby>刻<rt>とき</rt></ruby>にはまだ<ruby>間<rt>ま</rt></ruby>がある。</p></div>
+            <button class="toppill tgt" aria-label="最上部へ"><svg viewBox="0 0 24 24"><line x1="5" y1="4" x2="19" y2="4"/><polyline points="7 13 12 8 17 13"/><line x1="12" y1="8" x2="12" y2="20"/></svg></button>
+            <div class="bottombar"><button aria-label="前章"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg><span class="bl">前章</span></button><button aria-label="目次"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/></svg><span class="bl">目次</span></button><button class="set" aria-label="表示設定"><svg viewBox="0 0 24 24"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="9" cy="8" r="2.4" fill="var(--bar)"/><circle cx="15" cy="16" r="2.4" fill="var(--bar)"/></svg><span class="bl">表示設定</span></button><button aria-label="次章"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg><span class="bl">次章</span></button></div>
+          </div>
+        </div>
+        <div class="col"><span class="mode">D／K ライト（縦書き）</span>
+          <div class="crop t-light s4" role="img" aria-label="D／K ライト（縦書き）">
+            <div class="body"><p><ruby>峠<rt>とうげ</rt></ruby>の<ruby>茶屋<rt>ちゃや</rt></ruby>を<ruby>出<rt>で</rt></ruby>るころには、<ruby>霧<rt>きり</rt></ruby>はもう<ruby>谷<rt>たに</rt></ruby>の<ruby>底<rt>そこ</rt></ruby>へ<ruby>沈<rt>しず</rt></ruby>みきっていた。<ruby>杖<rt>つえ</rt></ruby>の<ruby>先<rt>さき</rt></ruby>で<ruby>石<rt>いし</rt></ruby>を<ruby>探<rt>さぐ</rt></ruby>りながら<ruby>一歩<rt>いっぽ</rt></ruby>ずつ<ruby>下<rt>くだ</rt></ruby>ってゆくと、<ruby>足元<rt>あしもと</rt></ruby>の<ruby>草<rt>くさ</rt></ruby>が<ruby>露<rt>つゆ</rt></ruby>を<ruby>含<rt>ふく</rt></ruby>んで<ruby>重<rt>おも</rt></ruby>く、<ruby>裾<rt>すそ</rt></ruby>はたちまち<ruby>濡<rt>ぬ</rt></ruby>れていった。<ruby>遠<rt>とお</rt></ruby>くで<ruby>鐘<rt>かね</rt></ruby>が<ruby>鳴<rt>な</rt></ruby>っている。<ruby>数<rt>かぞ</rt></ruby>えるともなく<ruby>数<rt>かぞ</rt></ruby>えて、<ruby>六<rt>むっ</rt></ruby>つ<ruby>目<rt>め</rt></ruby>で<ruby>足<rt>あし</rt></ruby>を<ruby>止<rt>と</rt></ruby>めた。<ruby>約束<rt>やくそく</rt></ruby>の<ruby>刻<rt>とき</rt></ruby>にはまだ<ruby>間<rt>ま</rt></ruby>がある。</p></div>
+            <button class="toppill tgt" aria-label="最上部へ"><svg viewBox="0 0 24 24"><line x1="5" y1="4" x2="19" y2="4"/><polyline points="7 13 12 8 17 13"/><line x1="12" y1="8" x2="12" y2="20"/></svg></button>
+            <div class="bottombar"><button aria-label="前章"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg><span class="bl">前章</span></button><button aria-label="目次"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/></svg><span class="bl">目次</span></button><button class="set" aria-label="表示設定"><svg viewBox="0 0 24 24"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="9" cy="8" r="2.4" fill="var(--bar)"/><circle cx="15" cy="16" r="2.4" fill="var(--bar)"/></svg><span class="bl">表示設定</span></button><button aria-label="次章"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg><span class="bl">次章</span></button></div>
+          </div>
+        </div>
+        <div class="col"><span class="mode">J ダーク（縦書き＋章末印）</span>
+          <div class="crop t-jdark s4" role="img" aria-label="J ダーク（縦書き＋章末印）">
+            <div class="body"><p><ruby>峠<rt>とうげ</rt></ruby>の<ruby>茶屋<rt>ちゃや</rt></ruby>を<ruby>出<rt>で</rt></ruby>るころには、<ruby>霧<rt>きり</rt></ruby>はもう<ruby>谷<rt>たに</rt></ruby>の<ruby>底<rt>そこ</rt></ruby>へ<ruby>沈<rt>しず</rt></ruby>みきっていた。<ruby>杖<rt>つえ</rt></ruby>の<ruby>先<rt>さき</rt></ruby>で<ruby>石<rt>いし</rt></ruby>を<ruby>探<rt>さぐ</rt></ruby>りながら<ruby>一歩<rt>いっぽ</rt></ruby>ずつ<ruby>下<rt>くだ</rt></ruby>ってゆくと、<ruby>足元<rt>あしもと</rt></ruby>の<ruby>草<rt>くさ</rt></ruby>が<ruby>露<rt>つゆ</rt></ruby>を<ruby>含<rt>ふく</rt></ruby>んで<ruby>重<rt>おも</rt></ruby>く、<ruby>裾<rt>すそ</rt></ruby>はたちまち<ruby>濡<rt>ぬ</rt></ruby>れていった。<ruby>遠<rt>とお</rt></ruby>くで<ruby>鐘<rt>かね</rt></ruby>が<ruby>鳴<rt>な</rt></ruby>っている。<ruby>数<rt>かぞ</rt></ruby>えるともなく<ruby>数<rt>かぞ</rt></ruby>えて、<ruby>六<rt>むっ</rt></ruby>つ<ruby>目<rt>め</rt></ruby>で<ruby>足<rt>あし</rt></ruby>を<ruby>止<rt>と</rt></ruby>めた。<ruby>約束<rt>やくそく</rt></ruby>の<ruby>刻<rt>とき</rt></ruby>にはまだ<ruby>間<rt>ま</rt></ruby>がある。</p></div>
+            <div class="chapend">— 第百二十七話 了 —</div><button class="toppill tgt" aria-label="最上部へ"><svg viewBox="0 0 24 24"><line x1="5" y1="4" x2="19" y2="4"/><polyline points="7 13 12 8 17 13"/><line x1="12" y1="8" x2="12" y2="20"/></svg></button>
+            <div class="bottombar"><button aria-label="前章"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg><span class="bl">前章</span></button><button aria-label="目次"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/></svg><span class="bl">目次</span></button><button class="set" aria-label="表示設定"><svg viewBox="0 0 24 24"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="9" cy="8" r="2.4" fill="var(--bar)"/><circle cx="15" cy="16" r="2.4" fill="var(--bar)"/></svg><span class="bl">表示設定</span></button><button aria-label="次章"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg><span class="bl">次章</span></button></div>
+          </div>
+        </div>
+      </div>
+      <div class="sub"><b>軸1の最良</b>。面積は対照の<b>21%</b>＝覆う字は 7.3字→<b>1.6字</b>。横書きでは1行あたり2字弱・縦書きでは1〜2列に各2字弱まで落ち、<b>「読んでいる字が覆われる」状態からほぼ抜ける</b>。点線が 48dp の標的＝規範は割っていない。<br><b>失うもの</b>＝S1 と同じ「何のボタンか」に加え、器が小さいぶん<b>浮遊物としての存在感も落ちる</b>（＝発見性が二重に下がる）。⚠️ 手当は S1 と同じ<b>初回だけラベル付き</b>。これを付けないなら S4 ではなく S3（語は残す）まで戻すのが安全側。</div>
+    </div>
+
+    <div class="case over">
+      <div class="hd"><span class="badge warnb">不可</span>案S5 ／ <b>器も標的も 34px へ詰める</b>（＝字面ぴったり）<span class="val">100×34px・3,400px²・5.2字</span></div>
+      <div class="sub">⚠️ <b>採ってはいけない</b>。<b>Material の最小タップ標的 48dp を割る</b>（2026-09-03 裁定で3ピルすべてに <code>heightIn(min = 48.dp)</code> を入れ、正本6ファイルへ追記した直後の値）。救う量も −29% で S4（−79%）に遠く及ばず、<b>規範を割る代償に見合わない</b>。「器を薄くしたい」なら S3／S4 のように<b>見える器と当たり判定を分ける</b>のが正しい解き方。⚠️ 絵は出さない（並べると「選べる案」に見えるため。数値だけで落とす）。</div>
+    </div>
+
+  </div>
+
+  <div class="sec">軸2: 出現を絞る<span class="axis">面積は変わらない。変わるのは「覆っている時間」</span></div>
+  <p class="warn" style="max-width:960px;text-align:left">
+  ⚠️ <b>先に現行の出現条件を確かめた結果、この軸の前提が一つ崩れた</b>。<br>
+  現行＝<b>①クローム表示中 かつ ②章の3割以上</b>。そして<b>クロームはスクロールで自動退避しない</b>——
+  上下バーの出没は<b>画面タップのトグルだけ</b>（<code>scrollBehavior</code> は heightOffsetLimit の測定用で
+  <b>nestedScroll 未接続</b>。自動なのは章入場時の初期退避1回のみ）。<br>
+  ∴ <b>「本文を読んでいる間は出さない」は現行条件ですでにほぼ達成されている</b>＝ピルが本文を覆うのは
+  <b>読者が自分でクロームを出した状態</b>だけ。軸2が効くのは<b>「クロームを出したまま読み続ける人」</b>に限られる
+  （＝監督が実機で見た状態はこれ）。<br>
+  ⚠️ よって3案とも<b>現行条件に足す（AND）</b>形にする。<b>置き換えてはいけない</b>——①を外すと没入中にもピルが出て、
+  下端 16dp の<b>没入の取っ手</b>（層②）と再衝突する（2026-09-03 に復帰ヒントと取っ手が 5dp まで詰まった事故と同型）。
+  ②を外すと 2026-07-16 裁定「章頭では戻る意味が無くただの浮遊物」に反する。<br>
+  ⚠️ <b>「消える」系は戻す手段が要る</b>。3案とも<b>クローム自体は消えない</b>ので、本棚へは
+  上端バーの戻る矢印から常に到達できる（＝「消えたら本棚へ戻れない」は起きない）。失うのは
+  <b>「最上部へ」への到達だけ</b>で、その代替は 目次 →同じ章を選び直す（章頭へ着地）＝<b>3タップ</b>。</p>
+  <div class="cases">
+
+    <div class="case reco">
+      <div class="hd"><span class="badge">推奨の片割れ</span><span class="badge axis">軸2</span>案A1 ／ <b>スクロール中は退場・指を離して止まったら戻る</b><span class="val">条件に <code>&amp;&amp; !isScrollInProgress</code> を足す</span></div>
+      <div class="pair">
+        <div class="col"><span class="mode">出ている瞬間（横書き）</span>
+          <div class="crop t-light r h" role="img" aria-label="出ている瞬間（横書き）">
+            <div class="body"><p><ruby>峠<rt>とうげ</rt></ruby>の<ruby>茶屋<rt>ちゃや</rt></ruby>を<ruby>出<rt>で</rt></ruby>るころには、<ruby>霧<rt>きり</rt></ruby>はもう<ruby>谷<rt>たに</rt></ruby>の<ruby>底<rt>そこ</rt></ruby>へ<ruby>沈<rt>しず</rt></ruby>みきっていた。<ruby>杖<rt>つえ</rt></ruby>の<ruby>先<rt>さき</rt></ruby>で<ruby>石<rt>いし</rt></ruby>を<ruby>探<rt>さぐ</rt></ruby>りながら<ruby>一歩<rt>いっぽ</rt></ruby>ずつ<ruby>下<rt>くだ</rt></ruby>ってゆくと、<ruby>足元<rt>あしもと</rt></ruby>の<ruby>草<rt>くさ</rt></ruby>が<ruby>露<rt>つゆ</rt></ruby>を<ruby>含<rt>ふく</rt></ruby>んで<ruby>重<rt>おも</rt></ruby>く、<ruby>裾<rt>すそ</rt></ruby>はたちまち<ruby>濡<rt>ぬ</rt></ruby>れていった。<ruby>遠<rt>とお</rt></ruby>くで<ruby>鐘<rt>かね</rt></ruby>が<ruby>鳴<rt>な</rt></ruby>っている。<ruby>数<rt>かぞ</rt></ruby>えるともなく<ruby>数<rt>かぞ</rt></ruby>えて、<ruby>六<rt>むっ</rt></ruby>つ<ruby>目<rt>め</rt></ruby>で<ruby>足<rt>あし</rt></ruby>を<ruby>止<rt>と</rt></ruby>めた。<ruby>約束<rt>やくそく</rt></ruby>の<ruby>刻<rt>とき</rt></ruby>にはまだ<ruby>間<rt>ま</rt></ruby>がある。</p></div>
+            <button class="toppill"><svg viewBox="0 0 24 24"><line x1="5" y1="4" x2="19" y2="4"/><polyline points="7 13 12 8 17 13"/><line x1="12" y1="8" x2="12" y2="20"/></svg><span>最上部へ</span></button>
+            <div class="bottombar"><button aria-label="前章"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg><span class="bl">前章</span></button><button aria-label="目次"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/></svg><span class="bl">目次</span></button><button class="set" aria-label="表示設定"><svg viewBox="0 0 24 24"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="9" cy="8" r="2.4" fill="var(--bar)"/><circle cx="15" cy="16" r="2.4" fill="var(--bar)"/></svg><span class="bl">表示設定</span></button><button aria-label="次章"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg><span class="bl">次章</span></button></div>
+          </div>
+        </div>
+        <div class="col"><span class="mode">出ている瞬間（J ダーク・縦書き）</span>
+          <div class="crop t-jdark r" role="img" aria-label="出ている瞬間（J ダーク・縦書き）">
+            <div class="body"><p><ruby>峠<rt>とうげ</rt></ruby>の<ruby>茶屋<rt>ちゃや</rt></ruby>を<ruby>出<rt>で</rt></ruby>るころには、<ruby>霧<rt>きり</rt></ruby>はもう<ruby>谷<rt>たに</rt></ruby>の<ruby>底<rt>そこ</rt></ruby>へ<ruby>沈<rt>しず</rt></ruby>みきっていた。<ruby>杖<rt>つえ</rt></ruby>の<ruby>先<rt>さき</rt></ruby>で<ruby>石<rt>いし</rt></ruby>を<ruby>探<rt>さぐ</rt></ruby>りながら<ruby>一歩<rt>いっぽ</rt></ruby>ずつ<ruby>下<rt>くだ</rt></ruby>ってゆくと、<ruby>足元<rt>あしもと</rt></ruby>の<ruby>草<rt>くさ</rt></ruby>が<ruby>露<rt>つゆ</rt></ruby>を<ruby>含<rt>ふく</rt></ruby>んで<ruby>重<rt>おも</rt></ruby>く、<ruby>裾<rt>すそ</rt></ruby>はたちまち<ruby>濡<rt>ぬ</rt></ruby>れていった。<ruby>遠<rt>とお</rt></ruby>くで<ruby>鐘<rt>かね</rt></ruby>が<ruby>鳴<rt>な</rt></ruby>っている。<ruby>数<rt>かぞ</rt></ruby>えるともなく<ruby>数<rt>かぞ</rt></ruby>えて、<ruby>六<rt>むっ</rt></ruby>つ<ruby>目<rt>め</rt></ruby>で<ruby>足<rt>あし</rt></ruby>を<ruby>止<rt>と</rt></ruby>めた。<ruby>約束<rt>やくそく</rt></ruby>の<ruby>刻<rt>とき</rt></ruby>にはまだ<ruby>間<rt>ま</rt></ruby>がある。</p></div>
+            <div class="chapend">— 第百二十七話 了 —</div><button class="toppill"><svg viewBox="0 0 24 24"><line x1="5" y1="4" x2="19" y2="4"/><polyline points="7 13 12 8 17 13"/><line x1="12" y1="8" x2="12" y2="20"/></svg><span>最上部へ</span></button>
+            <div class="bottombar"><button aria-label="前章"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg><span class="bl">前章</span></button><button aria-label="目次"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/></svg><span class="bl">目次</span></button><button class="set" aria-label="表示設定"><svg viewBox="0 0 24 24"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="9" cy="8" r="2.4" fill="var(--bar)"/><circle cx="15" cy="16" r="2.4" fill="var(--bar)"/></svg><span class="bl">表示設定</span></button><button aria-label="次章"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg><span class="bl">次章</span></button></div>
+          </div>
+        </div>
+        <div class="col"><span class="mode">退場後（横書き）</span>
+          <div class="crop t-light r gone h" role="img" aria-label="退場後（横書き）">
+            <div class="body"><p><ruby>峠<rt>とうげ</rt></ruby>の<ruby>茶屋<rt>ちゃや</rt></ruby>を<ruby>出<rt>で</rt></ruby>るころには、<ruby>霧<rt>きり</rt></ruby>はもう<ruby>谷<rt>たに</rt></ruby>の<ruby>底<rt>そこ</rt></ruby>へ<ruby>沈<rt>しず</rt></ruby>みきっていた。<ruby>杖<rt>つえ</rt></ruby>の<ruby>先<rt>さき</rt></ruby>で<ruby>石<rt>いし</rt></ruby>を<ruby>探<rt>さぐ</rt></ruby>りながら<ruby>一歩<rt>いっぽ</rt></ruby>ずつ<ruby>下<rt>くだ</rt></ruby>ってゆくと、<ruby>足元<rt>あしもと</rt></ruby>の<ruby>草<rt>くさ</rt></ruby>が<ruby>露<rt>つゆ</rt></ruby>を<ruby>含<rt>ふく</rt></ruby>んで<ruby>重<rt>おも</rt></ruby>く、<ruby>裾<rt>すそ</rt></ruby>はたちまち<ruby>濡<rt>ぬ</rt></ruby>れていった。<ruby>遠<rt>とお</rt></ruby>くで<ruby>鐘<rt>かね</rt></ruby>が<ruby>鳴<rt>な</rt></ruby>っている。<ruby>数<rt>かぞ</rt></ruby>えるともなく<ruby>数<rt>かぞ</rt></ruby>えて、<ruby>六<rt>むっ</rt></ruby>つ<ruby>目<rt>め</rt></ruby>で<ruby>足<rt>あし</rt></ruby>を<ruby>止<rt>と</rt></ruby>めた。<ruby>約束<rt>やくそく</rt></ruby>の<ruby>刻<rt>とき</rt></ruby>にはまだ<ruby>間<rt>ま</rt></ruby>がある。</p></div>
+            
+            <div class="bottombar"><button aria-label="前章"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg><span class="bl">前章</span></button><button aria-label="目次"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/></svg><span class="bl">目次</span></button><button class="set" aria-label="表示設定"><svg viewBox="0 0 24 24"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="9" cy="8" r="2.4" fill="var(--bar)"/><circle cx="15" cy="16" r="2.4" fill="var(--bar)"/></svg><span class="bl">表示設定</span></button><button aria-label="次章"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg><span class="bl">次章</span></button></div>
+          </div>
+        </div>
+        <div class="col"><span class="mode">退場後（J ダーク・縦書き）</span>
+          <div class="crop t-jdark r gone" role="img" aria-label="退場後（J ダーク・縦書き）">
+            <div class="body"><p><ruby>峠<rt>とうげ</rt></ruby>の<ruby>茶屋<rt>ちゃや</rt></ruby>を<ruby>出<rt>で</rt></ruby>るころには、<ruby>霧<rt>きり</rt></ruby>はもう<ruby>谷<rt>たに</rt></ruby>の<ruby>底<rt>そこ</rt></ruby>へ<ruby>沈<rt>しず</rt></ruby>みきっていた。<ruby>杖<rt>つえ</rt></ruby>の<ruby>先<rt>さき</rt></ruby>で<ruby>石<rt>いし</rt></ruby>を<ruby>探<rt>さぐ</rt></ruby>りながら<ruby>一歩<rt>いっぽ</rt></ruby>ずつ<ruby>下<rt>くだ</rt></ruby>ってゆくと、<ruby>足元<rt>あしもと</rt></ruby>の<ruby>草<rt>くさ</rt></ruby>が<ruby>露<rt>つゆ</rt></ruby>を<ruby>含<rt>ふく</rt></ruby>んで<ruby>重<rt>おも</rt></ruby>く、<ruby>裾<rt>すそ</rt></ruby>はたちまち<ruby>濡<rt>ぬ</rt></ruby>れていった。<ruby>遠<rt>とお</rt></ruby>くで<ruby>鐘<rt>かね</rt></ruby>が<ruby>鳴<rt>な</rt></ruby>っている。<ruby>数<rt>かぞ</rt></ruby>えるともなく<ruby>数<rt>かぞ</rt></ruby>えて、<ruby>六<rt>むっ</rt></ruby>つ<ruby>目<rt>め</rt></ruby>で<ruby>足<rt>あし</rt></ruby>を<ruby>止<rt>と</rt></ruby>めた。<ruby>約束<rt>やくそく</rt></ruby>の<ruby>刻<rt>とき</rt></ruby>にはまだ<ruby>間<rt>ま</rt></ruby>がある。</p></div>
+            <div class="chapend">— 第百二十七話 了 —</div>
+            <div class="bottombar"><button aria-label="前章"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg><span class="bl">前章</span></button><button aria-label="目次"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/></svg><span class="bl">目次</span></button><button class="set" aria-label="表示設定"><svg viewBox="0 0 24 24"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="9" cy="8" r="2.4" fill="var(--bar)"/><circle cx="15" cy="16" r="2.4" fill="var(--bar)"/></svg><span class="bl">表示設定</span></button><button aria-label="次章"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg><span class="bl">次章</span></button></div>
+          </div>
+        </div>
+      </div>
+      <div class="sub"><b>読んでいるまさにその瞬間の被覆が 0 になる</b>（＝−100%）。止まって「戻ろうか」と考える瞬間にだけ器が戻る＝<b>ピルが要る時と本文が要る時が時間で分かれる</b>。<br>信号は既存＝<code>lazyListState.isScrollInProgress</code>（本棚 showBand・敷居光と同じ <code>derivedStateOf</code> の定石で、新しい時定数を持ち込まない）。入退場は既存の <code>MotionDurationCrossfade</code>(250ms) をそのまま使う。<br><b>失うもの</b>＝①<b>ちらつき</b>——短い指送りを繰り返すと 250ms のフェードが往復する（⚠️ 実機で見る点。気になるなら退場側だけ 150ms の <code>MotionDurationDismiss</code> にするか、停止後に短い遅延を足す）②スクロールしながらピルを狙う操作ができない（実害は小さい＝止まってから押す動作になるだけ）。<br>⚠️ <b>J ダーク</b>: 章末では敷居光（右端が灯る）と同時に動きうる（章末＝3割超を必ず満たす）。動きが2つ並ぶ点は実機で見る。</div>
+    </div>
+
+    <div class="case">
+      <div class="hd"><span class="badge axis">軸2</span>案A2 ／ <b>出てから 2.6 秒で自動退場</b>（クロームを出し直せば再登場）<span class="val">IMMERSIVE_HINT_VISIBLE_MS = 2600ms の先例値</span></div>
+      <div class="pair">
+        <div class="col"><span class="mode">出ている瞬間（横書き）</span>
+          <div class="crop t-light r h" role="img" aria-label="出ている瞬間（横書き）">
+            <div class="body"><p><ruby>峠<rt>とうげ</rt></ruby>の<ruby>茶屋<rt>ちゃや</rt></ruby>を<ruby>出<rt>で</rt></ruby>るころには、<ruby>霧<rt>きり</rt></ruby>はもう<ruby>谷<rt>たに</rt></ruby>の<ruby>底<rt>そこ</rt></ruby>へ<ruby>沈<rt>しず</rt></ruby>みきっていた。<ruby>杖<rt>つえ</rt></ruby>の<ruby>先<rt>さき</rt></ruby>で<ruby>石<rt>いし</rt></ruby>を<ruby>探<rt>さぐ</rt></ruby>りながら<ruby>一歩<rt>いっぽ</rt></ruby>ずつ<ruby>下<rt>くだ</rt></ruby>ってゆくと、<ruby>足元<rt>あしもと</rt></ruby>の<ruby>草<rt>くさ</rt></ruby>が<ruby>露<rt>つゆ</rt></ruby>を<ruby>含<rt>ふく</rt></ruby>んで<ruby>重<rt>おも</rt></ruby>く、<ruby>裾<rt>すそ</rt></ruby>はたちまち<ruby>濡<rt>ぬ</rt></ruby>れていった。<ruby>遠<rt>とお</rt></ruby>くで<ruby>鐘<rt>かね</rt></ruby>が<ruby>鳴<rt>な</rt></ruby>っている。<ruby>数<rt>かぞ</rt></ruby>えるともなく<ruby>数<rt>かぞ</rt></ruby>えて、<ruby>六<rt>むっ</rt></ruby>つ<ruby>目<rt>め</rt></ruby>で<ruby>足<rt>あし</rt></ruby>を<ruby>止<rt>と</rt></ruby>めた。<ruby>約束<rt>やくそく</rt></ruby>の<ruby>刻<rt>とき</rt></ruby>にはまだ<ruby>間<rt>ま</rt></ruby>がある。</p></div>
+            <button class="toppill"><svg viewBox="0 0 24 24"><line x1="5" y1="4" x2="19" y2="4"/><polyline points="7 13 12 8 17 13"/><line x1="12" y1="8" x2="12" y2="20"/></svg><span>最上部へ</span></button>
+            <div class="bottombar"><button aria-label="前章"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg><span class="bl">前章</span></button><button aria-label="目次"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/></svg><span class="bl">目次</span></button><button class="set" aria-label="表示設定"><svg viewBox="0 0 24 24"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="9" cy="8" r="2.4" fill="var(--bar)"/><circle cx="15" cy="16" r="2.4" fill="var(--bar)"/></svg><span class="bl">表示設定</span></button><button aria-label="次章"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg><span class="bl">次章</span></button></div>
+          </div>
+        </div>
+        <div class="col"><span class="mode">出ている瞬間（J ダーク・縦書き）</span>
+          <div class="crop t-jdark r" role="img" aria-label="出ている瞬間（J ダーク・縦書き）">
+            <div class="body"><p><ruby>峠<rt>とうげ</rt></ruby>の<ruby>茶屋<rt>ちゃや</rt></ruby>を<ruby>出<rt>で</rt></ruby>るころには、<ruby>霧<rt>きり</rt></ruby>はもう<ruby>谷<rt>たに</rt></ruby>の<ruby>底<rt>そこ</rt></ruby>へ<ruby>沈<rt>しず</rt></ruby>みきっていた。<ruby>杖<rt>つえ</rt></ruby>の<ruby>先<rt>さき</rt></ruby>で<ruby>石<rt>いし</rt></ruby>を<ruby>探<rt>さぐ</rt></ruby>りながら<ruby>一歩<rt>いっぽ</rt></ruby>ずつ<ruby>下<rt>くだ</rt></ruby>ってゆくと、<ruby>足元<rt>あしもと</rt></ruby>の<ruby>草<rt>くさ</rt></ruby>が<ruby>露<rt>つゆ</rt></ruby>を<ruby>含<rt>ふく</rt></ruby>んで<ruby>重<rt>おも</rt></ruby>く、<ruby>裾<rt>すそ</rt></ruby>はたちまち<ruby>濡<rt>ぬ</rt></ruby>れていった。<ruby>遠<rt>とお</rt></ruby>くで<ruby>鐘<rt>かね</rt></ruby>が<ruby>鳴<rt>な</rt></ruby>っている。<ruby>数<rt>かぞ</rt></ruby>えるともなく<ruby>数<rt>かぞ</rt></ruby>えて、<ruby>六<rt>むっ</rt></ruby>つ<ruby>目<rt>め</rt></ruby>で<ruby>足<rt>あし</rt></ruby>を<ruby>止<rt>と</rt></ruby>めた。<ruby>約束<rt>やくそく</rt></ruby>の<ruby>刻<rt>とき</rt></ruby>にはまだ<ruby>間<rt>ま</rt></ruby>がある。</p></div>
+            <div class="chapend">— 第百二十七話 了 —</div><button class="toppill"><svg viewBox="0 0 24 24"><line x1="5" y1="4" x2="19" y2="4"/><polyline points="7 13 12 8 17 13"/><line x1="12" y1="8" x2="12" y2="20"/></svg><span>最上部へ</span></button>
+            <div class="bottombar"><button aria-label="前章"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg><span class="bl">前章</span></button><button aria-label="目次"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/></svg><span class="bl">目次</span></button><button class="set" aria-label="表示設定"><svg viewBox="0 0 24 24"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="9" cy="8" r="2.4" fill="var(--bar)"/><circle cx="15" cy="16" r="2.4" fill="var(--bar)"/></svg><span class="bl">表示設定</span></button><button aria-label="次章"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg><span class="bl">次章</span></button></div>
+          </div>
+        </div>
+        <div class="col"><span class="mode">退場後（横書き）</span>
+          <div class="crop t-light r gone h" role="img" aria-label="退場後（横書き）">
+            <div class="body"><p><ruby>峠<rt>とうげ</rt></ruby>の<ruby>茶屋<rt>ちゃや</rt></ruby>を<ruby>出<rt>で</rt></ruby>るころには、<ruby>霧<rt>きり</rt></ruby>はもう<ruby>谷<rt>たに</rt></ruby>の<ruby>底<rt>そこ</rt></ruby>へ<ruby>沈<rt>しず</rt></ruby>みきっていた。<ruby>杖<rt>つえ</rt></ruby>の<ruby>先<rt>さき</rt></ruby>で<ruby>石<rt>いし</rt></ruby>を<ruby>探<rt>さぐ</rt></ruby>りながら<ruby>一歩<rt>いっぽ</rt></ruby>ずつ<ruby>下<rt>くだ</rt></ruby>ってゆくと、<ruby>足元<rt>あしもと</rt></ruby>の<ruby>草<rt>くさ</rt></ruby>が<ruby>露<rt>つゆ</rt></ruby>を<ruby>含<rt>ふく</rt></ruby>んで<ruby>重<rt>おも</rt></ruby>く、<ruby>裾<rt>すそ</rt></ruby>はたちまち<ruby>濡<rt>ぬ</rt></ruby>れていった。<ruby>遠<rt>とお</rt></ruby>くで<ruby>鐘<rt>かね</rt></ruby>が<ruby>鳴<rt>な</rt></ruby>っている。<ruby>数<rt>かぞ</rt></ruby>えるともなく<ruby>数<rt>かぞ</rt></ruby>えて、<ruby>六<rt>むっ</rt></ruby>つ<ruby>目<rt>め</rt></ruby>で<ruby>足<rt>あし</rt></ruby>を<ruby>止<rt>と</rt></ruby>めた。<ruby>約束<rt>やくそく</rt></ruby>の<ruby>刻<rt>とき</rt></ruby>にはまだ<ruby>間<rt>ま</rt></ruby>がある。</p></div>
+            
+            <div class="bottombar"><button aria-label="前章"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg><span class="bl">前章</span></button><button aria-label="目次"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/></svg><span class="bl">目次</span></button><button class="set" aria-label="表示設定"><svg viewBox="0 0 24 24"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="9" cy="8" r="2.4" fill="var(--bar)"/><circle cx="15" cy="16" r="2.4" fill="var(--bar)"/></svg><span class="bl">表示設定</span></button><button aria-label="次章"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg><span class="bl">次章</span></button></div>
+          </div>
+        </div>
+        <div class="col"><span class="mode">退場後（J ダーク・縦書き）</span>
+          <div class="crop t-jdark r gone" role="img" aria-label="退場後（J ダーク・縦書き）">
+            <div class="body"><p><ruby>峠<rt>とうげ</rt></ruby>の<ruby>茶屋<rt>ちゃや</rt></ruby>を<ruby>出<rt>で</rt></ruby>るころには、<ruby>霧<rt>きり</rt></ruby>はもう<ruby>谷<rt>たに</rt></ruby>の<ruby>底<rt>そこ</rt></ruby>へ<ruby>沈<rt>しず</rt></ruby>みきっていた。<ruby>杖<rt>つえ</rt></ruby>の<ruby>先<rt>さき</rt></ruby>で<ruby>石<rt>いし</rt></ruby>を<ruby>探<rt>さぐ</rt></ruby>りながら<ruby>一歩<rt>いっぽ</rt></ruby>ずつ<ruby>下<rt>くだ</rt></ruby>ってゆくと、<ruby>足元<rt>あしもと</rt></ruby>の<ruby>草<rt>くさ</rt></ruby>が<ruby>露<rt>つゆ</rt></ruby>を<ruby>含<rt>ふく</rt></ruby>んで<ruby>重<rt>おも</rt></ruby>く、<ruby>裾<rt>すそ</rt></ruby>はたちまち<ruby>濡<rt>ぬ</rt></ruby>れていった。<ruby>遠<rt>とお</rt></ruby>くで<ruby>鐘<rt>かね</rt></ruby>が<ruby>鳴<rt>な</rt></ruby>っている。<ruby>数<rt>かぞ</rt></ruby>えるともなく<ruby>数<rt>かぞ</rt></ruby>えて、<ruby>六<rt>むっ</rt></ruby>つ<ruby>目<rt>め</rt></ruby>で<ruby>足<rt>あし</rt></ruby>を<ruby>止<rt>と</rt></ruby>めた。<ruby>約束<rt>やくそく</rt></ruby>の<ruby>刻<rt>とき</rt></ruby>にはまだ<ruby>間<rt>ま</rt></ruby>がある。</p></div>
+            <div class="chapend">— 第百二十七話 了 —</div>
+            <div class="bottombar"><button aria-label="前章"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg><span class="bl">前章</span></button><button aria-label="目次"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/></svg><span class="bl">目次</span></button><button class="set" aria-label="表示設定"><svg viewBox="0 0 24 24"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="9" cy="8" r="2.4" fill="var(--bar)"/><circle cx="15" cy="16" r="2.4" fill="var(--bar)"/></svg><span class="bl">表示設定</span></button><button aria-label="次章"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg><span class="bl">次章</span></button></div>
+          </div>
+        </div>
+      </div>
+      <div class="sub">クロームを出した直後の 2.6 秒だけ 7.3字を覆い、以後は 0字。値は復帰ヒントが使っている既存の尺（<code>IMMERSIVE_HINT_VISIBLE_MS</code>）＝新しい時定数を発明しない。<br><b>失うもの</b>＝<b>戻す手段が「クロームを消して出し直す」の2タップになる</b>。A1 と違い「止まれば戻る」が無いので、2.6秒を逃した読者にとってピルは<b>存在しないのと同じ</b>になる（⚠️ 発見性の損失が3案で最大）。<br>⚠️ A1 との違いは<b>「読者の状態を見るか、時計を見るか」</b>。A1 は読者が読むのをやめた瞬間に戻るが、A2 は読者が何をしていても消える＝<b>止まって探している人からも消える</b>。この一点で A1 が上。</div>
+    </div>
+
+    <div class="case">
+      <div class="hd"><span class="badge axis">軸2</span>案A3 ／ <b>上方向スクロール中だけ出す</b>（読み進み＝下方向では出さない）<span class="val">直前の scroll delta の符号を見る</span></div>
+      <div class="pair">
+        <div class="col"><span class="mode">出ている瞬間（横書き）</span>
+          <div class="crop t-light r h" role="img" aria-label="出ている瞬間（横書き）">
+            <div class="body"><p><ruby>峠<rt>とうげ</rt></ruby>の<ruby>茶屋<rt>ちゃや</rt></ruby>を<ruby>出<rt>で</rt></ruby>るころには、<ruby>霧<rt>きり</rt></ruby>はもう<ruby>谷<rt>たに</rt></ruby>の<ruby>底<rt>そこ</rt></ruby>へ<ruby>沈<rt>しず</rt></ruby>みきっていた。<ruby>杖<rt>つえ</rt></ruby>の<ruby>先<rt>さき</rt></ruby>で<ruby>石<rt>いし</rt></ruby>を<ruby>探<rt>さぐ</rt></ruby>りながら<ruby>一歩<rt>いっぽ</rt></ruby>ずつ<ruby>下<rt>くだ</rt></ruby>ってゆくと、<ruby>足元<rt>あしもと</rt></ruby>の<ruby>草<rt>くさ</rt></ruby>が<ruby>露<rt>つゆ</rt></ruby>を<ruby>含<rt>ふく</rt></ruby>んで<ruby>重<rt>おも</rt></ruby>く、<ruby>裾<rt>すそ</rt></ruby>はたちまち<ruby>濡<rt>ぬ</rt></ruby>れていった。<ruby>遠<rt>とお</rt></ruby>くで<ruby>鐘<rt>かね</rt></ruby>が<ruby>鳴<rt>な</rt></ruby>っている。<ruby>数<rt>かぞ</rt></ruby>えるともなく<ruby>数<rt>かぞ</rt></ruby>えて、<ruby>六<rt>むっ</rt></ruby>つ<ruby>目<rt>め</rt></ruby>で<ruby>足<rt>あし</rt></ruby>を<ruby>止<rt>と</rt></ruby>めた。<ruby>約束<rt>やくそく</rt></ruby>の<ruby>刻<rt>とき</rt></ruby>にはまだ<ruby>間<rt>ま</rt></ruby>がある。</p></div>
+            <button class="toppill"><svg viewBox="0 0 24 24"><line x1="5" y1="4" x2="19" y2="4"/><polyline points="7 13 12 8 17 13"/><line x1="12" y1="8" x2="12" y2="20"/></svg><span>最上部へ</span></button>
+            <div class="bottombar"><button aria-label="前章"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg><span class="bl">前章</span></button><button aria-label="目次"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/></svg><span class="bl">目次</span></button><button class="set" aria-label="表示設定"><svg viewBox="0 0 24 24"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="9" cy="8" r="2.4" fill="var(--bar)"/><circle cx="15" cy="16" r="2.4" fill="var(--bar)"/></svg><span class="bl">表示設定</span></button><button aria-label="次章"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg><span class="bl">次章</span></button></div>
+          </div>
+        </div>
+        <div class="col"><span class="mode">出ている瞬間（J ダーク・縦書き）</span>
+          <div class="crop t-jdark r" role="img" aria-label="出ている瞬間（J ダーク・縦書き）">
+            <div class="body"><p><ruby>峠<rt>とうげ</rt></ruby>の<ruby>茶屋<rt>ちゃや</rt></ruby>を<ruby>出<rt>で</rt></ruby>るころには、<ruby>霧<rt>きり</rt></ruby>はもう<ruby>谷<rt>たに</rt></ruby>の<ruby>底<rt>そこ</rt></ruby>へ<ruby>沈<rt>しず</rt></ruby>みきっていた。<ruby>杖<rt>つえ</rt></ruby>の<ruby>先<rt>さき</rt></ruby>で<ruby>石<rt>いし</rt></ruby>を<ruby>探<rt>さぐ</rt></ruby>りながら<ruby>一歩<rt>いっぽ</rt></ruby>ずつ<ruby>下<rt>くだ</rt></ruby>ってゆくと、<ruby>足元<rt>あしもと</rt></ruby>の<ruby>草<rt>くさ</rt></ruby>が<ruby>露<rt>つゆ</rt></ruby>を<ruby>含<rt>ふく</rt></ruby>んで<ruby>重<rt>おも</rt></ruby>く、<ruby>裾<rt>すそ</rt></ruby>はたちまち<ruby>濡<rt>ぬ</rt></ruby>れていった。<ruby>遠<rt>とお</rt></ruby>くで<ruby>鐘<rt>かね</rt></ruby>が<ruby>鳴<rt>な</rt></ruby>っている。<ruby>数<rt>かぞ</rt></ruby>えるともなく<ruby>数<rt>かぞ</rt></ruby>えて、<ruby>六<rt>むっ</rt></ruby>つ<ruby>目<rt>め</rt></ruby>で<ruby>足<rt>あし</rt></ruby>を<ruby>止<rt>と</rt></ruby>めた。<ruby>約束<rt>やくそく</rt></ruby>の<ruby>刻<rt>とき</rt></ruby>にはまだ<ruby>間<rt>ま</rt></ruby>がある。</p></div>
+            <div class="chapend">— 第百二十七話 了 —</div><button class="toppill"><svg viewBox="0 0 24 24"><line x1="5" y1="4" x2="19" y2="4"/><polyline points="7 13 12 8 17 13"/><line x1="12" y1="8" x2="12" y2="20"/></svg><span>最上部へ</span></button>
+            <div class="bottombar"><button aria-label="前章"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg><span class="bl">前章</span></button><button aria-label="目次"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/></svg><span class="bl">目次</span></button><button class="set" aria-label="表示設定"><svg viewBox="0 0 24 24"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="9" cy="8" r="2.4" fill="var(--bar)"/><circle cx="15" cy="16" r="2.4" fill="var(--bar)"/></svg><span class="bl">表示設定</span></button><button aria-label="次章"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg><span class="bl">次章</span></button></div>
+          </div>
+        </div>
+        <div class="col"><span class="mode">退場後（横書き）</span>
+          <div class="crop t-light r gone h" role="img" aria-label="退場後（横書き）">
+            <div class="body"><p><ruby>峠<rt>とうげ</rt></ruby>の<ruby>茶屋<rt>ちゃや</rt></ruby>を<ruby>出<rt>で</rt></ruby>るころには、<ruby>霧<rt>きり</rt></ruby>はもう<ruby>谷<rt>たに</rt></ruby>の<ruby>底<rt>そこ</rt></ruby>へ<ruby>沈<rt>しず</rt></ruby>みきっていた。<ruby>杖<rt>つえ</rt></ruby>の<ruby>先<rt>さき</rt></ruby>で<ruby>石<rt>いし</rt></ruby>を<ruby>探<rt>さぐ</rt></ruby>りながら<ruby>一歩<rt>いっぽ</rt></ruby>ずつ<ruby>下<rt>くだ</rt></ruby>ってゆくと、<ruby>足元<rt>あしもと</rt></ruby>の<ruby>草<rt>くさ</rt></ruby>が<ruby>露<rt>つゆ</rt></ruby>を<ruby>含<rt>ふく</rt></ruby>んで<ruby>重<rt>おも</rt></ruby>く、<ruby>裾<rt>すそ</rt></ruby>はたちまち<ruby>濡<rt>ぬ</rt></ruby>れていった。<ruby>遠<rt>とお</rt></ruby>くで<ruby>鐘<rt>かね</rt></ruby>が<ruby>鳴<rt>な</rt></ruby>っている。<ruby>数<rt>かぞ</rt></ruby>えるともなく<ruby>数<rt>かぞ</rt></ruby>えて、<ruby>六<rt>むっ</rt></ruby>つ<ruby>目<rt>め</rt></ruby>で<ruby>足<rt>あし</rt></ruby>を<ruby>止<rt>と</rt></ruby>めた。<ruby>約束<rt>やくそく</rt></ruby>の<ruby>刻<rt>とき</rt></ruby>にはまだ<ruby>間<rt>ま</rt></ruby>がある。</p></div>
+            
+            <div class="bottombar"><button aria-label="前章"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg><span class="bl">前章</span></button><button aria-label="目次"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/></svg><span class="bl">目次</span></button><button class="set" aria-label="表示設定"><svg viewBox="0 0 24 24"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="9" cy="8" r="2.4" fill="var(--bar)"/><circle cx="15" cy="16" r="2.4" fill="var(--bar)"/></svg><span class="bl">表示設定</span></button><button aria-label="次章"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg><span class="bl">次章</span></button></div>
+          </div>
+        </div>
+        <div class="col"><span class="mode">退場後（J ダーク・縦書き）</span>
+          <div class="crop t-jdark r gone" role="img" aria-label="退場後（J ダーク・縦書き）">
+            <div class="body"><p><ruby>峠<rt>とうげ</rt></ruby>の<ruby>茶屋<rt>ちゃや</rt></ruby>を<ruby>出<rt>で</rt></ruby>るころには、<ruby>霧<rt>きり</rt></ruby>はもう<ruby>谷<rt>たに</rt></ruby>の<ruby>底<rt>そこ</rt></ruby>へ<ruby>沈<rt>しず</rt></ruby>みきっていた。<ruby>杖<rt>つえ</rt></ruby>の<ruby>先<rt>さき</rt></ruby>で<ruby>石<rt>いし</rt></ruby>を<ruby>探<rt>さぐ</rt></ruby>りながら<ruby>一歩<rt>いっぽ</rt></ruby>ずつ<ruby>下<rt>くだ</rt></ruby>ってゆくと、<ruby>足元<rt>あしもと</rt></ruby>の<ruby>草<rt>くさ</rt></ruby>が<ruby>露<rt>つゆ</rt></ruby>を<ruby>含<rt>ふく</rt></ruby>んで<ruby>重<rt>おも</rt></ruby>く、<ruby>裾<rt>すそ</rt></ruby>はたちまち<ruby>濡<rt>ぬ</rt></ruby>れていった。<ruby>遠<rt>とお</rt></ruby>くで<ruby>鐘<rt>かね</rt></ruby>が<ruby>鳴<rt>な</rt></ruby>っている。<ruby>数<rt>かぞ</rt></ruby>えるともなく<ruby>数<rt>かぞ</rt></ruby>えて、<ruby>六<rt>むっ</rt></ruby>つ<ruby>目<rt>め</rt></ruby>で<ruby>足<rt>あし</rt></ruby>を<ruby>止<rt>と</rt></ruby>めた。<ruby>約束<rt>やくそく</rt></ruby>の<ruby>刻<rt>とき</rt></ruby>にはまだ<ruby>間<rt>ま</rt></ruby>がある。</p></div>
+            <div class="chapend">— 第百二十七話 了 —</div>
+            <div class="bottombar"><button aria-label="前章"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg><span class="bl">前章</span></button><button aria-label="目次"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/></svg><span class="bl">目次</span></button><button class="set" aria-label="表示設定"><svg viewBox="0 0 24 24"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="9" cy="8" r="2.4" fill="var(--bar)"/><circle cx="15" cy="16" r="2.4" fill="var(--bar)"/></svg><span class="bl">表示設定</span></button><button aria-label="次章"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg><span class="bl">次章</span></button></div>
+          </div>
+        </div>
+      </div>
+      <div class="sub">「最上部へ」の意味と信号が一致する案＝<b>戻りたい人は上へスクロールしている</b>。読み進み（下方向）中と静止中は 0字。<br><b>失うもの</b>＝①<b>静止中に出ない</b>＝クロームを出しただけでは現れず、<b>「上へ少しスクロールする」という発見しにくい操作を要求する</b>（初見では到達不能に近い）②実装が3案で最も重い（<code>isScrollInProgress</code> のような既存の boolean が無く、<code>scrollBy</code> の符号を自前で保持する必要がある＝フレームレート state を新規に持つ）。<br>⚠️ <b>A1 の上位互換に見えて違う</b>: A1 は「止まったら出る」＝静止で発見できるが、A3 は静止で消える。発見性を捨てて被覆をわずかに減らす取引で、<b>ここでは割に合わない</b>。</div>
+    </div>
+
+  </div>
+
+  <div class="sec">軸3: 位置を寄せる<span class="axis">⚠️ 版面の形が縦書きと横書きで違う。両方で成立するかを見る</span></div>
+  <p class="warn" style="max-width:960px;text-align:left">
+  ⚠️ <b>この軸も、調べた結果ひとつ前提が崩れた</b>。「本文の版面を避ける位置」＝下端の余白帯へ載せる、が
+  素直な発想だが、<b>その帯は存在しない</b>——<br>
+  ・<b>縦書き</b>: <code>VerticalChapterContent.kt</code> の contentPadding は status/navigation の
+  <b>システムインセットだけ</b>で、自作バー実高ぶんの余白が無い＝<b>列は下端バーの裏まで伸びている</b>。<br>
+  ・<b>横書き</b>: <code>ChapterContent.kt</code> は bottom に <code>Insets.ReadingBodyBottomExtra</code>(80dp) を足すが、
+  これは<b>末尾 item の後ろの余白</b>で、章の中盤では画面外＝<b>中盤は本文がバーの裏まで流れている</b>。<br>
+  ∴ 帯へ載せたければ<b>帯を作るところから</b>始まる（＝版面が縮む。P3 で数値化）。</p>
+  <div class="cases">
+
+    <div class="case">
+      <div class="hd"><span class="badge warnb">不採用</span><span class="badge axis">軸3</span>案P1 ／ <b>端へ寄せる</b>（横書き＝右端／縦書き＝左端）<span class="val">版面内 4,416px²・6.8字・−8%</span></div>
+      <div class="pair">
+        <div class="col"><span class="mode">D／K ライト（横書き・右端＝行末側）</span>
+          <div class="crop t-light p1 h" role="img" aria-label="D／K ライト（横書き・右端＝行末側）">
+            <div class="body"><p><ruby>峠<rt>とうげ</rt></ruby>の<ruby>茶屋<rt>ちゃや</rt></ruby>を<ruby>出<rt>で</rt></ruby>るころには、<ruby>霧<rt>きり</rt></ruby>はもう<ruby>谷<rt>たに</rt></ruby>の<ruby>底<rt>そこ</rt></ruby>へ<ruby>沈<rt>しず</rt></ruby>みきっていた。<ruby>杖<rt>つえ</rt></ruby>の<ruby>先<rt>さき</rt></ruby>で<ruby>石<rt>いし</rt></ruby>を<ruby>探<rt>さぐ</rt></ruby>りながら<ruby>一歩<rt>いっぽ</rt></ruby>ずつ<ruby>下<rt>くだ</rt></ruby>ってゆくと、<ruby>足元<rt>あしもと</rt></ruby>の<ruby>草<rt>くさ</rt></ruby>が<ruby>露<rt>つゆ</rt></ruby>を<ruby>含<rt>ふく</rt></ruby>んで<ruby>重<rt>おも</rt></ruby>く、<ruby>裾<rt>すそ</rt></ruby>はたちまち<ruby>濡<rt>ぬ</rt></ruby>れていった。<ruby>遠<rt>とお</rt></ruby>くで<ruby>鐘<rt>かね</rt></ruby>が<ruby>鳴<rt>な</rt></ruby>っている。<ruby>数<rt>かぞ</rt></ruby>えるともなく<ruby>数<rt>かぞ</rt></ruby>えて、<ruby>六<rt>むっ</rt></ruby>つ<ruby>目<rt>め</rt></ruby>で<ruby>足<rt>あし</rt></ruby>を<ruby>止<rt>と</rt></ruby>めた。<ruby>約束<rt>やくそく</rt></ruby>の<ruby>刻<rt>とき</rt></ruby>にはまだ<ruby>間<rt>ま</rt></ruby>がある。</p></div>
+            <button class="toppill"><svg viewBox="0 0 24 24"><line x1="5" y1="4" x2="19" y2="4"/><polyline points="7 13 12 8 17 13"/><line x1="12" y1="8" x2="12" y2="20"/></svg><span>最上部へ</span></button>
+            <div class="bottombar"><button aria-label="前章"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg><span class="bl">前章</span></button><button aria-label="目次"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/></svg><span class="bl">目次</span></button><button class="set" aria-label="表示設定"><svg viewBox="0 0 24 24"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="9" cy="8" r="2.4" fill="var(--bar)"/><circle cx="15" cy="16" r="2.4" fill="var(--bar)"/></svg><span class="bl">表示設定</span></button><button aria-label="次章"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg><span class="bl">次章</span></button></div>
+          </div>
+        </div>
+        <div class="col"><span class="mode">D／K ライト（縦書き・左端＝既読の列側）</span>
+          <div class="crop t-light p1 v-left" role="img" aria-label="D／K ライト（縦書き・左端＝既読の列側）">
+            <div class="body"><p><ruby>峠<rt>とうげ</rt></ruby>の<ruby>茶屋<rt>ちゃや</rt></ruby>を<ruby>出<rt>で</rt></ruby>るころには、<ruby>霧<rt>きり</rt></ruby>はもう<ruby>谷<rt>たに</rt></ruby>の<ruby>底<rt>そこ</rt></ruby>へ<ruby>沈<rt>しず</rt></ruby>みきっていた。<ruby>杖<rt>つえ</rt></ruby>の<ruby>先<rt>さき</rt></ruby>で<ruby>石<rt>いし</rt></ruby>を<ruby>探<rt>さぐ</rt></ruby>りながら<ruby>一歩<rt>いっぽ</rt></ruby>ずつ<ruby>下<rt>くだ</rt></ruby>ってゆくと、<ruby>足元<rt>あしもと</rt></ruby>の<ruby>草<rt>くさ</rt></ruby>が<ruby>露<rt>つゆ</rt></ruby>を<ruby>含<rt>ふく</rt></ruby>んで<ruby>重<rt>おも</rt></ruby>く、<ruby>裾<rt>すそ</rt></ruby>はたちまち<ruby>濡<rt>ぬ</rt></ruby>れていった。<ruby>遠<rt>とお</rt></ruby>くで<ruby>鐘<rt>かね</rt></ruby>が<ruby>鳴<rt>な</rt></ruby>っている。<ruby>数<rt>かぞ</rt></ruby>えるともなく<ruby>数<rt>かぞ</rt></ruby>えて、<ruby>六<rt>むっ</rt></ruby>つ<ruby>目<rt>め</rt></ruby>で<ruby>足<rt>あし</rt></ruby>を<ruby>止<rt>と</rt></ruby>めた。<ruby>約束<rt>やくそく</rt></ruby>の<ruby>刻<rt>とき</rt></ruby>にはまだ<ruby>間<rt>ま</rt></ruby>がある。</p></div>
+            <button class="toppill"><svg viewBox="0 0 24 24"><line x1="5" y1="4" x2="19" y2="4"/><polyline points="7 13 12 8 17 13"/><line x1="12" y1="8" x2="12" y2="20"/></svg><span>最上部へ</span></button>
+            <div class="bottombar"><button aria-label="前章"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg><span class="bl">前章</span></button><button aria-label="目次"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/></svg><span class="bl">目次</span></button><button class="set" aria-label="表示設定"><svg viewBox="0 0 24 24"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="9" cy="8" r="2.4" fill="var(--bar)"/><circle cx="15" cy="16" r="2.4" fill="var(--bar)"/></svg><span class="bl">表示設定</span></button><button aria-label="次章"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg><span class="bl">次章</span></button></div>
+          </div>
+        </div>
+        <div class="col"><span class="mode">J ダーク（縦書き・左端＋章末印）</span>
+          <div class="crop t-jdark p1 v-left" role="img" aria-label="J ダーク（縦書き・左端＋章末印）">
+            <div class="body"><p><ruby>峠<rt>とうげ</rt></ruby>の<ruby>茶屋<rt>ちゃや</rt></ruby>を<ruby>出<rt>で</rt></ruby>るころには、<ruby>霧<rt>きり</rt></ruby>はもう<ruby>谷<rt>たに</rt></ruby>の<ruby>底<rt>そこ</rt></ruby>へ<ruby>沈<rt>しず</rt></ruby>みきっていた。<ruby>杖<rt>つえ</rt></ruby>の<ruby>先<rt>さき</rt></ruby>で<ruby>石<rt>いし</rt></ruby>を<ruby>探<rt>さぐ</rt></ruby>りながら<ruby>一歩<rt>いっぽ</rt></ruby>ずつ<ruby>下<rt>くだ</rt></ruby>ってゆくと、<ruby>足元<rt>あしもと</rt></ruby>の<ruby>草<rt>くさ</rt></ruby>が<ruby>露<rt>つゆ</rt></ruby>を<ruby>含<rt>ふく</rt></ruby>んで<ruby>重<rt>おも</rt></ruby>く、<ruby>裾<rt>すそ</rt></ruby>はたちまち<ruby>濡<rt>ぬ</rt></ruby>れていった。<ruby>遠<rt>とお</rt></ruby>くで<ruby>鐘<rt>かね</rt></ruby>が<ruby>鳴<rt>な</rt></ruby>っている。<ruby>数<rt>かぞ</rt></ruby>えるともなく<ruby>数<rt>かぞ</rt></ruby>えて、<ruby>六<rt>むっ</rt></ruby>つ<ruby>目<rt>め</rt></ruby>で<ruby>足<rt>あし</rt></ruby>を<ruby>止<rt>と</rt></ruby>めた。<ruby>約束<rt>やくそく</rt></ruby>の<ruby>刻<rt>とき</rt></ruby>にはまだ<ruby>間<rt>ま</rt></ruby>がある。</p></div>
+            <div class="chapend">— 第百二十七話 了 —</div><button class="toppill"><svg viewBox="0 0 24 24"><line x1="5" y1="4" x2="19" y2="4"/><polyline points="7 13 12 8 17 13"/><line x1="12" y1="8" x2="12" y2="20"/></svg><span>最上部へ</span></button>
+            <div class="bottombar"><button aria-label="前章"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg><span class="bl">前章</span></button><button aria-label="目次"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/></svg><span class="bl">目次</span></button><button class="set" aria-label="表示設定"><svg viewBox="0 0 24 24"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="9" cy="8" r="2.4" fill="var(--bar)"/><circle cx="15" cy="16" r="2.4" fill="var(--bar)"/></svg><span class="bl">表示設定</span></button><button aria-label="次章"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg><span class="bl">次章</span></button></div>
+          </div>
+        </div>
+      </div>
+      <div class="sub">⚠️ <b>量はほとんど減らない（−8%）</b>。版面は左右 24px しか空いていないので、端へ寄せても100px の器のうち<b>92px は版面に食い込む</b>。<br>ただし<b>覆う対象は変わる</b>: 縦書きは列が右→左へ進むので、<b>左端に寄せれば覆うのは「読み終えた列」</b>（＝これから読む字の被覆は 0字。読み返しは阻害する）。横書きの右端は行末側で、句読点や字下げで空きやすいぶんわずかに有利だが<b>保証はない</b>（行の途中が消える点は変わらない）。<br>⚠️ <b>縦書きと横書きで寄せる向きが逆になる</b>（縦＝左／横＝右）＝<b>組み方で位置が変わる</b>のは「ピルはいつも同じ場所に居る」という学習を壊す。<b>単独では推さない</b>が、<b>S4 と組めば「小さい器を既読側へ逃がす」</b>＝安価な上積みになる（S4 の 32px なら食い込みは 8px だけ）。<br>
+      <b>⚠️ 2026-09-05 裁定＝不採用</b>。監督の理由＝<b>縦横で寄せる向きが逆になる代償に対して、救う量 −8% が小さい</b>。
+      ピルの位置は<b>下端バー直上の画面中央のまま</b>据え置く。</div>
+    </div>
+
+    <div class="case">
+      <div class="hd"><span class="badge axis">軸3</span>案P2 ／ <b>下端バーへ収容</b>（4分割→5分割）<span class="val">本文被覆 0px²・−100%</span></div>
+      <div class="pair">
+        <div class="col"><span class="mode">D／K ライト（横書き＝実装の既定）</span>
+          <div class="crop t-light p2 h" role="img" aria-label="D／K ライト（横書き＝実装の既定）">
+            <div class="body"><p><ruby>峠<rt>とうげ</rt></ruby>の<ruby>茶屋<rt>ちゃや</rt></ruby>を<ruby>出<rt>で</rt></ruby>るころには、<ruby>霧<rt>きり</rt></ruby>はもう<ruby>谷<rt>たに</rt></ruby>の<ruby>底<rt>そこ</rt></ruby>へ<ruby>沈<rt>しず</rt></ruby>みきっていた。<ruby>杖<rt>つえ</rt></ruby>の<ruby>先<rt>さき</rt></ruby>で<ruby>石<rt>いし</rt></ruby>を<ruby>探<rt>さぐ</rt></ruby>りながら<ruby>一歩<rt>いっぽ</rt></ruby>ずつ<ruby>下<rt>くだ</rt></ruby>ってゆくと、<ruby>足元<rt>あしもと</rt></ruby>の<ruby>草<rt>くさ</rt></ruby>が<ruby>露<rt>つゆ</rt></ruby>を<ruby>含<rt>ふく</rt></ruby>んで<ruby>重<rt>おも</rt></ruby>く、<ruby>裾<rt>すそ</rt></ruby>はたちまち<ruby>濡<rt>ぬ</rt></ruby>れていった。<ruby>遠<rt>とお</rt></ruby>くで<ruby>鐘<rt>かね</rt></ruby>が<ruby>鳴<rt>な</rt></ruby>っている。<ruby>数<rt>かぞ</rt></ruby>えるともなく<ruby>数<rt>かぞ</rt></ruby>えて、<ruby>六<rt>むっ</rt></ruby>つ<ruby>目<rt>め</rt></ruby>で<ruby>足<rt>あし</rt></ruby>を<ruby>止<rt>と</rt></ruby>めた。<ruby>約束<rt>やくそく</rt></ruby>の<ruby>刻<rt>とき</rt></ruby>にはまだ<ruby>間<rt>ま</rt></ruby>がある。</p></div>
+            
+            <div class="bottombar b5"><button aria-label="前章"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg><span class="bl">前章</span></button><button aria-label="目次"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/></svg><span class="bl">目次</span></button><button class="added" aria-label="最上部へ"><svg viewBox="0 0 24 24"><line x1="5" y1="4" x2="19" y2="4"/><polyline points="7 13 12 8 17 13"/><line x1="12" y1="8" x2="12" y2="20"/></svg><span class="bl">最上部へ</span></button><button class="set" aria-label="表示設定"><svg viewBox="0 0 24 24"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="9" cy="8" r="2.4" fill="var(--bar)"/><circle cx="15" cy="16" r="2.4" fill="var(--bar)"/></svg><span class="bl">表示設定</span></button><button aria-label="次章"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg><span class="bl">次章</span></button></div>
+          </div>
+        </div>
+        <div class="col"><span class="mode">D／K ライト（縦書き）</span>
+          <div class="crop t-light p2" role="img" aria-label="D／K ライト（縦書き）">
+            <div class="body"><p><ruby>峠<rt>とうげ</rt></ruby>の<ruby>茶屋<rt>ちゃや</rt></ruby>を<ruby>出<rt>で</rt></ruby>るころには、<ruby>霧<rt>きり</rt></ruby>はもう<ruby>谷<rt>たに</rt></ruby>の<ruby>底<rt>そこ</rt></ruby>へ<ruby>沈<rt>しず</rt></ruby>みきっていた。<ruby>杖<rt>つえ</rt></ruby>の<ruby>先<rt>さき</rt></ruby>で<ruby>石<rt>いし</rt></ruby>を<ruby>探<rt>さぐ</rt></ruby>りながら<ruby>一歩<rt>いっぽ</rt></ruby>ずつ<ruby>下<rt>くだ</rt></ruby>ってゆくと、<ruby>足元<rt>あしもと</rt></ruby>の<ruby>草<rt>くさ</rt></ruby>が<ruby>露<rt>つゆ</rt></ruby>を<ruby>含<rt>ふく</rt></ruby>んで<ruby>重<rt>おも</rt></ruby>く、<ruby>裾<rt>すそ</rt></ruby>はたちまち<ruby>濡<rt>ぬ</rt></ruby>れていった。<ruby>遠<rt>とお</rt></ruby>くで<ruby>鐘<rt>かね</rt></ruby>が<ruby>鳴<rt>な</rt></ruby>っている。<ruby>数<rt>かぞ</rt></ruby>えるともなく<ruby>数<rt>かぞ</rt></ruby>えて、<ruby>六<rt>むっ</rt></ruby>つ<ruby>目<rt>め</rt></ruby>で<ruby>足<rt>あし</rt></ruby>を<ruby>止<rt>と</rt></ruby>めた。<ruby>約束<rt>やくそく</rt></ruby>の<ruby>刻<rt>とき</rt></ruby>にはまだ<ruby>間<rt>ま</rt></ruby>がある。</p></div>
+            
+            <div class="bottombar b5"><button aria-label="前章"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg><span class="bl">前章</span></button><button aria-label="目次"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/></svg><span class="bl">目次</span></button><button class="added" aria-label="最上部へ"><svg viewBox="0 0 24 24"><line x1="5" y1="4" x2="19" y2="4"/><polyline points="7 13 12 8 17 13"/><line x1="12" y1="8" x2="12" y2="20"/></svg><span class="bl">最上部へ</span></button><button class="set" aria-label="表示設定"><svg viewBox="0 0 24 24"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="9" cy="8" r="2.4" fill="var(--bar)"/><circle cx="15" cy="16" r="2.4" fill="var(--bar)"/></svg><span class="bl">表示設定</span></button><button aria-label="次章"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg><span class="bl">次章</span></button></div>
+          </div>
+        </div>
+        <div class="col"><span class="mode">J ダーク（縦書き＋章末印）</span>
+          <div class="crop t-jdark p2" role="img" aria-label="J ダーク（縦書き＋章末印）">
+            <div class="body"><p><ruby>峠<rt>とうげ</rt></ruby>の<ruby>茶屋<rt>ちゃや</rt></ruby>を<ruby>出<rt>で</rt></ruby>るころには、<ruby>霧<rt>きり</rt></ruby>はもう<ruby>谷<rt>たに</rt></ruby>の<ruby>底<rt>そこ</rt></ruby>へ<ruby>沈<rt>しず</rt></ruby>みきっていた。<ruby>杖<rt>つえ</rt></ruby>の<ruby>先<rt>さき</rt></ruby>で<ruby>石<rt>いし</rt></ruby>を<ruby>探<rt>さぐ</rt></ruby>りながら<ruby>一歩<rt>いっぽ</rt></ruby>ずつ<ruby>下<rt>くだ</rt></ruby>ってゆくと、<ruby>足元<rt>あしもと</rt></ruby>の<ruby>草<rt>くさ</rt></ruby>が<ruby>露<rt>つゆ</rt></ruby>を<ruby>含<rt>ふく</rt></ruby>んで<ruby>重<rt>おも</rt></ruby>く、<ruby>裾<rt>すそ</rt></ruby>はたちまち<ruby>濡<rt>ぬ</rt></ruby>れていった。<ruby>遠<rt>とお</rt></ruby>くで<ruby>鐘<rt>かね</rt></ruby>が<ruby>鳴<rt>な</rt></ruby>っている。<ruby>数<rt>かぞ</rt></ruby>えるともなく<ruby>数<rt>かぞ</rt></ruby>えて、<ruby>六<rt>むっ</rt></ruby>つ<ruby>目<rt>め</rt></ruby>で<ruby>足<rt>あし</rt></ruby>を<ruby>止<rt>と</rt></ruby>めた。<ruby>約束<rt>やくそく</rt></ruby>の<ruby>刻<rt>とき</rt></ruby>にはまだ<ruby>間<rt>ま</rt></ruby>がある。</p></div>
+            <div class="chapend">— 第百二十七話 了 —</div>
+            <div class="bottombar b5"><button aria-label="前章"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg><span class="bl">前章</span></button><button aria-label="目次"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/></svg><span class="bl">目次</span></button><button class="added" aria-label="最上部へ"><svg viewBox="0 0 24 24"><line x1="5" y1="4" x2="19" y2="4"/><polyline points="7 13 12 8 17 13"/><line x1="12" y1="8" x2="12" y2="20"/></svg><span class="bl">最上部へ</span></button><button class="set" aria-label="表示設定"><svg viewBox="0 0 24 24"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="9" cy="8" r="2.4" fill="var(--bar)"/><circle cx="15" cy="16" r="2.4" fill="var(--bar)"/></svg><span class="bl">表示設定</span></button><button aria-label="次章"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg><span class="bl">次章</span></button></div>
+          </div>
+        </div>
+      </div>
+      <div class="sub"><b>被覆の量だけ見れば最強＝0字</b>。本文の上に浮遊物が居なくなる。各ボタン幅は 93→<b>74.4px</b>（−20%）で 48dp は保つ。<br><b>失うもの（重い）</b>＝①<b>条件付き表示だとボタンが読書中に動く</b>——「3割以上」で5分割へ変わると<b>目次と表示設定の位置がずれる</b>（押し間違いの温床）。②回避に常設化すると<b>2026-07-16 裁定「章頭では戻る意味が無い」に反する</b>（無意味な項目が居座る）。③下端バーは<b>4つで完結した「章を渡る／目次／設定」の語彙</b>で、そこへ「今の章の中を戻る」を混ぜると<b>バーの意味が濁る</b>。<br>⚠️ <b>「バーの裏に本文が無い」は成り立たない</b>（上の前提を参照）。バー自身が α.92 で本文を覆っているので、P2 は<b>ピル起因の被覆を 0 にするだけ</b>——バー起因の被覆は元から在る別問題（本頁では扱わない）。</div>
+    </div>
+
+    <div class="case over">
+      <div class="hd"><span class="badge warnb">代償が大きい</span><span class="badge axis">軸3</span>案P3 ／ <b>版面に 60px の下端クリアランス帯を作る</b><span class="val">被覆 0px² だが 版面 −29字</span></div>
+      <div class="pair">
+        <div class="col"><span class="mode">D／K ライト（横書き＝実装の既定）</span>
+          <div class="crop t-light p3 h" role="img" aria-label="D／K ライト（横書き＝実装の既定）">
+            <div class="body"><p><ruby>峠<rt>とうげ</rt></ruby>の<ruby>茶屋<rt>ちゃや</rt></ruby>を<ruby>出<rt>で</rt></ruby>るころには、<ruby>霧<rt>きり</rt></ruby>はもう<ruby>谷<rt>たに</rt></ruby>の<ruby>底<rt>そこ</rt></ruby>へ<ruby>沈<rt>しず</rt></ruby>みきっていた。<ruby>杖<rt>つえ</rt></ruby>の<ruby>先<rt>さき</rt></ruby>で<ruby>石<rt>いし</rt></ruby>を<ruby>探<rt>さぐ</rt></ruby>りながら<ruby>一歩<rt>いっぽ</rt></ruby>ずつ<ruby>下<rt>くだ</rt></ruby>ってゆくと、<ruby>足元<rt>あしもと</rt></ruby>の<ruby>草<rt>くさ</rt></ruby>が<ruby>露<rt>つゆ</rt></ruby>を<ruby>含<rt>ふく</rt></ruby>んで<ruby>重<rt>おも</rt></ruby>く、<ruby>裾<rt>すそ</rt></ruby>はたちまち<ruby>濡<rt>ぬ</rt></ruby>れていった。<ruby>遠<rt>とお</rt></ruby>くで<ruby>鐘<rt>かね</rt></ruby>が<ruby>鳴<rt>な</rt></ruby>っている。<ruby>数<rt>かぞ</rt></ruby>えるともなく<ruby>数<rt>かぞ</rt></ruby>えて、<ruby>六<rt>むっ</rt></ruby>つ<ruby>目<rt>め</rt></ruby>で<ruby>足<rt>あし</rt></ruby>を<ruby>止<rt>と</rt></ruby>めた。<ruby>約束<rt>やくそく</rt></ruby>の<ruby>刻<rt>とき</rt></ruby>にはまだ<ruby>間<rt>ま</rt></ruby>がある。</p></div>
+            <button class="toppill"><svg viewBox="0 0 24 24"><line x1="5" y1="4" x2="19" y2="4"/><polyline points="7 13 12 8 17 13"/><line x1="12" y1="8" x2="12" y2="20"/></svg><span>最上部へ</span></button>
+            <div class="bottombar"><button aria-label="前章"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg><span class="bl">前章</span></button><button aria-label="目次"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/></svg><span class="bl">目次</span></button><button class="set" aria-label="表示設定"><svg viewBox="0 0 24 24"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="9" cy="8" r="2.4" fill="var(--bar)"/><circle cx="15" cy="16" r="2.4" fill="var(--bar)"/></svg><span class="bl">表示設定</span></button><button aria-label="次章"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg><span class="bl">次章</span></button></div>
+          </div>
+        </div>
+        <div class="col"><span class="mode">D／K ライト（縦書き）</span>
+          <div class="crop t-light p3" role="img" aria-label="D／K ライト（縦書き）">
+            <div class="body"><p><ruby>峠<rt>とうげ</rt></ruby>の<ruby>茶屋<rt>ちゃや</rt></ruby>を<ruby>出<rt>で</rt></ruby>るころには、<ruby>霧<rt>きり</rt></ruby>はもう<ruby>谷<rt>たに</rt></ruby>の<ruby>底<rt>そこ</rt></ruby>へ<ruby>沈<rt>しず</rt></ruby>みきっていた。<ruby>杖<rt>つえ</rt></ruby>の<ruby>先<rt>さき</rt></ruby>で<ruby>石<rt>いし</rt></ruby>を<ruby>探<rt>さぐ</rt></ruby>りながら<ruby>一歩<rt>いっぽ</rt></ruby>ずつ<ruby>下<rt>くだ</rt></ruby>ってゆくと、<ruby>足元<rt>あしもと</rt></ruby>の<ruby>草<rt>くさ</rt></ruby>が<ruby>露<rt>つゆ</rt></ruby>を<ruby>含<rt>ふく</rt></ruby>んで<ruby>重<rt>おも</rt></ruby>く、<ruby>裾<rt>すそ</rt></ruby>はたちまち<ruby>濡<rt>ぬ</rt></ruby>れていった。<ruby>遠<rt>とお</rt></ruby>くで<ruby>鐘<rt>かね</rt></ruby>が<ruby>鳴<rt>な</rt></ruby>っている。<ruby>数<rt>かぞ</rt></ruby>えるともなく<ruby>数<rt>かぞ</rt></ruby>えて、<ruby>六<rt>むっ</rt></ruby>つ<ruby>目<rt>め</rt></ruby>で<ruby>足<rt>あし</rt></ruby>を<ruby>止<rt>と</rt></ruby>めた。<ruby>約束<rt>やくそく</rt></ruby>の<ruby>刻<rt>とき</rt></ruby>にはまだ<ruby>間<rt>ま</rt></ruby>がある。</p></div>
+            <button class="toppill"><svg viewBox="0 0 24 24"><line x1="5" y1="4" x2="19" y2="4"/><polyline points="7 13 12 8 17 13"/><line x1="12" y1="8" x2="12" y2="20"/></svg><span>最上部へ</span></button>
+            <div class="bottombar"><button aria-label="前章"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg><span class="bl">前章</span></button><button aria-label="目次"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/></svg><span class="bl">目次</span></button><button class="set" aria-label="表示設定"><svg viewBox="0 0 24 24"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="9" cy="8" r="2.4" fill="var(--bar)"/><circle cx="15" cy="16" r="2.4" fill="var(--bar)"/></svg><span class="bl">表示設定</span></button><button aria-label="次章"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg><span class="bl">次章</span></button></div>
+          </div>
+        </div>
+        <div class="col"><span class="mode">J ダーク（縦書き＋章末印）</span>
+          <div class="crop t-jdark p3" role="img" aria-label="J ダーク（縦書き＋章末印）">
+            <div class="body"><p><ruby>峠<rt>とうげ</rt></ruby>の<ruby>茶屋<rt>ちゃや</rt></ruby>を<ruby>出<rt>で</rt></ruby>るころには、<ruby>霧<rt>きり</rt></ruby>はもう<ruby>谷<rt>たに</rt></ruby>の<ruby>底<rt>そこ</rt></ruby>へ<ruby>沈<rt>しず</rt></ruby>みきっていた。<ruby>杖<rt>つえ</rt></ruby>の<ruby>先<rt>さき</rt></ruby>で<ruby>石<rt>いし</rt></ruby>を<ruby>探<rt>さぐ</rt></ruby>りながら<ruby>一歩<rt>いっぽ</rt></ruby>ずつ<ruby>下<rt>くだ</rt></ruby>ってゆくと、<ruby>足元<rt>あしもと</rt></ruby>の<ruby>草<rt>くさ</rt></ruby>が<ruby>露<rt>つゆ</rt></ruby>を<ruby>含<rt>ふく</rt></ruby>んで<ruby>重<rt>おも</rt></ruby>く、<ruby>裾<rt>すそ</rt></ruby>はたちまち<ruby>濡<rt>ぬ</rt></ruby>れていった。<ruby>遠<rt>とお</rt></ruby>くで<ruby>鐘<rt>かね</rt></ruby>が<ruby>鳴<rt>な</rt></ruby>っている。<ruby>数<rt>かぞ</rt></ruby>えるともなく<ruby>数<rt>かぞ</rt></ruby>えて、<ruby>六<rt>むっ</rt></ruby>つ<ruby>目<rt>め</rt></ruby>で<ruby>足<rt>あし</rt></ruby>を<ruby>止<rt>と</rt></ruby>めた。<ruby>約束<rt>やくそく</rt></ruby>の<ruby>刻<rt>とき</rt></ruby>にはまだ<ruby>間<rt>ま</rt></ruby>がある。</p></div>
+            <div class="chapend">— 第百二十七話 了 —</div><button class="toppill"><svg viewBox="0 0 24 24"><line x1="5" y1="4" x2="19" y2="4"/><polyline points="7 13 12 8 17 13"/><line x1="12" y1="8" x2="12" y2="20"/></svg><span>最上部へ</span></button>
+            <div class="bottombar"><button aria-label="前章"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg><span class="bl">前章</span></button><button aria-label="目次"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/></svg><span class="bl">目次</span></button><button class="set" aria-label="表示設定"><svg viewBox="0 0 24 24"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="9" cy="8" r="2.4" fill="var(--bar)"/><circle cx="15" cy="16" r="2.4" fill="var(--bar)"/></svg><span class="bl">表示設定</span></button><button aria-label="次章"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg><span class="bl">次章</span></button></div>
+          </div>
+        </div>
+      </div>
+      <div class="sub">斜線が新設の帯。<b>ピルは本文に触れなくなる（0字）</b>が、<b>本文のほうが縮む</b>——横書きは 16.6行→15.1行＝<b>1画面あたり −29字</b>、縦書きは列高 656→596px＝<b>1列あたり −3.7字</b>（−9%）。<br>⚠️ <b>帯は常設になる</b>（版面の寸法はスクロール位置で変えられない）＝<b>ピルが出ていない間</b>——章の3割未満・没入中・そもそもピルを使わない読者——<b>にも本文が減り続ける</b>。「本文を救う」ために本文を削っており、<b>目的と手段が逆立ちしている</b>。<br>⚠️ ただし<b>縦書きの版面がバー裏まで伸びている件</b>（上の前提）は、ピルとは別に<b>それ自体が検討に値する</b>——バー α.92 の下に列が流れているのは意図なのか未確認。本件とは切り離して別項目にすべき。</div>
+    </div>
+
+  </div>
+
+  <div class="sec">推奨 → <span class="axis">2026-09-05 裁定＝S4＋A1＋初回ラベルを採用・P1 は不採用</span></div>
+  <div class="notes">
+    <div class="note"><h3>推奨＝<b>S4 ＋ A1</b>（器を最小にする × スクロール中は退場）。本命の軸は<b>軸1（器）</b>、A1 は上積み</h3>
+      <b>①なぜ軸1が本命か</b>: 3軸で<b>唯一、被覆量そのものを大きく減らしながら、規則も版面も壊さない</b>。
+      S4 で 7.3字→<b>1.6字（−79%）</b>。軸2 は面積を1px も減らさず（減るのは時間）、軸3 は
+      量が減らない（P1 −8%）か、バーの意味と裁定を壊す（P2）か、本文自体を削る（P3）。<br>
+      <b>②なぜ A1 を足すか</b>: S4 でも <b>1.6字は残る</b>。読んでいる最中だけは 0 にしたい。
+      A1 は既存信号 <code>isScrollInProgress</code> ひとつで<b>「読んでいる時間」と「探している時間」を分ける</b>——
+      S4（空間を削る）と A1（時間を分ける）は<b>効き方が直交する</b>ので足し算になる。
+      組み合わせ後＝<b>読んでいる間 0字／止まって探すとき 1.6字</b>。<br>
+      <b>③S4 の代償への手当（これも採用に含める）</b>: <b>初回だけラベル付き・以後アイコンのみ</b>。
+      復帰ヒントの「アプリ通算初回だけ prefs で焼く」型をそのまま使う＝新機構を発明しない。
+      ⚠️ この手当を入れないなら S4 ではなく <b>S3</b>（語は残して高さだけ 32px・−33%）まで戻すのが安全側。<br>
+      <b>④P1 は安価な上積みとして「採ってもよい」</b>（⚠️ <b>裁定は不採用</b>＝縦横で向きが逆になる代償に対し救う量 −8% が小さい）: S4 の 32px を端へ寄せると版面への食い込みは 8px だけになり、
+      縦書きでは覆う列が<b>既読側</b>へ移る。⚠️ ただし縦横で寄せる向きが逆（縦＝左／横＝右）＝
+      「いつも同じ場所」の学習を壊すので、<b>裁定は S4＋A1 とは分けて出してほしい</b>。<br>
+      <b>⑤採らない</b>: S2（劣化版）・S5（48dp を割る＝不可）・A2（止まって探す人からも消える）・
+      A3（静止で消える＝初見が到達できない）・P2（バーの意味と 2026-07-16 裁定を壊す）・P3（本文が減る）。
+    </div>
+  </div>
+
+  <div class="sec">3ピルの規則は割れるか（⚠️ 割れる。ただし正当化できる）</div>
+  <div class="notes">
+    <div class="note"><h3>結論: 割れる。<b>しかし「3ピル同型」の規則はすでに3か所で割れており、今回が4か所目</b></h3>
+      <table style="margin:6px 0">
+        <tr><th>規則</th><th>復帰ヒント</th><th>続きに戻る</th><th>最上部へ</th></tr>
+        <tr><td>地の透過</td><td>α.92・枠なし</td><td>α.92・枠なし</td><td class="best"><b>α.78＋枠＋影</b>（2026-09-04）</td></tr>
+        <tr><td>アイコン</td><td>なし</td><td>なし</td><td class="best"><b>あり</b></td></tr>
+        <tr><td>出現条件</td><td>通算初回・自動消灯</td><td>参照ジャンプ中ずっと</td><td class="best"><b>クローム表示中 かつ 章の3割以上</b></td></tr>
+        <tr><td>置き場所</td><td>下端 26px（没入中）</td><td>上端</td><td>下端バー直上</td></tr>
+        <tr><td>字色</td><td>--soft（純表示）</td><td>--ink（タップ可）</td><td>--ink（タップ可）</td></tr>
+      </table>
+      <b>正当化の書き方</b>（透過で使った「<b>バーは面・ピルは浮遊物</b>」の書き分けを一段細かくする）:<br>
+      <b>「一度きりの教示ピル（復帰ヒント）は語で説明する。何度も再出現する操作ピル（最上部へ）は最小の記号でよい」</b>。<br>
+      根拠＝復帰ヒントは<b>通算1回</b>しか出ないので語のコストを払う価値がある。最上部へは<b>章の3割以降ずっと</b>
+      出続けるので、毎回同じ4字を読ませる必要が無い（読者はもう知っている）。
+      「続きに戻る」は参照ジャンプ中だけ・<b>上端</b>＝本文の行頭側に居るので被覆の痛みが違う（下端は読み進む先）。<br>
+      ⚠️ <b>割れが痛むのはむしろ下端バーとの関係</b>: バーの4項目は全てアイコン＋ラベルなので、
+      S1/S4 のピルだけが<b>裸のアイコン</b>になる（S1 の境目の条件②）。ここも同じ書き分けで説明できる——
+      <b>バーは面の中の恒久ボタン（初見の可読性が最優先）／ピルは本文の上に浮く一時的な器（最小であることが最優先）</b>。
+      透過のときに「面 vs 浮遊物」で値を割った先例と<b>一貫している</b>。
+    </div>
+    <div class="note"><h3>暗色スキン J で成立するか（2026-07-17 の「暗地×明背景」を再び踏まない）</h3>
+      <b>S1/S4（アイコンのみ）＝J で有利</b>: 2026-07-17 の事故は「章末印 #8E998C がピルの<b>字</b>とだぶった」ことだった。
+      <b>字が無くなればだぶる相手が消える</b>。アイコンは 1.8px stroke・#C8D2C4 で章末印の細字より明るく、
+      重なっても<b>線として読める</b>（右列の絵で確認できる）。⚠️ ただし器が小さいぶん<b>枠のヘアライン
+      #22301F が唯一の輪郭</b>になるので、枠は必須（α.78 とセット＝正本どおり）。<br>
+      <b>A1/A2/A3（出現）＝J で1点注意</b>: 章末では<b>敷居光</b>（reading-J .nextdoor＝章末到達で右端が灯る）と
+      同時に動きうる（章末は必ず「3割以上」を満たす）。動きが2つ並ぶ点は<b>実機で見る</b>。<br>
+      <b>P2（バー収容）＝J で不利</b>: バー地 #101913 と器の地が同系＝バーの中では器の輪郭が消える。
+      バーの項目として置くなら器を捨ててアイコン＋ラベルの<b>ボタン</b>にするしかない（＝P2 の絵はそう描いてある）。
+    </div>
+    <div class="note"><h3>縦書き・横書きの両方で成立するか</h3>
+      <b>軸1（S1/S3/S4）＝両方で成立</b>。器を小さくすると、横書きでは「消える字数／行」が減り、
+      縦書きでは「掛かる列数」が減る＝<b>効き方は違うが向きは同じ</b>。⚠️ 効率は組み方で違う——
+      <b>幅を削ると縦書きが得（列が減る）・高さを削ると横書きが得（行が減る）</b>。
+      S4 は両方を削るので<b>どちらの組みでも効く</b>のが強み。<br>
+      <b>軸2＝組み方に依存しない</b>（時間の話なので）。<br>
+      <b>軸3＝縦横で答えが割れる</b>。P1 は寄せる向きが逆（縦＝左／横＝右）。P3 の帯は
+      横書きでは行数を、縦書きでは列高を削る＝<b>縦書きのほうが痛い</b>（全列が一律に短くなる）。
+    </div>
+  </div>
+
+  <div class="sec">波及メモ</div>
+  <div class="notes">
+    <div class="note"><h3>この頁で振っていない軸（混ぜないこと）</h3>
+      ①<b>地の透過</b>（2026-09-04 に α.78 で裁定済み＝本頁は全案これに固定）
+      ②<b>字色</b>（実装 <code>topBarIcon</code> #4A4F58 と正本 <code>.toppill</code> の --ink #1C1F26 の不一致は別件）
+      ③<b>「章の3割以上」の閾値</b>（2026-07-16 実機較正・本頁は動かさない）
+      ④<b>他2ピルの器</b>（復帰ヒント／続きに戻るは α.92 のまま。3枚を揃えるかは
+      「復帰ヒントの色が AA 未達」の裁定が先に来ると前提が変わる＝透過モックの波及メモと同じ保留）。
+    </div>
+    <div class="note"><h3>裁定が S4／A1 に倒れたときに実装が触る場所（⚠️ 本便は実装しない）</h3>
+      <b>S4</b>＝<code>NativeReadingScreen.kt</code> の「最上部へ」ピル: <code>Text("最上部へ")</code> を条件表示にし、
+      <code>Row</code> の <code>heightIn(min = 48.dp)</code> を<b>視覚の器 32dp ＋ 透明標的 48dp</b>へ分ける
+      （<code>minimumInteractiveComponentSize</code> 相当）。⚠️ <b>48dp を割ったように見える変更なので、
+      「標的は 48dp のまま」を単体テストで縛る</b>（<code>NativeReadingScreenTopPillTest</code> の隣に置ける）。<br>
+      <b>初回だけラベル</b>＝<code>PrefKeys</code> に1本足し、<code>ImmersiveChromeHint</code> と同じ「通算初回だけ焼く」型で書く。<br>
+      <b>A1</b>＝<code>chromeVisibleForPill &amp;&amp; pastThreshold</code> に
+      <code>&amp;&amp; !lazyListState.isScrollInProgress</code> を足すだけ（<code>derivedStateOf</code> の中で読む）。<br>
+      ⚠️ <b>2026-07-16 と 2026-09-04 の why コメントは消さずに書き足す</b>（不透明→α.78 の経緯と、
+      「α では下の本文は読めるようにならない」という本頁の結論を残す）。<br>
+      ⚠️ <b>見た目を変えるので <code>recordRoborazziDebug</code> の golden 再記録が要る</b>（/visual-language 機械検査）。
+    </div>
+    <div class="note drop"><h3>この頁が見つけた「別件にすべきもの」（本件と切り離す）</h3>
+      <b>縦書きの版面が下端バーの裏まで伸びている</b>（<code>VerticalChapterContent.kt</code> の contentPadding が
+      システムインセットのみ＝横書きの <code>Insets.ReadingBodyBottomExtra</code>(80dp) に相当する余白が無い）。
+      バーは α.92 なので<b>常に本文の上に薄い面が乗っている</b>状態で、これは「最上部へ」ピルとは独立した被覆。
+      ⚠️ 意図的なのか漏れなのか<b>本便では判定できない</b>（横書きの 80dp も末尾 item 用で中盤には効かないため、
+      「縦だけが特別」とも言い切れない）。ピルの裁定とは<b>別項目</b>として立てるべき。
+    </div>
+  </div>
+</body>
+</html>

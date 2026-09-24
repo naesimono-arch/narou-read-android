@@ -1,0 +1,512 @@
+<!-- @dsCard group="ストア掲載素材 / Google Play" name="アプリアイコン候補 512×512（Yosari・明快K の意匠圏・6案／実寸＋縮小識別テスト＋一覧シミュレーション）" -->
+<!--
+  Google Play「アプリアイコン」候補カタログ（2026-08-20 起草・裁定用）。
+  ・仕様＝512×512・32bit PNG・アルファ（透過）なし → 全案が地色を全面に塗る（背景ヌケ無し）。
+  ・方向性の出典＝docs/store/listing-draft.md §6「夜」と「栞」。同節の具体案①②③を A/B/C に素直に当て、
+    D/E/F は「小サイズで生き残る形」の軸違い（明暗反転・かな一字・紋）として散らした。
+  ・色は新規に発明せず、明快K（＝公開ビルドの既定UI）のトークンだけを使う:
+      --ai 藍 #1C3D5A（PrimaryLight）／--ink 墨 #1C1F26／--paper 和紙 #FBFAF8（SurfaceLight＝ShioriColors.paper）
+      --navy 濃紺 #0E2030（OnPrimaryDark）／--seiji-ink 青磁ink #50685C／--seiji 青磁明 #A9C2BB（SecondaryDark）
+      --shu 朱 #A1573F（ShioriSealVermilion）／--shu-lt 朱明 #CC8B73（ShioriSealVermilionDark）
+    ※ 金（星図M・古書P 系）は初回リリースに含めないスキンの語彙なので使っていない。
+  ・栞書影の造形（紙地＋細い栞棒＋先端の結び玉＋縦罫の版面）は skins/bookshelf-K.html の .cv を下敷きにしている。
+  ・PNG 書き出しは裁定後の別便。ここでは「どれを選ぶか」だけを決める。
+-->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Yosari アイコン候補 512×512（6案）</title>
+<style>
+  :root{
+    --ai:#1C3D5A;        /* 藍（PrimaryLight） */
+    --navy:#0E2030;      /* 濃紺（OnPrimaryDark） */
+    --ink:#1C1F26;       /* 墨 */
+    --paper:#FBFAF8;     /* 和紙地 */
+    --seiji-ink:#50685C; /* 青磁ink */
+    --seiji:#A9C2BB;     /* 青磁明（SecondaryDark） */
+    --shu:#A1573F;       /* 朱（ShioriSealVermilion） */
+    --shu-lt:#CC8B73;    /* 朱明（ShioriSealVermilionDark） */
+    --line:#ECEAE4;
+    --mincho:"Hiragino Mincho ProN","Yu Mincho","YuMincho","Noto Serif JP","MS PMincho",serif;
+    --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP","Meiryo",sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#EEEBE4;color:#2A2C30;font-family:var(--gothic);
+    padding:44px 28px 120px;-webkit-font-smoothing:antialiased}
+  .doc{max-width:1180px;margin:0 auto}
+
+  .kicker{font-size:11px;letter-spacing:.32em;color:#8a7f6e;font-weight:600}
+  h1{font-family:var(--mincho);font-size:26px;font-weight:600;letter-spacing:.05em;margin:10px 0 10px}
+  .lead{font-size:13px;line-height:1.95;color:#5b5850;max-width:840px}
+  .lead b{color:#3a3833}
+
+  /* 仕様メモ（Play の制約＝守れているかを裁定時に照合するための札） */
+  .specs{display:flex;flex-wrap:wrap;gap:8px;margin:18px 0 0}
+  .specs span{font-size:11.5px;letter-spacing:.02em;color:#5f5b52;background:#F7F5EF;
+    border:1px solid #DDD8CC;border-radius:999px;padding:6px 13px}
+
+  /* 表示コントロール（マスク形状・セーフゾーン） */
+  .ctrl{margin:22px 0 34px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;
+    padding:14px 16px;background:#F7F5EF;border:1px solid #DDD8CC;border-radius:12px}
+  .ctrl .lb{font-size:11.5px;color:#8c887e;letter-spacing:.04em;margin-right:2px}
+  .ctrl button{font-family:var(--gothic);font-size:12.5px;cursor:pointer;border-radius:999px;
+    padding:8px 16px;border:1px solid #CBC4B8;background:transparent;color:var(--ai);letter-spacing:.02em}
+  .ctrl button.on{background:var(--ai);border-color:var(--ai);color:#fff;font-weight:600}
+
+  h2{font-family:var(--mincho);font-size:17px;font-weight:600;letter-spacing:.05em;color:var(--ai);
+    margin:46px 0 6px;padding-top:14px;border-top:1px solid #DEDACF}
+  h2 .sub{font-family:var(--gothic);font-size:11.5px;font-weight:400;color:#8c887e;margin-left:12px;letter-spacing:.02em}
+
+  /* ===== 候補カード ===== */
+  .cand{background:#F7F5EF;border:1px solid #DFDACE;border-radius:16px;padding:24px 26px 26px;margin-top:20px}
+  .cand .hd{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:18px}
+  .cand .tag{font-family:var(--mincho);font-size:22px;font-weight:600;color:#fff;background:var(--ai);
+    width:38px;height:38px;border-radius:10px;display:grid;place-items:center;align-self:center;flex-shrink:0}
+  .cand h3{font-family:var(--mincho);font-size:19px;font-weight:600;letter-spacing:.05em;color:var(--ink)}
+  .cand .cc{font-size:12.5px;color:#6b675e;line-height:1.7;flex:1;min-width:260px}
+
+  .row{display:flex;gap:30px;align-items:flex-start;flex-wrap:wrap}
+
+  /* 512px 実寸プレビュー（＋セーフゾーンのガイド） */
+  .big{position:relative;flex-shrink:0}
+  .big .fr{position:relative;width:512px;height:512px}
+  /* なぜ width/height を CSS で当てないか: 縮小プレビューは svg の width/height 属性で実寸を指定しており、
+     ここで 100% を書くと CSS が属性に勝って 96/48/32px が容れ物のサイズへ膨らむ＝サイズ検証が無意味になる。
+     512 実寸だけは .big .art で明示する。 */
+  .art{display:block;overflow:hidden;flex-shrink:0}
+  .big .art{width:512px;height:512px}
+  .mask{overflow:hidden;display:block;background:#000}
+  body[data-mask="round"] .mask.var{border-radius:22.5%}
+  body[data-mask="circle"] .mask.var{border-radius:50%}
+  body[data-mask="drop"]  .mask.var{border-radius:50% 50% 50% 14%}
+  body[data-mask="square"] .mask.var{border-radius:0}
+  .mask.circle{border-radius:50%}
+  .mask.round{border-radius:16%}
+
+  /* セーフゾーン: 破線円＝適応アイコンで確実に残る中央域の目安（直径80%）／破線角丸＝角丸マスクの外周 */
+  .guide{position:absolute;inset:0;pointer-events:none;display:none}
+  body.safe .guide{display:block}
+  .guide .c{position:absolute;left:10%;top:10%;width:80%;height:80%;border:2px dashed rgba(255,80,80,.85);border-radius:50%}
+  .guide .r{position:absolute;inset:0;border:2px dashed rgba(255,255,255,.45);border-radius:22.5%}
+  figcaption{font-size:11px;color:#8c887e;margin-top:8px;letter-spacing:.02em;text-align:center}
+
+  /* 縮小プレビュー列 */
+  .smalls{flex:1;min-width:300px}
+  .sizes{display:flex;gap:26px;align-items:flex-end;flex-wrap:wrap;padding:6px 0 4px}
+  .sizes figure{width:104px}
+  .sizes .box{display:grid;place-items:center;height:104px}
+
+  /* 機械値（トークン・コントラスト・要素数） */
+  .spec{margin-top:18px;border-top:1px solid #E3DED2;padding-top:14px;
+    display:grid;grid-template-columns:auto 1fr;gap:7px 16px;font-size:11.5px;line-height:1.65}
+  .spec dt{color:#8c887e;letter-spacing:.04em;white-space:nowrap}
+  .spec dd{color:#4c4941}
+  .spec .sw{display:inline-block;width:11px;height:11px;border-radius:3px;vertical-align:-1px;
+    margin-right:5px;border:1px solid rgba(0,0,0,.15)}
+  .warn{color:#8E4B37}
+
+  /* ===== 一覧シミュレーション: Play 検索結果 ===== */
+  .play{background:#fff;border:1px solid #E1DCD2;border-radius:14px;padding:8px 0;margin-top:18px;max-width:560px}
+  .prow{display:flex;align-items:center;gap:14px;padding:11px 18px}
+  .prow .ttl{font-size:14px;color:#202124;letter-spacing:.01em}
+  .prow .met{font-size:11.5px;color:#5F6368;margin-top:3px}
+  .prow.dummy .ttl{color:#5F6368}
+  .dm{width:64px;height:64px;border-radius:16%;display:grid;place-items:center;flex-shrink:0;
+    font-family:var(--mincho);font-size:30px;color:#fff}
+
+  /* ===== 一覧シミュレーション: ランチャー ===== */
+  .home{border-radius:18px;padding:26px 22px 20px;margin-top:18px;display:grid;
+    grid-template-columns:repeat(5,1fr);gap:22px 10px;max-width:520px}
+  .home.dark{background:linear-gradient(160deg,#20262E 0%,#101418 60%,#0B0E12 100%)}
+  .home.light{background:linear-gradient(160deg,#DCE3EA 0%,#C9D3DC 60%,#BCC7D2 100%)}
+  .home .app{display:flex;flex-direction:column;align-items:center;gap:7px}
+  .home .nm{font-size:10.5px;letter-spacing:.02em}
+  .home.dark .nm{color:#E9EAEC}
+  .home.light .nm{color:#2A2F36}
+  .sims{display:flex;gap:26px;flex-wrap:wrap;align-items:flex-start}
+
+  .note{font-size:12px;line-height:1.9;color:#5b5850;background:#F7F5EF;border:1px solid #DFDACE;
+    border-radius:12px;padding:16px 20px;margin-top:18px}
+  .note li{margin-left:18px;margin-top:4px}
+  .note b{color:#8E4B37}
+</style>
+</head>
+<body data-mask="round">
+<div class="doc">
+
+  <div class="kicker">YOSARI · GOOGLE PLAY — APP ICON 512×512 (6 CANDIDATES)</div>
+  <h1>アプリアイコン候補（512×512）</h1>
+  <p class="lead">
+    <b>合否は「小さくして識別できるか」の一点</b>。各案とも 512px 実寸のほか、Play 一覧相当（96px）・ランチャー相当（48px・円マスク）・
+    サジェスト相当（32px）を併記し、末尾に <b>Play 検索結果</b>とランチャーの一覧シミュレーションを置いた。
+    方向性は <code>docs/store/listing-draft.md §6</code>「夜」と「栞」に従い、同節の具体案①②③を A・B・C に当てている。
+    色は明快K のトークンのみ（新規の色を発明していない）。
+  </p>
+
+  <div class="specs">
+    <span>512×512・32bit PNG</span>
+    <span>アルファなし＝全案が地色を全面に塗る</span>
+    <span>要素は中央寄せ（適応アイコンのマスク欠け対策）</span>
+    <span>金・星（M/P 系スキンの語彙）は不使用</span>
+    <span>PNG 書き出しは裁定後の別便</span>
+  </div>
+
+  <div class="ctrl">
+    <span class="lb">マスク</span>
+    <button data-m="round" class="on">角丸（Play 既定）</button>
+    <button data-m="circle">円</button>
+    <button data-m="drop">しずく</button>
+    <button data-m="square">四角（原寸のまま）</button>
+    <span class="lb" style="margin-left:14px">|</span>
+    <button id="sz">セーフゾーンを表示</button>
+  </div>
+
+<!-- ============================================================
+     アイコン本体（symbol 定義。各サイズは <use> で同一定義を再利用＝
+     「512 と 48 で絵が違う」事故が原理的に起きない）
+     ============================================================ -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+<defs>
+  <!-- 藍の地（上=藍 / 下=濃紺）。単色より奥行きが出るが 48px では単色に潰れる＝潰れて良い装飾 -->
+  <linearGradient id="gNight" x1="0" y1="0" x2="0.35" y2="1">
+    <stop offset="0" stop-color="#1C3D5A"/><stop offset="1" stop-color="#0E2030"/>
+  </linearGradient>
+  <linearGradient id="gNight2" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0" stop-color="#24435F"/><stop offset="1" stop-color="#0E2030"/>
+  </linearGradient>
+  <!-- 栞書影の「線でなく影」＝ bookshelf-K.html §F 裁定の踏襲 -->
+  <filter id="fCard" x="-30%" y="-30%" width="160%" height="160%">
+    <feDropShadow dx="0" dy="10" stdDeviation="14" flood-color="#000" flood-opacity="0.34"/>
+  </filter>
+  <!-- B 案の三日月を作る抜き -->
+  <mask id="mMoon">
+    <rect width="512" height="512" fill="#000"/>
+    <circle cx="248" cy="206" r="140" fill="#fff"/>
+    <circle cx="312" cy="168" r="126" fill="#000"/>
+  </mask>
+
+  <!-- ── A. 栞書影 ── 案①: 藍〜紺の地に、縦書きの版面を思わせる細い罫と栞のリボン ── -->
+  <symbol id="ic-a" viewBox="0 0 512 512">
+    <rect width="512" height="512" fill="url(#gNight)"/>
+    <g filter="url(#fCard)">
+      <rect x="128" y="86" width="256" height="341" rx="7" fill="#FBFAF8"/>
+    </g>
+    <!-- 版面の縦罫（48px では消える装飾テクスチャ。消えても主役の栞は残る） -->
+    <g stroke="#1C1F26" stroke-opacity="0.13" stroke-width="4">
+      <line x1="300" y1="118" x2="300" y2="395"/>
+      <line x1="326" y1="118" x2="326" y2="395"/>
+      <line x1="352" y1="118" x2="352" y2="395"/>
+    </g>
+    <!-- 栞棒＋先端の結び玉（bookshelf-K .cv .bar / ::after と同じ造形・左 26%・長さ 46%） -->
+    <rect x="194" y="86" width="27" height="157" fill="#A1573F"/>
+    <circle cx="207.5" cy="263" r="21" fill="#A1573F"/>
+  </symbol>
+
+  <!-- ── B. 月と本 ── 案②: 三日月＋開いた本の抽象形 ── -->
+  <symbol id="ic-b" viewBox="0 0 512 512">
+    <rect width="512" height="512" fill="url(#gNight2)"/>
+    <circle cx="248" cy="206" r="140" fill="#FBFAF8" mask="url(#mMoon)"/>
+    <!-- 開いた本＝背から左右へ開く2枚。月と色を変えて（青磁明）重なりを分離 -->
+    <path d="M256 356 C214 330 148 322 96 326 L96 424 C148 420 214 428 256 452 Z" fill="#A9C2BB"/>
+    <path d="M256 356 C298 330 364 322 416 326 L416 424 C364 420 298 428 256 452 Z" fill="#A9C2BB"/>
+    <line x1="256" y1="356" x2="256" y2="452" stroke="#1C3D5A" stroke-width="9"/>
+  </symbol>
+
+  <!-- ── C. 夜（一字） ── 案③:「夜」の一文字を版面に見立てて図案化 ── -->
+  <symbol id="ic-c" viewBox="0 0 512 512">
+    <rect width="512" height="512" fill="url(#gNight)"/>
+    <!-- 匡郭（版面の枠罫）を左右の2本だけに省略。字が主役であることを譲らない -->
+    <g stroke="#FBFAF8" stroke-opacity="0.24" stroke-width="5">
+      <line x1="86" y1="70" x2="86" y2="442"/>
+      <line x1="426" y1="70" x2="426" y2="442"/>
+    </g>
+    <text x="256" y="266" text-anchor="middle" dominant-baseline="central"
+      font-family="'Hiragino Mincho ProN','Yu Mincho','YuMincho','Noto Serif JP','MS PMincho',serif"
+      font-size="330" font-weight="600" fill="#FBFAF8">夜</text>
+  </symbol>
+
+  <!-- ── D. 紙の栞（明暗の反転案） ── 一覧で暗色が並ぶ中、和紙地が逆に目立つ可能性を試す ── -->
+  <symbol id="ic-d" viewBox="0 0 512 512">
+    <rect width="512" height="512" fill="#FBFAF8"/>
+    <!-- 匡郭＝白飛び対策。白背景のストア一覧でアイコンの輪郭が消えるのを防ぐ実務的な罫でもある -->
+    <rect x="30" y="30" width="452" height="452" rx="12" fill="none" stroke="#1C3D5A" stroke-opacity="0.34" stroke-width="7"/>
+    <g stroke="#1C3D5A" stroke-opacity="0.11" stroke-width="5">
+      <line x1="322" y1="96" x2="322" y2="416"/>
+      <line x1="352" y1="96" x2="352" y2="416"/>
+      <line x1="382" y1="96" x2="382" y2="416"/>
+    </g>
+    <rect x="168" y="30" width="34" height="248" fill="#1C3D5A"/>
+    <circle cx="185" cy="303" r="27" fill="#1C3D5A"/>
+    <circle cx="185" cy="303" r="10" fill="#FBFAF8"/>
+  </symbol>
+
+  <!-- ── E. よ（かな一字） ── 漢字を避けた丸みで小サイズの判別を狙う。地は青磁ink＝色相の別軸 ── -->
+  <symbol id="ic-e" viewBox="0 0 512 512">
+    <rect width="512" height="512" fill="#50685C"/>
+    <text x="256" y="262" text-anchor="middle" dominant-baseline="central"
+      font-family="'Hiragino Mincho ProN','Yu Mincho','YuMincho','Noto Serif JP','MS PMincho',serif"
+      font-size="360" font-weight="600" fill="#FBFAF8">よ</text>
+  </symbol>
+
+  <!-- ── F. 結び玉紋 ── 栞の先端（SHIORI_TIPS の結び玉）だけを紋に。要素が最少＝最も潰れにくい ── -->
+  <symbol id="ic-f" viewBox="0 0 512 512">
+    <rect width="512" height="512" fill="url(#gNight)"/>
+    <circle cx="256" cy="256" r="164" fill="none" stroke="#FBFAF8" stroke-opacity="0.30" stroke-width="7"/>
+    <rect x="240" y="72" width="32" height="176" fill="#FBFAF8"/>
+    <circle cx="256" cy="286" r="66" fill="#FBFAF8"/>
+    <circle cx="256" cy="286" r="26" fill="#CC8B73"/>
+  </symbol>
+</defs>
+</svg>
+
+<!-- ============================================================ 候補カード ============================================================ -->
+
+  <h2>A. 栞書影<span class="sub">listing-draft §6 具体案① をそのまま起こした案</span></h2>
+  <div class="cand">
+    <div class="hd">
+      <span class="tag">A</span>
+      <h3>栞書影（しおりしょえい）</h3>
+      <p class="cc">夜の地に和紙の一冊。アプリが本棚で描いている書影（紙地＋細い栞棒＋結び玉）を、そのまま縮図にした。<br>アイコンと中身が一致する唯一の案。</p>
+    </div>
+    <div class="row">
+      <figure class="big"><div class="fr"><svg class="art mask var" viewBox="0 0 512 512"><use href="#ic-a"/></svg>
+        <div class="guide"><div class="r"></div><div class="c"></div></div></div>
+        <figcaption>512px 実寸</figcaption></figure>
+      <div class="smalls">
+        <div class="sizes">
+          <figure><div class="box"><svg class="art mask round" width="96" height="96" viewBox="0 0 512 512"><use href="#ic-a"/></svg></div><figcaption>96px／Play 一覧</figcaption></figure>
+          <figure><div class="box"><svg class="art mask circle" width="48" height="48" viewBox="0 0 512 512"><use href="#ic-a"/></svg></div><figcaption>48px／ランチャー</figcaption></figure>
+          <figure><div class="box"><svg class="art mask round" width="32" height="32" viewBox="0 0 512 512"><use href="#ic-a"/></svg></div><figcaption>32px／サジェスト</figcaption></figure>
+        </div>
+        <dl class="spec">
+          <dt>使用トークン</dt><dd><span class="sw" style="background:#1C3D5A"></span>藍 #1C3D5A→<span class="sw" style="background:#0E2030"></span>#0E2030／<span class="sw" style="background:#FBFAF8"></span>和紙 #FBFAF8／<span class="sw" style="background:#A1573F"></span>朱 #A1573F</dd>
+          <dt>コントラスト</dt><dd>和紙 : 藍 = <b>10.80</b>／朱 : 和紙 = <b>5.10</b></dd>
+          <dt>48px の要素数</dt><dd>3（紙面・栞棒・結び玉）※縦罫は消える設計</dd>
+          <dt>マスク耐性</dt><dd>主要素は中央 60% 内。円マスクでも紙面が欠けない</dd>
+        </dl>
+      </div>
+    </div>
+  </div>
+
+  <h2>B. 月と本<span class="sub">listing-draft §6 具体案② をそのまま起こした案</span></h2>
+  <div class="cand">
+    <div class="hd">
+      <span class="tag">B</span>
+      <h3>月と本（つきとほん）</h3>
+      <p class="cc">三日月の下に開いた本。「夜に読む」を最短で言い切る記号型。<br>読書アプリだと一目で分かる代わりに、月＋本は世に多い組み合わせでもある。</p>
+    </div>
+    <div class="row">
+      <figure class="big"><div class="fr"><svg class="art mask var" viewBox="0 0 512 512"><use href="#ic-b"/></svg>
+        <div class="guide"><div class="r"></div><div class="c"></div></div></div>
+        <figcaption>512px 実寸</figcaption></figure>
+      <div class="smalls">
+        <div class="sizes">
+          <figure><div class="box"><svg class="art mask round" width="96" height="96" viewBox="0 0 512 512"><use href="#ic-b"/></svg></div><figcaption>96px／Play 一覧</figcaption></figure>
+          <figure><div class="box"><svg class="art mask circle" width="48" height="48" viewBox="0 0 512 512"><use href="#ic-b"/></svg></div><figcaption>48px／ランチャー</figcaption></figure>
+          <figure><div class="box"><svg class="art mask round" width="32" height="32" viewBox="0 0 512 512"><use href="#ic-b"/></svg></div><figcaption>32px／サジェスト</figcaption></figure>
+        </div>
+        <dl class="spec">
+          <dt>使用トークン</dt><dd><span class="sw" style="background:#24435F"></span>藍 #24435F→<span class="sw" style="background:#0E2030"></span>#0E2030／<span class="sw" style="background:#FBFAF8"></span>和紙 #FBFAF8／<span class="sw" style="background:#A9C2BB"></span>青磁明 #A9C2BB</dd>
+          <dt>コントラスト</dt><dd>和紙 : 藍 = <b>10.80〜15.88</b>／青磁明 : 藍 = <b>5.44〜8.77</b>（いずれも地のグラデ幅ぶんの範囲・最悪値で表示）</dd>
+          <dt>48px の要素数</dt><dd>3（月・左頁・右頁）＝<span class="warn">本案中もっとも多い</span></dd>
+          <dt>マスク耐性</dt><dd>本の左右端が x=96/416＝<span class="warn">円マスクで角が削れる</span>（欠けの見え方は円マスクで要確認）</dd>
+        </dl>
+      </div>
+    </div>
+  </div>
+
+  <h2>C. 夜（一字）<span class="sub">listing-draft §6 具体案③ をそのまま起こした案</span></h2>
+  <div class="cand">
+    <div class="hd">
+      <span class="tag">C</span>
+      <h3>夜（よる）</h3>
+      <p class="cc">明朝の「夜」一字を版面の匡郭に収めた。ブランド名 Yosari＝夜さり を字そのもので名乗る。<br>32px まで潰れても「濃紺に白い漢字」は残る＝最も情報が減りにくい形。</p>
+    </div>
+    <div class="row">
+      <figure class="big"><div class="fr"><svg class="art mask var" viewBox="0 0 512 512"><use href="#ic-c"/></svg>
+        <div class="guide"><div class="r"></div><div class="c"></div></div></div>
+        <figcaption>512px 実寸</figcaption></figure>
+      <div class="smalls">
+        <div class="sizes">
+          <figure><div class="box"><svg class="art mask round" width="96" height="96" viewBox="0 0 512 512"><use href="#ic-c"/></svg></div><figcaption>96px／Play 一覧</figcaption></figure>
+          <figure><div class="box"><svg class="art mask circle" width="48" height="48" viewBox="0 0 512 512"><use href="#ic-c"/></svg></div><figcaption>48px／ランチャー</figcaption></figure>
+          <figure><div class="box"><svg class="art mask round" width="32" height="32" viewBox="0 0 512 512"><use href="#ic-c"/></svg></div><figcaption>32px／サジェスト</figcaption></figure>
+        </div>
+        <dl class="spec">
+          <dt>使用トークン</dt><dd><span class="sw" style="background:#1C3D5A"></span>藍 #1C3D5A→<span class="sw" style="background:#0E2030"></span>#0E2030／<span class="sw" style="background:#FBFAF8"></span>和紙 #FBFAF8</dd>
+          <dt>コントラスト</dt><dd>和紙 : 藍 = <b>10.80</b>（匡郭のみ 24% 不透明＝装飾）</dd>
+          <dt>48px の要素数</dt><dd>1（字のみ）</dd>
+          <dt>マスク耐性</dt><dd>字は中央 65% 内。匡郭は円マスクで消えるが字は無傷</dd>
+          <dt>注意</dt><dd class="warn">書き出し時は明朝を実フォントで確定させる（環境依存の字形差が出る唯一の案）</dd>
+        </dl>
+      </div>
+    </div>
+  </div>
+
+  <h2>D. 紙の栞<span class="sub">明暗を反転させた対照案（一覧で暗色が並ぶ中、紙地が逆に目立つか）</span></h2>
+  <div class="cand">
+    <div class="hd">
+      <span class="tag">D</span>
+      <h3>紙の栞（かみのしおり）</h3>
+      <p class="cc">A を裏返し、和紙の側から見た栞。既定UI（明快K）の実際の地色は和紙なので、<br>アプリを開いた瞬間の色と一致する。白背景の一覧で沈まないよう匡郭を1本入れてある。</p>
+    </div>
+    <div class="row">
+      <figure class="big"><div class="fr"><svg class="art mask var" viewBox="0 0 512 512"><use href="#ic-d"/></svg>
+        <div class="guide"><div class="r"></div><div class="c"></div></div></div>
+        <figcaption>512px 実寸</figcaption></figure>
+      <div class="smalls">
+        <div class="sizes">
+          <figure><div class="box"><svg class="art mask round" width="96" height="96" viewBox="0 0 512 512"><use href="#ic-d"/></svg></div><figcaption>96px／Play 一覧</figcaption></figure>
+          <figure><div class="box"><svg class="art mask circle" width="48" height="48" viewBox="0 0 512 512"><use href="#ic-d"/></svg></div><figcaption>48px／ランチャー</figcaption></figure>
+          <figure><div class="box"><svg class="art mask round" width="32" height="32" viewBox="0 0 512 512"><use href="#ic-d"/></svg></div><figcaption>32px／サジェスト</figcaption></figure>
+        </div>
+        <dl class="spec">
+          <dt>使用トークン</dt><dd><span class="sw" style="background:#FBFAF8"></span>和紙 #FBFAF8／<span class="sw" style="background:#1C3D5A"></span>藍 #1C3D5A</dd>
+          <dt>コントラスト</dt><dd>藍 : 和紙 = <b>10.80</b></dd>
+          <dt>48px の要素数</dt><dd>2（栞棒・結び玉）＋匡郭</dd>
+          <dt>マスク耐性</dt><dd class="warn">匡郭が四辺 30px の位置＝<b>円／しずくマスクで四隅が切れる</b>。マスク切替で要確認</dd>
+          <dt>白地の一覧</dt><dd class="warn">Play の白いリスト上では地色が背景と同化しうる。下の一覧シミュレーションが本命の判定材料</dd>
+        </dl>
+      </div>
+    </div>
+  </div>
+
+  <h2>E. よ（かな一字）<span class="sub">文字型のもう一極＝漢字ではなく仮名。色相も藍から外した</span></h2>
+  <div class="cand">
+    <div class="hd">
+      <span class="tag">E</span>
+      <h3>よ（よさりの「よ」）</h3>
+      <p class="cc">仮名一字。曲線だけでできているので、漢字より小サイズでの輪郭が残りやすい。<br>地は青磁ink＝競合に少ない色で、藍のアイコン群の中でも隣と混じらない。</p>
+    </div>
+    <div class="row">
+      <figure class="big"><div class="fr"><svg class="art mask var" viewBox="0 0 512 512"><use href="#ic-e"/></svg>
+        <div class="guide"><div class="r"></div><div class="c"></div></div></div>
+        <figcaption>512px 実寸</figcaption></figure>
+      <div class="smalls">
+        <div class="sizes">
+          <figure><div class="box"><svg class="art mask round" width="96" height="96" viewBox="0 0 512 512"><use href="#ic-e"/></svg></div><figcaption>96px／Play 一覧</figcaption></figure>
+          <figure><div class="box"><svg class="art mask circle" width="48" height="48" viewBox="0 0 512 512"><use href="#ic-e"/></svg></div><figcaption>48px／ランチャー</figcaption></figure>
+          <figure><div class="box"><svg class="art mask round" width="32" height="32" viewBox="0 0 512 512"><use href="#ic-e"/></svg></div><figcaption>32px／サジェスト</figcaption></figure>
+        </div>
+        <dl class="spec">
+          <dt>使用トークン</dt><dd><span class="sw" style="background:#50685C"></span>青磁ink #50685C／<span class="sw" style="background:#FBFAF8"></span>和紙 #FBFAF8</dd>
+          <dt>コントラスト</dt><dd>和紙 : 青磁ink = <b>5.79</b>（本案中もっとも低い。大きい字なので可読だが地色を暗めに寄せる余地あり）</dd>
+          <dt>48px の要素数</dt><dd>1（字のみ）</dd>
+          <dt>マスク耐性</dt><dd>字は中央 60% 内。全マスクで無傷</dd>
+          <dt>注意</dt><dd class="warn">C と同じく明朝の実フォント確定が必要</dd>
+        </dl>
+      </div>
+    </div>
+  </div>
+
+  <h2>F. 結び玉紋<span class="sub">紋型＝要素を最少にして潰れ耐性を最大化した案</span></h2>
+  <div class="cand">
+    <div class="hd">
+      <span class="tag">F</span>
+      <h3>結び玉紋（むすびだまもん）</h3>
+      <p class="cc">栞の先端（結び玉）だけを抜き出して紋にした。文字も本も月も使わない抽象記号型。<br>栞先端の意匠は本アプリ固有の造形なので、抽象でも自社の資産に接続している。</p>
+    </div>
+    <div class="row">
+      <figure class="big"><div class="fr"><svg class="art mask var" viewBox="0 0 512 512"><use href="#ic-f"/></svg>
+        <div class="guide"><div class="r"></div><div class="c"></div></div></div>
+        <figcaption>512px 実寸</figcaption></figure>
+      <div class="smalls">
+        <div class="sizes">
+          <figure><div class="box"><svg class="art mask round" width="96" height="96" viewBox="0 0 512 512"><use href="#ic-f"/></svg></div><figcaption>96px／Play 一覧</figcaption></figure>
+          <figure><div class="box"><svg class="art mask circle" width="48" height="48" viewBox="0 0 512 512"><use href="#ic-f"/></svg></div><figcaption>48px／ランチャー</figcaption></figure>
+          <figure><div class="box"><svg class="art mask round" width="32" height="32" viewBox="0 0 512 512"><use href="#ic-f"/></svg></div><figcaption>32px／サジェスト</figcaption></figure>
+        </div>
+        <dl class="spec">
+          <dt>使用トークン</dt><dd><span class="sw" style="background:#1C3D5A"></span>藍 #1C3D5A→<span class="sw" style="background:#0E2030"></span>#0E2030／<span class="sw" style="background:#FBFAF8"></span>和紙 #FBFAF8／<span class="sw" style="background:#CC8B73"></span>朱明 #CC8B73</dd>
+          <dt>コントラスト</dt><dd>和紙 : 藍 = <b>10.80</b>／朱明 : 藍 = <b>4.03</b>（朱明は装飾の芯のみ・可読要件なし）</dd>
+          <dt>48px の要素数</dt><dd>2（棒・玉）＋輪</dd>
+          <dt>マスク耐性</dt><dd>輪の直径 328＝全体の 64%。全マスクで無傷</dd>
+        </dl>
+      </div>
+    </div>
+  </div>
+
+<!-- ============================================================ 一覧シミュレーション ============================================================ -->
+
+  <h2>一覧で並べたとき<span class="sub">合否はここで決まる。ダミー競合（本／吹き出し系）を混ぜてある</span></h2>
+
+  <div class="note" style="margin-bottom:6px">
+    listing-draft §6 の前提「競合は<b>本・W・吹き出し</b>系が多い＝濃い夜色は目を引く側に倒れる」を、実際に混ぜて確かめるための並び。
+    ダミー競合はグレーの文字ラベルで区別している。
+  </div>
+
+  <div class="sims">
+    <div>
+      <figcaption style="text-align:left;margin:14px 0 0">Play 検索結果（白地・64px）</figcaption>
+      <div class="play">
+        <div class="prow"><svg class="art mask round" width="64" height="64" viewBox="0 0 512 512"><use href="#ic-a"/></svg><div><div class="ttl">A｜Yosari - 縦書き小説リーダー</div><div class="met">Colophon · 書籍＆参考書</div></div></div>
+        <div class="prow dummy"><div class="dm" style="background:#2E7D5B">本</div><div><div class="ttl">（ダミー競合）小説ビューア</div><div class="met">書籍＆参考書</div></div></div>
+        <div class="prow"><svg class="art mask round" width="64" height="64" viewBox="0 0 512 512"><use href="#ic-b"/></svg><div><div class="ttl">B｜Yosari - 縦書き小説リーダー</div><div class="met">Colophon · 書籍＆参考書</div></div></div>
+        <div class="prow"><svg class="art mask round" width="64" height="64" viewBox="0 0 512 512"><use href="#ic-c"/></svg><div><div class="ttl">C｜Yosari - 縦書き小説リーダー</div><div class="met">Colophon · 書籍＆参考書</div></div></div>
+        <div class="prow dummy"><div class="dm" style="background:#E8863C;font-family:var(--gothic);font-size:26px">W</div><div><div class="ttl">（ダミー競合）Web小説リーダー</div><div class="met">書籍＆参考書</div></div></div>
+        <div class="prow"><svg class="art mask round" width="64" height="64" viewBox="0 0 512 512"><use href="#ic-d"/></svg><div><div class="ttl">D｜Yosari - 縦書き小説リーダー</div><div class="met">Colophon · 書籍＆参考書</div></div></div>
+        <div class="prow"><svg class="art mask round" width="64" height="64" viewBox="0 0 512 512"><use href="#ic-e"/></svg><div><div class="ttl">E｜Yosari - 縦書き小説リーダー</div><div class="met">Colophon · 書籍＆参考書</div></div></div>
+        <div class="prow dummy"><div class="dm" style="background:#4A69C4;font-size:26px">💬</div><div><div class="ttl">（ダミー競合）なろう読み</div><div class="met">書籍＆参考書</div></div></div>
+        <div class="prow"><svg class="art mask round" width="64" height="64" viewBox="0 0 512 512"><use href="#ic-f"/></svg><div><div class="ttl">F｜Yosari - 縦書き小説リーダー</div><div class="met">Colophon · 書籍＆参考書</div></div></div>
+      </div>
+    </div>
+
+    <div>
+      <figcaption style="text-align:left;margin:14px 0 0">ランチャー（暗い壁紙・48dp・円マスク）</figcaption>
+      <div class="home dark">
+        <div class="app"><svg class="art mask circle" width="48" height="48" viewBox="0 0 512 512"><use href="#ic-a"/></svg><span class="nm">A</span></div>
+        <div class="app"><svg class="art mask circle" width="48" height="48" viewBox="0 0 512 512"><use href="#ic-b"/></svg><span class="nm">B</span></div>
+        <div class="app"><svg class="art mask circle" width="48" height="48" viewBox="0 0 512 512"><use href="#ic-c"/></svg><span class="nm">C</span></div>
+        <div class="app"><svg class="art mask circle" width="48" height="48" viewBox="0 0 512 512"><use href="#ic-d"/></svg><span class="nm">D</span></div>
+        <div class="app"><svg class="art mask circle" width="48" height="48" viewBox="0 0 512 512"><use href="#ic-e"/></svg><span class="nm">E</span></div>
+        <div class="app"><svg class="art mask circle" width="48" height="48" viewBox="0 0 512 512"><use href="#ic-f"/></svg><span class="nm">F</span></div>
+        <div class="app"><div class="dm" style="width:48px;height:48px;border-radius:50%;background:#2E7D5B;font-size:22px">本</div><span class="nm">ダミー</span></div>
+        <div class="app"><div class="dm" style="width:48px;height:48px;border-radius:50%;background:#E8863C;font-family:var(--gothic);font-size:20px">W</div><span class="nm">ダミー</span></div>
+        <div class="app"><div class="dm" style="width:48px;height:48px;border-radius:50%;background:#4A69C4;font-size:20px">💬</div><span class="nm">ダミー</span></div>
+        <div class="app"><div class="dm" style="width:48px;height:48px;border-radius:50%;background:#C4413E;font-family:var(--gothic);font-size:20px">読</div><span class="nm">ダミー</span></div>
+      </div>
+
+      <figcaption style="text-align:left;margin:18px 0 0">ランチャー（明るい壁紙・48dp・円マスク）</figcaption>
+      <div class="home light">
+        <div class="app"><svg class="art mask circle" width="48" height="48" viewBox="0 0 512 512"><use href="#ic-a"/></svg><span class="nm">A</span></div>
+        <div class="app"><svg class="art mask circle" width="48" height="48" viewBox="0 0 512 512"><use href="#ic-b"/></svg><span class="nm">B</span></div>
+        <div class="app"><svg class="art mask circle" width="48" height="48" viewBox="0 0 512 512"><use href="#ic-c"/></svg><span class="nm">C</span></div>
+        <div class="app"><svg class="art mask circle" width="48" height="48" viewBox="0 0 512 512"><use href="#ic-d"/></svg><span class="nm">D</span></div>
+        <div class="app"><svg class="art mask circle" width="48" height="48" viewBox="0 0 512 512"><use href="#ic-e"/></svg><span class="nm">E</span></div>
+        <div class="app"><svg class="art mask circle" width="48" height="48" viewBox="0 0 512 512"><use href="#ic-f"/></svg><span class="nm">F</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="note">
+    <b>裁定でこの3点だけ見てください</b>
+    <ul>
+      <li><b>48px と 32px で、どの案が「何のアプリか」を保っているか</b>（512 は全案きれいに見えます＝そこでは差が出ません）。</li>
+      <li><b>D（紙地）が Play の白い一覧で沈んでいないか</b>——「濃い夜色が目立つ」という前提が本当かを、この1案で試しています。</li>
+      <li><b>マスクを「円」に切り替えたとき、B と D の端が欠けて見苦しくないか</b>（ボタンは画面上部）。</li>
+    </ul>
+    決まったら「Bで」のように案の記号で指示してください。PNG 書き出し（512×512・アルファなし）と適応アイコン用の再配置は次の便でやります。
+  </div>
+
+</div>
+
+<script>
+  // マスク形状の切替＝ body の data-mask を張り替えるだけ（.mask.var のみ追従。48px は常に円＝ランチャー実態）
+  document.querySelectorAll('.ctrl button[data-m]').forEach(b=>{
+    b.addEventListener('click',()=>{
+      document.querySelectorAll('.ctrl button[data-m]').forEach(x=>x.classList.remove('on'));
+      b.classList.add('on');
+      document.body.dataset.mask=b.dataset.m;
+    });
+  });
+  // セーフゾーン（破線）の表示切替
+  const sz=document.getElementById('sz');
+  sz.addEventListener('click',()=>{
+    document.body.classList.toggle('safe');
+    sz.classList.toggle('on');
+  });
+</script>
+</body>
+</html>

@@ -1,0 +1,613 @@
+<!-- @dsCard group="UI-n / 候補（明快K・横向きNavigationRail）" name="K. 本棚 横向き — Rail 案比較（2026-08-14 裁定用）" -->
+<!--
+  横向きで書影カードが1枚も収まらない件（.claude/plans/landscape-bookshelf-viewport-2026-08-14.md）の
+  構造裁定 (b)「横向きのみ NavigationRail へ」を目で決めるための候補デッキ。**候補＝正本ではない**。
+  下敷き＝既定スキンの現行正本 skins/bookshelf-K.html ＋ skins/bookshelf-K-landscape.html（語彙・書影意匠は完全踏襲）。
+
+  【この枠が既存の横画面正本と違う点＝わざと違えている】
+  bookshelf-K-landscape.html はヘッダを「縦正本と同構造」で描いており、実機のヘッダ実測より小さい
+  （＝あの枠では破綻が見えない）。ここでは plan の実測内訳をそのまま高さに焼いた:
+    ステータスバー 40dp ／ ヘッダ 68dp ／ 状態チップ行 46dp ／ ボトムナビ 65dp
+    → 実効ビューポート 360 − 40 − 68 − 46 − 65 = 141dp（plan の実測 133〜141dp と一致）
+  カード実高は Compose の実値から算出（左右余白 S24・列間 S32・5列・書影 3:4・キャプション1行＋状態行）:
+    セル幅 (800 − 48 − 4×32) / 5 = 124.8dp → 書影 166.4dp ＋ キャプション帯 42.8dp = **209dp**
+    （plan の実測 206〜212dp と一致）→ 差 −68dp ＝ 1枚も入らない。
+  グリッドは CSS の実レイアウトで描いている（数値を絵で描いていない）＝Rail 幅を変えると
+  セル幅→書影高が実際に縮み、可視域が伸びる。**その二重の効きが目で見えるのがこの枠の目的**。
+
+  【スコープ】横向きのみ。縦向きの正本は一切変えない。Compose 翻訳は裁定後。
+-->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>K 本棚 横向き — NavigationRail 案比較</title>
+<style>
+  /* :root は正本 bookshelf-K.html と同値（新値なし） */
+  :root{
+    --base:#FBFAF8; --ink:#1C1F26; --ink-soft:#6A6E78; --line:#ECEAE4;
+    --ai:#1C3D5A; --ai-tint:rgba(28,61,90,.10); --seiji-ink:#50685C;
+    --field:#F0EEE8; --paper:#FDFCFA;
+    --mincho:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
+    --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+    /* デッキ（比較台）専用の地色・注記色＝アプリのトークンではない */
+    --deck:#2B2A27; --deck-ink:#EDEBE5; --deck-soft:#A6A29A;
+    --ng:#C2453C; --ok:#3F7A55;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--deck);color:var(--deck-ink);font-family:var(--gothic);
+    padding:32px 32px 80px;-webkit-font-smoothing:antialiased}
+
+  /* ===== デッキの説明帯 ===== */
+  .deckhead{max-width:840px;margin:0 auto 28px}
+  .deckhead h1{font-size:20px;letter-spacing:.04em;margin-bottom:10px}
+  .deckhead p{font-size:13px;line-height:1.85;color:var(--deck-soft)}
+  .deckhead b{color:var(--deck-ink)}
+  .deckhead .axis{margin-top:14px;font-size:12.5px;line-height:1.9;color:var(--deck-soft);
+    border-left:3px solid var(--ai);padding-left:14px}
+
+  .frame{max-width:840px;margin:0 auto 40px}
+  .cap{margin-bottom:12px}
+  .cap .tag{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.08em;
+    padding:3px 10px;border-radius:999px;background:#4A4842;color:var(--deck-ink);margin-right:10px}
+  .cap.now .tag{background:var(--ng);color:#fff}
+  .cap b{font-size:15px;letter-spacing:.03em}
+  /* 「何を選ばせる案か」の一行（裁定はこの行だけ読めば足りる） */
+  .cap .pick{display:block;margin-top:6px;font-size:12.5px;color:#F0D48B;line-height:1.6}
+  .cap .spec{display:block;margin-top:4px;font-size:11.5px;color:var(--deck-soft);line-height:1.7}
+
+  .stage{position:relative;width:800px}
+
+  /* === 端末枠: 横向き実寸 800×360dp（PGEM10 実効・1px = 1dp） === */
+  .phone{
+    --gut:24px;      /* Rail⇄書影グリッドの余白（＝左右余白。裁定軸） */
+    --colgap:32px;   /* 列間 S32（Compose 実値） */
+    --head:68px;     /* ヘッダ実測 */
+    --chips:46px;    /* 状態チップ行実測 */
+    --nav:65px;      /* ボトムナビ実測（Rail 案では 0） */
+    --rail:0px;      /* Rail 幅（裁定軸） */
+    width:800px;height:360px;background:var(--base);border-radius:20px;overflow:hidden;
+    position:relative;display:flex;flex-direction:column;box-shadow:0 18px 44px rgba(0,0,0,.45)}
+
+  .sb{height:40px;flex-shrink:0;display:flex;align-items:center;justify-content:space-between;
+    padding:0 24px;font-size:11px;color:var(--ink-soft);letter-spacing:.02em}
+
+  .row{flex:1;min-height:0;display:flex}
+  .main{flex:1;min-width:0;display:flex;flex-direction:column}
+
+  /* ヘッダ・チップ行（正本と同語彙。高さだけ実測に合わせて固定） */
+  .head{height:var(--head);flex-shrink:0;display:flex;align-items:center;justify-content:space-between;
+    padding:0 20px}
+  .head .ttl{display:flex;align-items:baseline;gap:10px}
+  .head h1{font-size:22px;font-weight:700;color:var(--ink);letter-spacing:.04em}
+  .head .count{font-size:12px;color:var(--ink-soft);letter-spacing:.06em}
+  .head .view{width:38px;height:38px;border:none;background:transparent;border-radius:10px;
+    display:grid;place-items:center;color:var(--ink);cursor:pointer}
+  .head .view svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.6}
+
+  .chips{height:var(--chips);flex-shrink:0;display:flex;align-items:center;gap:8px;padding:0 20px;
+    overflow-x:auto;scrollbar-width:none}
+  .chips::-webkit-scrollbar{display:none}
+  .chip{flex-shrink:0;font-size:12.5px;padding:6px 15px;border-radius:999px;
+    border:1px solid var(--line);color:var(--ink-soft);background:transparent;letter-spacing:.02em}
+  .chip.on{background:var(--ai);border-color:var(--ai);color:#fff;font-weight:600}
+
+  /* ヘッダ＋チップを1行に統合した圧縮版（案 R4 専用・別裁定を含む） */
+  .headc{height:52px;flex-shrink:0;display:flex;align-items:center;gap:12px;padding:0 20px;overflow:hidden}
+  .headc h1{font-size:19px;font-weight:700;color:var(--ink);letter-spacing:.04em;flex-shrink:0}
+  .headc .count{font-size:11px;color:var(--ink-soft);flex-shrink:0}
+  .headc .sp{flex:1}
+
+  /* スクロール本体。overflow:hidden で実機どおりに切り落とす＝破綻が絵でなく実レイアウトで出る */
+  .scroll{flex:1;min-height:0;overflow:hidden;padding:4px var(--gut) 0;position:relative}
+  .grid{display:grid;grid-template-columns:repeat(5,1fr);gap:16px var(--colgap)}
+
+  /* ===== 栞書影（正本 bookshelf-K.html と同一意匠） ===== */
+  .cv{position:relative;aspect-ratio:3/4;border-radius:3px;overflow:hidden;background:var(--paper);
+    box-shadow:0 3px 10px rgba(0,0,0,.14)}
+  .cv .bar{position:absolute;top:0;left:var(--barx,26%);width:2.5px;height:var(--barlen,46%);
+    background:var(--band,var(--ink-soft))}
+  .cv .bar::after{content:"";position:absolute;left:50%;top:100%;transform:translate(-50%,-1px);
+    width:7px;height:7px;border-radius:50%;background:var(--band,var(--ink-soft))}
+  .cv .vt{position:absolute;top:14px;right:12px;bottom:14px;max-width:66%;overflow:hidden;
+    writing-mode:vertical-rl;font-family:var(--mincho);font-size:12px;font-weight:600;
+    color:var(--ink);line-height:1.6;letter-spacing:.05em}
+  .cv.narou{background:var(--field);border:1.5px dashed var(--seiji-ink);box-shadow:none}
+  .cap2{display:flex;align-items:flex-start;justify-content:space-between;gap:6px;margin-top:8px}
+  .cap2 .t{flex:1;min-width:0;font-family:var(--mincho);font-size:12px;color:var(--ink);line-height:1.4;
+    display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden}
+  .cap2 .dots{width:28px;height:28px;flex-shrink:0;border:none;background:transparent;color:var(--ink-soft);
+    display:grid;place-items:center;margin-top:-2px}
+  .cap2 .dots svg{width:16px;height:16px;fill:currentColor;stroke:none}
+  .st{margin-top:4px;font-size:10.5px;color:var(--ink-soft);letter-spacing:.03em;
+    display:flex;align-items:center;gap:5px;min-height:14px}
+  .st .dot{width:6px;height:6px;border-radius:50%;background:var(--ai);flex-shrink:0}
+  .st.narou{color:var(--seiji-ink)}
+
+  /* FAB（置き場が裁定軸） */
+  .fab{position:absolute;z-index:6;display:inline-flex;align-items:center;gap:8px;height:52px;
+    padding:0 20px 0 16px;border:none;border-radius:26px;background:var(--ai);color:#fff;
+    font-family:var(--gothic);font-size:14px;font-weight:600;letter-spacing:.03em;
+    box-shadow:0 8px 20px rgba(28,61,90,.36)}
+  .fab svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round}
+  .fab.br{right:16px;bottom:80px}          /* 現状＝右下に浮く（最終行に重なる） */
+  .fab.br-low{right:16px;bottom:16px}      /* Rail 案でナビが消えた分だけ下げた版 */
+
+  /* ===== ボトムナビ（現状枠のみ） ===== */
+  .tabbar{height:var(--nav);flex-shrink:0;display:flex;border-top:1px solid var(--line);background:var(--base)}
+  .tab{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;color:var(--ink-soft)}
+  .tab.on{color:var(--ai)}
+  .tab .ic{position:relative;width:56px;height:32px;display:grid;place-items:center}
+  .tab .ic .pill{position:absolute;inset:0;border-radius:16px;background:transparent}
+  .tab.on .ic .pill{background:var(--ai-tint)}
+  .tab .ic svg{position:relative;width:24px;height:24px;fill:none;stroke:currentColor;
+    stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+  .tab .lb{font-size:11px;letter-spacing:.04em}
+  .tab.on .lb{font-weight:700}
+
+  /* ===== NavigationRail（案 R1〜R4） ===== */
+  .rail{width:var(--rail);flex-shrink:0;border-right:1px solid var(--line);background:var(--base);
+    display:flex;flex-direction:column;align-items:center;padding:8px 0}
+  .rail.noline{border-right:none;background:var(--field)} /* 面で分離する版（R3） */
+  /* overflow:hidden ＋ 子の flex-shrink:0 ＝ 項目が入り切らないときに「縮んで収まったふり」をさせず、
+     実際に上下が切れて見えるようにする（軸⑤の 5本検証はこれが無いと嘘になる） */
+  .rail .items{flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column;
+    justify-content:center;gap:2px;width:100%}
+  .rt{height:56px;flex-shrink:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+    color:var(--ink-soft)}
+  .rt.on{color:var(--ai)}
+  .rt .ic{position:relative;width:56px;height:32px;display:grid;place-items:center}
+  .rt .ic .pill{position:absolute;inset:0;border-radius:16px;background:transparent}
+  .rt.on .ic .pill{background:var(--ai-tint)}
+  .rt .ic svg{position:relative;width:24px;height:24px;fill:none;stroke:currentColor;
+    stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+  .rt .lb{font-size:11px;letter-spacing:.04em;white-space:nowrap}
+  .rt.on .lb{font-weight:700}
+  .rail.nolabel .rt{height:44px}
+  .rail.nolabel .lb{display:none}
+  /* T1（2026-08-14 第2次追記）: 題字「本棚」＋冊数の移設先＝Rail のヘッダ。
+     R4 が「題とチップが同じ行で切れない」弱点を抱えていたのに対し、T1 は題を別の面へ動かして解く */
+  .railhead{flex-shrink:0;width:100%;padding:2px 0 8px;text-align:center;line-height:1.3}
+  .railhead b{display:block;font-size:12px;font-weight:700;color:var(--ink);letter-spacing:.06em}
+  .railhead i{font-style:normal;font-size:10px;color:var(--ink-soft);letter-spacing:.04em}
+  /* T1 の操作行＝状態チップと表示切替だけ（題字が無いぶん .headc より読み違えにくい） */
+  .headt{height:52px;flex-shrink:0;display:flex;align-items:center;gap:8px;padding:0 20px;overflow:hidden}
+  .headt .sp{flex:1}
+
+  /* Rail 内 FAB（円形＝ラベル無し。拡張FABは Rail 幅に入らない） */
+  .rfab{width:52px;height:52px;flex-shrink:0;border:none;border-radius:16px;background:var(--ai);color:#fff;
+    display:grid;place-items:center;margin-bottom:10px;box-shadow:0 6px 16px rgba(28,61,90,.34)}
+  .rfab svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round}
+
+  /* ===== 可視域ゲージ（右端に重ねる測り） ===== */
+  .vp{position:absolute;right:0;width:46px;z-index:9;pointer-events:none;
+    border-top:1px dashed var(--ng);border-bottom:1px dashed var(--ng);
+    background:linear-gradient(90deg,rgba(194,69,60,0) 0%,rgba(194,69,60,.10) 100%);
+    display:flex;align-items:center;justify-content:flex-end;padding-right:4px}
+  .vp.good{border-color:var(--ok);background:linear-gradient(90deg,rgba(63,122,85,0) 0%,rgba(63,122,85,.12) 100%)}
+  .vp span{writing-mode:vertical-rl;font-size:10px;font-weight:700;letter-spacing:.06em;color:var(--ng)}
+  .vp.good span{color:var(--ok)}
+
+  /* 数値の帯（枠の直下） */
+  .m{margin-top:10px;display:flex;flex-wrap:wrap;gap:8px;font-size:12px}
+  .m i{font-style:normal;padding:4px 10px;border-radius:6px;background:#3A3833;color:var(--deck-ink)}
+  .m i.bad{background:rgba(194,69,60,.22);color:#F0A9A3;font-weight:700}
+  .m i.good{background:rgba(63,122,85,.24);color:#A9DCBB;font-weight:700}
+  .weak{margin-top:8px;font-size:12px;color:#E2B7B2;line-height:1.7}
+  .weak::before{content:"弱点 ";font-weight:700;color:var(--ng)}
+
+  /* ===== 5タブ時の Rail 収まり（末尾の検証ストリップ） ===== */
+  .strip{max-width:840px;margin:0 auto;display:flex;gap:20px;flex-wrap:wrap}
+  .sc{background:var(--base);border-radius:14px;padding:0;overflow:hidden;
+    height:320px;display:flex;flex-direction:column;box-shadow:0 10px 26px rgba(0,0,0,.4)}
+  .sc .rail{height:100%;border-right:none;width:100%}
+  .scl{font-size:11.5px;color:var(--deck-soft);line-height:1.7;max-width:180px;margin-top:8px}
+  .scl b{display:block;color:var(--deck-ink);font-size:12.5px;margin-bottom:2px}
+  .scl .ng{color:#F0A9A3;font-weight:700}
+  .scl .ok{color:#A9DCBB;font-weight:700}
+  .over{outline:2px dashed var(--ng);outline-offset:-2px}
+</style>
+</head>
+<body>
+
+<!-- アイコン定義（各枠で使い回す。静的 SVG・スクリプト不使用） -->
+<svg style="display:none" aria-hidden="true">
+  <symbol id="i-shelf" viewBox="0 0 24 24"><path d="M6 4h11a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/><path d="M4 18a2 2 0 0 1 2-2h12"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.4 4.4"/></symbol>
+  <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-grid" viewBox="0 0 24 24"><rect x="4" y="4" width="6.6" height="6.6" rx="1.4"/><rect x="13.4" y="4" width="6.6" height="6.6" rx="1.4"/><rect x="4" y="13.4" width="6.6" height="6.6" rx="1.4"/><rect x="13.4" y="13.4" width="6.6" height="6.6" rx="1.4"/></symbol>
+  <symbol id="i-tag" viewBox="0 0 24 24"><path d="M4 5h9l7 7-9 9-7-7z"/><circle cx="9" cy="9" r="1.3"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 7.5V12l3 2"/></symbol>
+  <symbol id="i-dots" viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></symbol>
+</svg>
+
+<div class="deckhead">
+  <h1>本棚・横向き — NavigationRail の案比較（裁定用・候補）</h1>
+  <p>枠はすべて<b>横向きの実寸 800×360dp（1px = 1dp）</b>。ヘッダ 68dp・チップ行 46dp・ボトムナビ 65dp は
+     PGEM10 の実測値をそのまま高さに固定してある。グリッドは実レイアウトで組んであるので、
+     <b>Rail を太くすると書影も実際に小さくなる</b>（＝可視域が伸びるのと同時にカードが縮む二重の効き）。
+     右端の縦ゲージが<b>可視域</b>、枠の下の数値帯が<b>可視域 vs カード実高</b>。</p>
+  <div class="axis">
+    裁定してほしい軸は5つ ——
+    ① Rail の幅（56 / 80 / 96dp）　② ラベルの有無　③ FAB の置き場（Rail 内・右下フローティング）
+    ④ Rail と書影グリッドの間の余白（16 / 24dp）　⑤ タブが5本前後に増えたときの縦の収まり（末尾のストリップ）。<br>
+    R4 だけは「Rail ＋ ヘッダ圧縮」の合わせ技で、<b>ヘッダ圧縮は本件とは別の裁定を含む</b>（可視域の上限が見たいので並べた）。
+  </div>
+</div>
+
+<!-- ============================ 現状（破綻している横向き） ============================ -->
+<div class="frame">
+  <div class="cap now">
+    <span class="tag">現状</span><b>ボトムナビのまま（横向き未対応）</b>
+    <span class="pick">これは案ではなく基準線 — 他の4枠はすべてこの枠との差分として読む。</span>
+    <span class="spec">Rail 0dp ／ ボトムナビ 65dp ／ 左右余白 24dp ／ 列間 32dp ／ 5列</span>
+  </div>
+  <div class="stage">
+    <div class="phone">
+      <div class="sb"><span>9:41</span><span>5G ▾ ▮▮▮</span></div>
+      <!-- 可視域ゲージ: sb40 + head68 + chips46 = 154 から nav65 の上まで -->
+      <div class="vp" style="top:154px;bottom:65px"><span>可視域 141dp</span></div>
+      <div class="row">
+        <div class="main">
+          <div class="head">
+            <div class="ttl"><h1>本棚</h1><span class="count">12冊</span></div>
+            <button class="view"><svg><use href="#i-grid"/></svg></button>
+          </div>
+          <div class="chips">
+            <span class="chip on">すべて</span><span class="chip">よみかけ</span><span class="chip">未読</span><span class="chip">読了</span>
+          </div>
+          <div class="scroll">
+            <div class="grid">
+              <div class="bk"><div class="cv" style="--band:hsl(210 48% 52%);--barx:26%;--barlen:46%"><span class="bar"></span><span class="vt">追放された万能薬師、辺境でスローライフを始める</span></div><div class="cap2"><span class="t">追放された万能薬師、辺境でスローライフを始める</span><button class="dots"><svg><use href="#i-dots"/></svg></button></div><div class="st">第127/205話</div></div>
+              <div class="bk"><div class="cv" style="--band:hsl(280 48% 52%);--barx:34%;--barlen:42%"><span class="bar"></span><span class="vt">黒の魔王と契約した俺、気づけば最強の従者に</span></div><div class="cap2"><span class="t">黒の魔王と契約した俺、気づけば最強の従者に</span><button class="dots"><svg><use href="#i-dots"/></svg></button></div><div class="st">第43/150話</div></div>
+              <div class="bk"><div class="cv" style="--band:hsl(95 48% 52%);--barx:22%;--barlen:50%"><span class="bar"></span><span class="vt">転生したら最弱スキルだったので草むしりしていた</span></div><div class="cap2"><span class="t">転生したら最弱スキルだったので草むしりしていた</span><button class="dots"><svg><use href="#i-dots"/></svg></button></div><div class="st"><span class="dot"></span>未読</div></div>
+              <div class="bk"><div class="cv narou" style="--band:hsl(190 48% 52%);--barx:30%;--barlen:44%"><span class="bar"></span><span class="vt">最果てのダンジョンで細々と暮らすことにした</span></div><div class="cap2"><span class="t">最果てのダンジョンで細々と暮らすことにした</span><button class="dots"><svg><use href="#i-dots"/></svg></button></div><div class="st narou">なろう・未取込</div></div>
+              <div class="bk"><div class="cv" style="--band:hsl(340 48% 52%);--barx:24%;--barlen:48%"><span class="bar"></span><span class="vt">公爵令嬢の嗜み 〜隣国で薬草園を開きます〜</span></div><div class="cap2"><span class="t">公爵令嬢の嗜み 〜隣国で薬草園を開きます〜</span><button class="dots"><svg><use href="#i-dots"/></svg></button></div><div class="st">第8/72話</div></div>
+              <div class="bk"><div class="cv" style="--band:hsl(150 48% 52%);--barx:28%;--barlen:40%"><span class="bar"></span><span class="vt">聖女は隣国で薬草を育てて暮らしたい</span></div><div class="cap2"><span class="t">聖女は隣国で薬草を育てて暮らしたい</span><button class="dots"><svg><use href="#i-dots"/></svg></button></div><div class="st">読了</div></div>
+              <div class="bk"><div class="cv narou" style="--band:hsl(50 48% 52%);--barx:24%;--barlen:46%"><span class="bar"></span><span class="vt">辺境ぐらしの隠居魔導士、今日ものんびり</span></div><div class="cap2"><span class="t">辺境ぐらしの隠居魔導士、今日ものんびり</span><button class="dots"><svg><use href="#i-dots"/></svg></button></div><div class="st narou">なろう・未取込</div></div>
+              <div class="bk"><div class="cv" style="--band:hsl(230 48% 52%);--barx:34%;--barlen:48%"><span class="bar"></span><span class="vt">星降る夜の図書館で君を待っている</span></div><div class="cap2"><span class="t">星降る夜の図書館で君を待っている</span><button class="dots"><svg><use href="#i-dots"/></svg></button></div><div class="st">読了</div></div>
+              <div class="bk"><div class="cv" style="--band:hsl(25 48% 52%);--barx:30%;--barlen:44%"><span class="bar"></span><span class="vt">異世界喫茶は今日も満席 〜珈琲と魔法のある日常〜</span></div><div class="cap2"><span class="t">異世界喫茶は今日も満席 〜珈琲と魔法のある日常〜</span><button class="dots"><svg><use href="#i-dots"/></svg></button></div><div class="st">第12/88話</div></div>
+              <div class="bk"><div class="cv" style="--band:hsl(170 48% 52%);--barx:26%;--barlen:48%"><span class="bar"></span><span class="vt">竜騎士団の末席から始める宮廷生活</span></div><div class="cap2"><span class="t">竜騎士団の末席から始める宮廷生活</span><button class="dots"><svg><use href="#i-dots"/></svg></button></div><div class="st"><span class="dot"></span>未読</div></div>
+            </div>
+          </div>
+          <button class="fab br"><svg><use href="#i-plus"/></svg>PDFを追加</button>
+          <nav class="tabbar">
+            <a class="tab on"><span class="ic"><span class="pill"></span><svg><use href="#i-shelf"/></svg></span><span class="lb">本棚</span></a>
+            <a class="tab"><span class="ic"><span class="pill"></span><svg><use href="#i-search"/></svg></span><span class="lb">さがす</span></a>
+            <a class="tab"><span class="ic"><span class="pill"></span><svg><use href="#i-gear"/></svg></span><span class="lb">設定</span></a>
+          </nav>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="m"><i>可視域 <b>141dp</b></i><i>セル幅 124.8dp → カード実高 <b>209dp</b></i><i class="bad">差 −68dp ＝ 1枚も入らない</i></div>
+  <div class="weak">書影が上下とも切れてキャプションが一度も現れない。さらに末尾までスクロールすると FAB 回避の 96dp 空白で画面の 2/3 が空く。</div>
+</div>
+
+<!-- ============================ R1: Rail 80dp・ラベルあり・FAB は Rail 内 ============================ -->
+<div class="frame">
+  <div class="cap">
+    <span class="tag">R1</span><b>Rail 80dp・ラベルあり・FAB は Rail 上端</b>
+    <span class="pick">選ばせるもの: <b>Material 標準そのまま</b>でよいか（幅 80dp・ラベル常時・FAB を Rail に格納）。迷ったらこれが既定。</span>
+    <span class="spec">Rail 80dp ／ ラベル常時 ／ FAB＝Rail 上端の円形 ／ Rail⇄グリッド余白 24dp ／ 5列</span>
+  </div>
+  <div class="stage">
+    <div class="phone" style="--rail:80px;--nav:0px">
+      <div class="sb"><span>9:41</span><span>5G ▾ ▮▮▮</span></div>
+      <div class="vp good" style="top:154px;bottom:0"><span>可視域 206dp</span></div>
+      <div class="row">
+        <nav class="rail">
+          <button class="rfab"><svg><use href="#i-plus"/></svg></button>
+          <div class="items">
+            <a class="rt on"><span class="ic"><span class="pill"></span><svg><use href="#i-shelf"/></svg></span><span class="lb">本棚</span></a>
+            <a class="rt"><span class="ic"><span class="pill"></span><svg><use href="#i-search"/></svg></span><span class="lb">さがす</span></a>
+            <a class="rt"><span class="ic"><span class="pill"></span><svg><use href="#i-gear"/></svg></span><span class="lb">設定</span></a>
+          </div>
+        </nav>
+        <div class="main">
+          <div class="head">
+            <div class="ttl"><h1>本棚</h1><span class="count">12冊</span></div>
+            <button class="view"><svg><use href="#i-grid"/></svg></button>
+          </div>
+          <div class="chips">
+            <span class="chip on">すべて</span><span class="chip">よみかけ</span><span class="chip">未読</span><span class="chip">読了</span>
+          </div>
+          <div class="scroll">
+            <div class="grid">
+              <div class="bk"><div class="cv" style="--band:hsl(210 48% 52%);--barx:26%;--barlen:46%"><span class="bar"></span><span class="vt">追放された万能薬師、辺境でスローライフを始める</span></div><div class="cap2"><span class="t">追放された万能薬師、辺境でスローライフを始める</span><button class="dots"><svg><use href="#i-dots"/></svg></button></div><div class="st">第127/205話</div></div>
+              <div class="bk"><div class="cv" style="--band:hsl(280 48% 52%);--barx:34%;--barlen:42%"><span class="bar"></span><span class="vt">黒の魔王と契約した俺、気づけば最強の従者に</span></div><div class="cap2"><span class="t">黒の魔王と契約した俺、気づけば最強の従者に</span><button class="dots"><svg><use href="#i-dots"/></svg></button></div><div class="st">第43/150話</div></div>
+              <div class="bk"><div class="cv" style="--band:hsl(95 48% 52%);--barx:22%;--barlen:50%"><span class="bar"></span><span class="vt">転生したら最弱スキルだったので草むしりしていた</span></div><div class="cap2"><span class="t">転生したら最弱スキルだったので草むしりしていた</span><button class="dots"><svg><use href="#i-dots"/></svg></button></div><div class="st"><span class="dot"></span>未読</div></div>
+              <div class="bk"><div class="cv narou" style="--band:hsl(190 48% 52%);--barx:30%;--barlen:44%"><span class="bar"></span><span class="vt">最果てのダンジョンで細々と暮らすことにした</span></div><div class="cap2"><span class="t">最果てのダンジョンで細々と暮らすことにした</span><button class="dots"><svg><use href="#i-dots"/></svg></button></div><div class="st narou">なろう・未取込</div></div>
+              <div class="bk"><div class="cv" style="--band:hsl(340 48% 52%);--barx:24%;--barlen:48%"><span class="bar"></span><span class="vt">公爵令嬢の嗜み 〜隣国で薬草園を開きます〜</span></div><div class="cap2"><span class="t">公爵令嬢の嗜み 〜隣国で薬草園を開きます〜</span><button class="dots"><svg><use href="#i-dots"/></svg></button></div><div class="st">第8/72話</div></div>
+              <div class="bk"><div class="cv" style="--band:hsl(150 48% 52%);--barx:28%;--barlen:40%"><span class="bar"></span><span class="vt">聖女は隣国で薬草を育てて暮らしたい</span></div><div class="cap2"><span class="t">聖女は隣国で薬草を育てて暮らしたい</span><button class="dots"><svg><use href="#i-dots"/></svg></button></div><div class="st">読了</div></div>
+              <div class="bk"><div class="cv narou" style="--band:hsl(50 48% 52%);--barx:24%;--barlen:46%"><span class="bar"></span><span class="vt">辺境ぐらしの隠居魔導士、今日ものんびり</span></div><div class="cap2"><span class="t">辺境ぐらしの隠居魔導士、今日ものんびり</span><button class="dots"><svg><use href="#i-dots"/></svg></button></div><div class="st narou">なろう・未取込</div></div>
+              <div class="bk"><div class="cv" style="--band:hsl(230 48% 52%);--barx:34%;--barlen:48%"><span class="bar"></span><span class="vt">星降る夜の図書館で君を待っている</span></div><div class="cap2"><span class="t">星降る夜の図書館で君を待っている</span><button class="dots"><svg><use href="#i-dots"/></svg></button></div><div class="st">読了</div></div>
+              <div class="bk"><div class="cv" style="--band:hsl(25 48% 52%);--barx:30%;--barlen:44%"><span class="bar"></span><span class="vt">異世界喫茶は今日も満席 〜珈琲と魔法のある日常〜</span></div><div class="cap2"><span class="t">異世界喫茶は今日も満席 〜珈琲と魔法のある日常〜</span><button class="dots"><svg><use href="#i-dots"/></svg></button></div><div class="st">第12/88話</div></div>
+              <div class="bk"><div class="cv" style="--band:hsl(170 48% 52%);--barx:26%;--barlen:48%"><span class="bar"></span><span class="vt">竜騎士団の末席から始める宮廷生活</span></div><div class="cap2"><span class="t">竜騎士団の末席から始める宮廷生活</span><button class="dots"><svg><use href="#i-dots"/></svg></button></div><div class="st"><span class="dot"></span>未読</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="m"><i>可視域 <b>206dp</b>（+65dp）</i><i>セル幅 108.8dp → カード実高 <b>188dp</b>（−21dp）</i><i class="good">余り +18dp ＝ 1行が完全に入り、次行の頭が覗く</i></div>
+  <div class="weak">書影が 166→145dp へ 13% 小さくなる（裁定「書影の肥大回避」の逆方向に近づく）。FAB が拡張ラベル「PDFを追加」を失い円形になる＝初見の自己説明性が落ちる。</div>
+</div>
+
+<!-- ============================ R2: Rail 56dp・ラベル無し・FAB は右下据え置き ============================ -->
+<div class="frame">
+  <div class="cap">
+    <span class="tag">R2</span><b>Rail 56dp・ラベル無し・FAB は右下フローティング据え置き</b>
+    <span class="pick">選ばせるもの: <b>書影の大きさを最優先</b>し、Rail を細く・ラベルを捨て・FAB を今の場所に残すか。</span>
+    <span class="spec">Rail 56dp ／ ラベル無し（アイコンのみ） ／ FAB＝右下 ／ Rail⇄グリッド余白 16dp ／ 5列</span>
+  </div>
+  <div class="stage">
+    <div class="phone" style="--rail:56px;--nav:0px;--gut:16px">
+      <div class="sb"><span>9:41</span><span>5G ▾ ▮▮▮</span></div>
+      <div class="vp good" style="top:154px;bottom:0"><span>可視域 206dp</span></div>
+      <div class="row">
+        <nav class="rail nolabel">
+          <div class="items">
+            <a class="rt on"><span class="ic"><span class="pill"></span><svg><use href="#i-shelf"/></svg></span><span class="lb">本棚</span></a>
+            <a class="rt"><span class="ic"><span class="pill"></span><svg><use href="#i-search"/></svg></span><span class="lb">さがす</span></a>
+            <a class="rt"><span class="ic"><span class="pill"></span><svg><use href="#i-gear"/></svg></span><span class="lb">設定</span></a>
+          </div>
+        </nav>
+        <div class="main">
+          <div class="head">
+            <div class="ttl"><h1>本棚</h1><span class="count">12冊</span></div>
+            <button class="view"><svg><use href="#i-grid"/></svg></button>
+          </div>
+          <div class="chips">
+            <span class="chip on">すべて</span><span class="chip">よみかけ</span><span class="chip">未読</span><span class="chip">読了</span>
+          </div>
+          <div class="scroll">
+            <div class="grid">
+              <div class="bk"><div class="cv" style="--band:hsl(210 48% 52%);--barx:26%;--barlen:46%"><span class="bar"></span><span class="vt">追放された万能薬師、辺境でスローライフを始める</span></div><div class="cap2"><span class="t">追放された万能薬師、辺境でスローライフを始める</span><button class="dots"><svg><use href="#i-dots"/></svg></button></div><div class="st">第127/205話</div></div>
+              <div class="bk"><div class="cv" style="--band:hsl(280 48% 52%);--barx:34%;--barlen:42%"><span class="bar"></span><span class="vt">黒の魔王と契約した俺、気づけば最強の従者に</span></div><div class="cap2"><span class="t">黒の魔王と契約した俺、気づけば最強の従者に</span><button class="dots"><svg><use href="#i-dots"/></svg></button></div><div class="st">第43/150話</div></div>
+              <div class="bk"><div class="cv" style="--band:hsl(95 48% 52%);--barx:22%;--barlen:50%"><span class="bar"></span><span class="vt">転生したら最弱スキルだったので草むしりしていた</span></div><div class="cap2"><span class="t">転生したら最弱スキルだったので草むしりしていた</span><button class="dots"><svg><use href="#i-dots"/></svg></button></div><div class="st"><span class="dot"></span>未読</div></div>
+              <div class="bk"><div class="cv narou" style="--band:hsl(190 48% 52%);--barx:30%;--barlen:44%"><span class="bar"></span><span class="vt">最果てのダンジョンで細々と暮らすことにした</span></div><div class="cap2"><span class="t">最果てのダンジョンで細々と暮らすことにした</span><button class="dots"><svg><use href="#i-dots"/></svg></button></div><div class="st narou">なろう・未取込</div></div>
+              <div class="bk"><div class="cv" style="--band:hsl(340 48% 52%);--barx:24%;--barlen:48%"><span class="bar"></span><span class="vt">公爵令嬢の嗜み 〜隣国で薬草園を開きます〜</span></div><div class="cap2"><span class="t">公爵令嬢の嗜み 〜隣国で薬草園を開きます〜</span><button class="dots"><svg><use href="#i-dots"/></svg></button></div><div class="st">第8/72話</div></div>
+              <div class="bk"><div class="cv" style="--band:hsl(150 48% 52%);--barx:28%;--barlen:40%"><span class="bar"></span><span class="vt">聖女は隣国で薬草を育てて暮らしたい</span></div><div class="cap2"><span class="t">聖女は隣国で薬草を育てて暮らしたい</span><button class="dots"><svg><use href="#i-dots"/></svg></button></div><div class="st">読了</div></div>
+              <div class="bk"><div class="cv narou" style="--band:hsl(50 48% 52%);--barx:24%;--barlen:46%"><span class="bar"></span><span class="vt">辺境ぐらしの隠居魔導士、今日ものんびり</span></div><div class="cap2"><span class="t">辺境ぐらしの隠居魔導士、今日ものんびり</span><button class="dots"><svg><use href="#i-dots"/></svg></button></div><div class="st narou">なろう・未取込</div></div>
+              <div class="bk"><div class="cv" style="--band:hsl(230 48% 52%);--barx:34%;--barlen:48%"><span class="bar"></span><span class="vt">星降る夜の図書館で君を待っている</span></div><div class="cap2"><span class="t">星降る夜の図書館で君を待っている</span><button class="dots"><svg><use href="#i-dots"/></svg></button></div><div class="st">読了</div></div>
+              <div class="bk"><div class="cv" style="--band:hsl(25 48% 52%);--barx:30%;--barlen:44%"><span class="bar"></span><span class="vt">異世界喫茶は今日も満席 〜珈琲と魔法のある日常〜</span></div><div class="cap2"><span class="t">異世界喫茶は今日も満席 〜珈琲と魔法のある日常〜</span><button class="dots"><svg><use href="#i-dots"/></svg></button></div><div class="st">第12/88話</div></div>
+              <div class="bk"><div class="cv" style="--band:hsl(170 48% 52%);--barx:26%;--barlen:48%"><span class="bar"></span><span class="vt">竜騎士団の末席から始める宮廷生活</span></div><div class="cap2"><span class="t">竜騎士団の末席から始める宮廷生活</span><button class="dots"><svg><use href="#i-dots"/></svg></button></div><div class="st"><span class="dot"></span>未読</div></div>
+            </div>
+          </div>
+          <button class="fab br-low"><svg><use href="#i-plus"/></svg>PDFを追加</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="m"><i>可視域 <b>206dp</b>（+65dp）</i><i>セル幅 116.8dp → カード実高 <b>199dp</b>（−10dp）</i><i class="good">余り +7dp</i></div>
+  <div class="weak">余りが +7dp しかなく「次の行がある」ことが見えない＝末尾と区別できない。ラベルを捨てるのはスキンKの核（ラベル付き恒常ナビで現在地を常時可視）を横向きだけ裏切る。さらに右下 FAB が最終列の書影に恒久的に重なる。</div>
+</div>
+
+<!-- ============================ R3: Rail 96dp・ラベルあり・面で分離 ============================ -->
+<div class="frame">
+  <div class="cap">
+    <span class="tag">R3</span><b>Rail 96dp・ラベルあり・境界線を捨てて「面」で分離</b>
+    <span class="pick">選ばせるもの: <b>次行の覗きを最大化</b>して縦スクロールできると分からせるか（その代わり書影が一番小さい）。</span>
+    <span class="spec">Rail 96dp ／ ラベル常時 ／ FAB＝Rail 上端の円形 ／ Rail⇄グリッド余白 24dp ／ 罫線なし・地色 --field で分離</span>
+  </div>
+  <div class="stage">
+    <div class="phone" style="--rail:96px;--nav:0px">
+      <div class="sb"><span>9:41</span><span>5G ▾ ▮▮▮</span></div>
+      <div class="vp good" style="top:154px;bottom:0"><span>可視域 206dp</span></div>
+      <div class="row">
+        <nav class="rail noline">
+          <button class="rfab"><svg><use href="#i-plus"/></svg></button>
+          <div class="items">
+            <a class="rt on"><span class="ic"><span class="pill"></span><svg><use href="#i-shelf"/></svg></span><span class="lb">本棚</span></a>
+            <a class="rt"><span class="ic"><span class="pill"></span><svg><use href="#i-search"/></svg></span><span class="lb">さがす</span></a>
+            <a class="rt"><span class="ic"><span class="pill"></span><svg><use href="#i-gear"/></svg></span><span class="lb">設定</span></a>
+          </div>
+        </nav>
+        <div class="main">
+          <div class="head">
+            <div class="ttl"><h1>本棚</h1><span class="count">12冊</span></div>
+            <button class="view"><svg><use href="#i-grid"/></svg></button>
+          </div>
+          <div class="chips">
+            <span class="chip on">すべて</span><span class="chip">よみかけ</span><span class="chip">未読</span><span class="chip">読了</span>
+          </div>
+          <div class="scroll">
+            <div class="grid">
+              <div class="bk"><div class="cv" style="--band:hsl(210 48% 52%);--barx:26%;--barlen:46%"><span class="bar"></span><span class="vt">追放された万能薬師、辺境でスローライフを始める</span></div><div class="cap2"><span class="t">追放された万能薬師、辺境でスローライフを始める</span><button class="dots"><svg><use href="#i-dots"/></svg></button></div><div class="st">第127/205話</div></div>
+              <div class="bk"><div class="cv" style="--band:hsl(280 48% 52%);--barx:34%;--barlen:42%"><span class="bar"></span><span class="vt">黒の魔王と契約した俺、気づけば最強の従者に</span></div><div class="cap2"><span class="t">黒の魔王と契約した俺、気づけば最強の従者に</span><button class="dots"><svg><use href="#i-dots"/></svg></button></div><div class="st">第43/150話</div></div>
+              <div class="bk"><div class="cv" style="--band:hsl(95 48% 52%);--barx:22%;--barlen:50%"><span class="bar"></span><span class="vt">転生したら最弱スキルだったので草むしりしていた</span></div><div class="cap2"><span class="t">転生したら最弱スキルだったので草むしりしていた</span><button class="dots"><svg><use href="#i-dots"/></svg></button></div><div class="st"><span class="dot"></span>未読</div></div>
+              <div class="bk"><div class="cv narou" style="--band:hsl(190 48% 52%);--barx:30%;--barlen:44%"><span class="bar"></span><span class="vt">最果てのダンジョンで細々と暮らすことにした</span></div><div class="cap2"><span class="t">最果てのダンジョンで細々と暮らすことにした</span><button class="dots"><svg><use href="#i-dots"/></svg></button></div><div class="st narou">なろう・未取込</div></div>
+              <div class="bk"><div class="cv" style="--band:hsl(340 48% 52%);--barx:24%;--barlen:48%"><span class="bar"></span><span class="vt">公爵令嬢の嗜み 〜隣国で薬草園を開きます〜</span></div><div class="cap2"><span class="t">公爵令嬢の嗜み 〜隣国で薬草園を開きます〜</span><button class="dots"><svg><use href="#i-dots"/></svg></button></div><div class="st">第8/72話</div></div>
+              <div class="bk"><div class="cv" style="--band:hsl(150 48% 52%);--barx:28%;--barlen:40%"><span class="bar"></span><span class="vt">聖女は隣国で薬草を育てて暮らしたい</span></div><div class="cap2"><span class="t">聖女は隣国で薬草を育てて暮らしたい</span><button class="dots"><svg><use href="#i-dots"/></svg></button></div><div class="st">読了</div></div>
+              <div class="bk"><div class="cv narou" style="--band:hsl(50 48% 52%);--barx:24%;--barlen:46%"><span class="bar"></span><span class="vt">辺境ぐらしの隠居魔導士、今日ものんびり</span></div><div class="cap2"><span class="t">辺境ぐらしの隠居魔導士、今日ものんびり</span><button class="dots"><svg><use href="#i-dots"/></svg></button></div><div class="st narou">なろう・未取込</div></div>
+              <div class="bk"><div class="cv" style="--band:hsl(230 48% 52%);--barx:34%;--barlen:48%"><span class="bar"></span><span class="vt">星降る夜の図書館で君を待っている</span></div><div class="cap2"><span class="t">星降る夜の図書館で君を待っている</span><button class="dots"><svg><use href="#i-dots"/></svg></button></div><div class="st">読了</div></div>
+              <div class="bk"><div class="cv" style="--band:hsl(25 48% 52%);--barx:30%;--barlen:44%"><span class="bar"></span><span class="vt">異世界喫茶は今日も満席 〜珈琲と魔法のある日常〜</span></div><div class="cap2"><span class="t">異世界喫茶は今日も満席 〜珈琲と魔法のある日常〜</span><button class="dots"><svg><use href="#i-dots"/></svg></button></div><div class="st">第12/88話</div></div>
+              <div class="bk"><div class="cv" style="--band:hsl(170 48% 52%);--barx:26%;--barlen:48%"><span class="bar"></span><span class="vt">竜騎士団の末席から始める宮廷生活</span></div><div class="cap2"><span class="t">竜騎士団の末席から始める宮廷生活</span><button class="dots"><svg><use href="#i-dots"/></svg></button></div><div class="st"><span class="dot"></span>未読</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="m"><i>可視域 <b>206dp</b>（+65dp）</i><i>セル幅 105.6dp → カード実高 <b>184dp</b>（−25dp）</i><i class="good">余り +22dp</i></div>
+  <div class="weak">R1 との差は余り +4dp だけで、書影は 145→141dp とさらに縮む＝<b>幅を 80→96 に太らせる見返りがほぼ無い</b>。Rail 地に --field を敷くと、未取込カード（同じ --field 地）と面の意味が二重化する。</div>
+</div>
+
+<!-- ============================ R4: Rail 80dp ＋ ヘッダ・チップ統合（可視域の上限） ============================ -->
+<div class="frame">
+  <div class="cap">
+    <span class="tag">R4</span><b>Rail 80dp ＋ ヘッダと状態チップを1行に統合（合わせ技）</b>
+    <span class="pick">選ばせるもの: <b>Rail だけで足りるか、横向きのクローム圧縮まで踏み込むか</b>の上限を見るための枠（ヘッダ圧縮は本件とは別裁定）。</span>
+    <span class="spec">Rail 80dp ／ ラベル常時 ／ FAB＝Rail 上端 ／ ヘッダ68＋チップ46＝114dp を統合行 52dp へ（−62dp）</span>
+  </div>
+  <div class="stage">
+    <div class="phone" style="--rail:80px;--nav:0px">
+      <div class="sb"><span>9:41</span><span>5G ▾ ▮▮▮</span></div>
+      <div class="vp good" style="top:92px;bottom:0"><span>可視域 268dp</span></div>
+      <div class="row">
+        <nav class="rail">
+          <button class="rfab"><svg><use href="#i-plus"/></svg></button>
+          <div class="items">
+            <a class="rt on"><span class="ic"><span class="pill"></span><svg><use href="#i-shelf"/></svg></span><span class="lb">本棚</span></a>
+            <a class="rt"><span class="ic"><span class="pill"></span><svg><use href="#i-search"/></svg></span><span class="lb">さがす</span></a>
+            <a class="rt"><span class="ic"><span class="pill"></span><svg><use href="#i-gear"/></svg></span><span class="lb">設定</span></a>
+          </div>
+        </nav>
+        <div class="main">
+          <!-- 統合行: 題「本棚」＋冊数のあとに状態チップを同じ行へ流す（横向きは横幅が余るので成立する） -->
+          <div class="headc">
+            <h1>本棚</h1><span class="count">12冊</span>
+            <span class="chip on">すべて</span><span class="chip">よみかけ</span><span class="chip">未読</span><span class="chip">読了</span>
+            <span class="sp"></span>
+            <button class="view"><svg><use href="#i-grid"/></svg></button>
+          </div>
+          <div class="scroll">
+            <div class="grid">
+              <div class="bk"><div class="cv" style="--band:hsl(210 48% 52%);--barx:26%;--barlen:46%"><span class="bar"></span><span class="vt">追放された万能薬師、辺境でスローライフを始める</span></div><div class="cap2"><span class="t">追放された万能薬師、辺境でスローライフを始める</span><button class="dots"><svg><use href="#i-dots"/></svg></button></div><div class="st">第127/205話</div></div>
+              <div class="bk"><div class="cv" style="--band:hsl(280 48% 52%);--barx:34%;--barlen:42%"><span class="bar"></span><span class="vt">黒の魔王と契約した俺、気づけば最強の従者に</span></div><div class="cap2"><span class="t">黒の魔王と契約した俺、気づけば最強の従者に</span><button class="dots"><svg><use href="#i-dots"/></svg></button></div><div class="st">第43/150話</div></div>
+              <div class="bk"><div class="cv" style="--band:hsl(95 48% 52%);--barx:22%;--barlen:50%"><span class="bar"></span><span class="vt">転生したら最弱スキルだったので草むしりしていた</span></div><div class="cap2"><span class="t">転生したら最弱スキルだったので草むしりしていた</span><button class="dots"><svg><use href="#i-dots"/></svg></button></div><div class="st"><span class="dot"></span>未読</div></div>
+              <div class="bk"><div class="cv narou" style="--band:hsl(190 48% 52%);--barx:30%;--barlen:44%"><span class="bar"></span><span class="vt">最果てのダンジョンで細々と暮らすことにした</span></div><div class="cap2"><span class="t">最果てのダンジョンで細々と暮らすことにした</span><button class="dots"><svg><use href="#i-dots"/></svg></button></div><div class="st narou">なろう・未取込</div></div>
+              <div class="bk"><div class="cv" style="--band:hsl(340 48% 52%);--barx:24%;--barlen:48%"><span class="bar"></span><span class="vt">公爵令嬢の嗜み 〜隣国で薬草園を開きます〜</span></div><div class="cap2"><span class="t">公爵令嬢の嗜み 〜隣国で薬草園を開きます〜</span><button class="dots"><svg><use href="#i-dots"/></svg></button></div><div class="st">第8/72話</div></div>
+              <div class="bk"><div class="cv" style="--band:hsl(150 48% 52%);--barx:28%;--barlen:40%"><span class="bar"></span><span class="vt">聖女は隣国で薬草を育てて暮らしたい</span></div><div class="cap2"><span class="t">聖女は隣国で薬草を育てて暮らしたい</span><button class="dots"><svg><use href="#i-dots"/></svg></button></div><div class="st">読了</div></div>
+              <div class="bk"><div class="cv narou" style="--band:hsl(50 48% 52%);--barx:24%;--barlen:46%"><span class="bar"></span><span class="vt">辺境ぐらしの隠居魔導士、今日ものんびり</span></div><div class="cap2"><span class="t">辺境ぐらしの隠居魔導士、今日ものんびり</span><button class="dots"><svg><use href="#i-dots"/></svg></button></div><div class="st narou">なろう・未取込</div></div>
+              <div class="bk"><div class="cv" style="--band:hsl(230 48% 52%);--barx:34%;--barlen:48%"><span class="bar"></span><span class="vt">星降る夜の図書館で君を待っている</span></div><div class="cap2"><span class="t">星降る夜の図書館で君を待っている</span><button class="dots"><svg><use href="#i-dots"/></svg></button></div><div class="st">読了</div></div>
+              <div class="bk"><div class="cv" style="--band:hsl(25 48% 52%);--barx:30%;--barlen:44%"><span class="bar"></span><span class="vt">異世界喫茶は今日も満席 〜珈琲と魔法のある日常〜</span></div><div class="cap2"><span class="t">異世界喫茶は今日も満席 〜珈琲と魔法のある日常〜</span><button class="dots"><svg><use href="#i-dots"/></svg></button></div><div class="st">第12/88話</div></div>
+              <div class="bk"><div class="cv" style="--band:hsl(170 48% 52%);--barx:26%;--barlen:48%"><span class="bar"></span><span class="vt">竜騎士団の末席から始める宮廷生活</span></div><div class="cap2"><span class="t">竜騎士団の末席から始める宮廷生活</span><button class="dots"><svg><use href="#i-dots"/></svg></button></div><div class="st"><span class="dot"></span>未読</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="m"><i>可視域 <b>268dp</b>（+127dp）</i><i>カード実高 <b>188dp</b>（R1 と同値）</i><i class="good">余り +80dp ＝ 次行の書影が半分見える</i></div>
+  <div class="weak">「全画面に明示タイトル」は保つが、題と状態チップが同じ行に並ぶと<b>どちらが画面名でどちらが操作か</b>が一目で切れない（スキンKが D から直した当の弱点に戻りうる）。チップが増えると横スクロールで題の右に流れ、現在地の読み取りがさらに落ちる。</div>
+</div>
+
+<!-- ============================ ⑤ タブが5本前後になったときの Rail の収まり ============================ -->
+<div class="frame">
+  <div class="cap">
+    <span class="tag">軸⑤</span><b>タブが5本前後に増えたときの縦の収まり（Rail 高 320dp ＝ 360 − ステータスバー 40）</b>
+    <span class="pick">選ばせるもの: <b>いま3本だが将来5本に増える前提で決めるか</b>。増える前提なら R1 の「ラベル＋Rail 内 FAB」は 5本で破綻する。</span>
+    <span class="spec">Rail 内寸＝360 − ステータスバー 40 − 上下 padding 16 = <b>304dp</b>。item 高＝ラベルあり 56dp／無し 44dp、
+      item 間 gap 2dp、Rail 内 FAB 52dp＋下余白 10dp。枠は実レイアウトで組んであり、入り切らなければ実際に切れる</span>
+  </div>
+  <div class="strip">
+    <div>
+      <div class="sc" style="width:80px">
+        <nav class="rail" style="--rail:80px">
+          <button class="rfab"><svg><use href="#i-plus"/></svg></button>
+          <div class="items">
+            <a class="rt on"><span class="ic"><span class="pill"></span><svg><use href="#i-shelf"/></svg></span><span class="lb">本棚</span></a>
+            <a class="rt"><span class="ic"><span class="pill"></span><svg><use href="#i-search"/></svg></span><span class="lb">さがす</span></a>
+            <a class="rt"><span class="ic"><span class="pill"></span><svg><use href="#i-gear"/></svg></span><span class="lb">設定</span></a>
+          </div>
+        </nav>
+      </div>
+      <div class="scl"><b>いまの3本（R1 の中身）</b>52 ＋ 10 ＋ (3×56 ＋ gap 4) = 234dp<br><span class="ok">304dp に収まる（余裕 70dp）</span></div>
+    </div>
+    <div>
+      <div class="sc over" style="width:80px">
+        <nav class="rail" style="--rail:80px">
+          <button class="rfab"><svg><use href="#i-plus"/></svg></button>
+          <div class="items">
+            <a class="rt on"><span class="ic"><span class="pill"></span><svg><use href="#i-shelf"/></svg></span><span class="lb">本棚</span></a>
+            <a class="rt"><span class="ic"><span class="pill"></span><svg><use href="#i-search"/></svg></span><span class="lb">さがす</span></a>
+            <a class="rt"><span class="ic"><span class="pill"></span><svg><use href="#i-tag"/></svg></span><span class="lb">タグ</span></a>
+            <a class="rt"><span class="ic"><span class="pill"></span><svg><use href="#i-clock"/></svg></span><span class="lb">履歴</span></a>
+            <a class="rt"><span class="ic"><span class="pill"></span><svg><use href="#i-gear"/></svg></span><span class="lb">設定</span></a>
+          </div>
+        </nav>
+      </div>
+      <div class="scl"><b>5本・ラベルあり・FAB を Rail 内</b>52 ＋ 10 ＋ (5×56 ＋ gap 8) = 350dp<br><span class="ng">304dp を 46dp 超過＝両端の項目が切れる</span></div>
+    </div>
+    <div>
+      <div class="sc" style="width:80px">
+        <nav class="rail" style="--rail:80px">
+          <div class="items">
+            <a class="rt on"><span class="ic"><span class="pill"></span><svg><use href="#i-shelf"/></svg></span><span class="lb">本棚</span></a>
+            <a class="rt"><span class="ic"><span class="pill"></span><svg><use href="#i-search"/></svg></span><span class="lb">さがす</span></a>
+            <a class="rt"><span class="ic"><span class="pill"></span><svg><use href="#i-tag"/></svg></span><span class="lb">タグ</span></a>
+            <a class="rt"><span class="ic"><span class="pill"></span><svg><use href="#i-clock"/></svg></span><span class="lb">履歴</span></a>
+            <a class="rt"><span class="ic"><span class="pill"></span><svg><use href="#i-gear"/></svg></span><span class="lb">設定</span></a>
+          </div>
+        </nav>
+      </div>
+      <div class="scl"><b>5本・ラベルあり・FAB は Rail 外（右下へ戻す）</b>5×56 ＋ gap 8 = 288dp<br><span class="ok">収まる（余裕 16dp のみ）</span>／FAB が書影に重なる問題が復活し、fontScale を上げると即溢れる</div>
+    </div>
+    <div>
+      <div class="sc" style="width:56px">
+        <nav class="rail nolabel" style="--rail:56px">
+          <button class="rfab" style="width:40px;height:40px"><svg><use href="#i-plus"/></svg></button>
+          <div class="items">
+            <a class="rt on"><span class="ic"><span class="pill"></span><svg><use href="#i-shelf"/></svg></span><span class="lb">本棚</span></a>
+            <a class="rt"><span class="ic"><span class="pill"></span><svg><use href="#i-search"/></svg></span><span class="lb">さがす</span></a>
+            <a class="rt"><span class="ic"><span class="pill"></span><svg><use href="#i-tag"/></svg></span><span class="lb">タグ</span></a>
+            <a class="rt"><span class="ic"><span class="pill"></span><svg><use href="#i-clock"/></svg></span><span class="lb">履歴</span></a>
+            <a class="rt"><span class="ic"><span class="pill"></span><svg><use href="#i-gear"/></svg></span><span class="lb">設定</span></a>
+          </div>
+        </nav>
+      </div>
+      <div class="scl"><b>5本・ラベル無し（R2 の中身）</b>40 ＋ 10 ＋ (5×44 ＋ gap 8) = 278dp<br><span class="ok">収まる（余裕 26dp）＝5本に耐える唯一の案</span>／<span class="ng">ただし現在地がアイコンだけになる</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ================================================================================
+     2026-08-14 第2次追記 — T1: 本棚にも「並べ替え」を適用する（R4 の置き換え候補）
+     さがす側の T1〜T4 は candidates/landscape-rail-discovery-K.html の下段に対応枠がある。
+     ================================================================================ -->
+<div class="frame">
+  <div class="cap">
+    <span class="tag">T1</span><b>横一列化 — 題字「本棚」を Rail ヘッダへ移設し、状態チップ行だけを残す</b>
+    <span class="pick">選ばせるもの: <b>R4 の置き換え</b>。可視域は R4 と同じだが、R4 の弱点（題とチップが同じ行に並んで画面名と操作が切れない）を、題を Rail という別の面へ動かすことで解いた案。</span>
+    <span class="spec">Rail 80dp（上端に「本棚 / 12冊」を移設） ／ ヘッダ68＋チップ46＝114dp → <b>操作行 52dp</b>（状態チップ＋表示切替のみ） ／ FAB＝Rail 上端</span>
+  </div>
+  <div class="stage">
+    <div class="phone" style="--rail:80px;--nav:0px">
+      <div class="sb"><span>9:41</span><span>5G ▾ ▮▮▮</span></div>
+      <div class="vp good" style="top:92px;bottom:0"><span>可視域 268dp</span></div>
+      <div class="row">
+        <nav class="rail">
+          <!-- 題字の移設先。画面名を消さずに縦の固定分から外すのが T1 の要件 -->
+          <div class="railhead"><b>本棚</b><i>12冊</i></div>
+          <button class="rfab"><svg><use href="#i-plus"/></svg></button>
+          <div class="items">
+            <a class="rt on"><span class="ic"><span class="pill"></span><svg><use href="#i-shelf"/></svg></span><span class="lb">本棚</span></a>
+            <a class="rt"><span class="ic"><span class="pill"></span><svg><use href="#i-search"/></svg></span><span class="lb">さがす</span></a>
+            <a class="rt"><span class="ic"><span class="pill"></span><svg><use href="#i-gear"/></svg></span><span class="lb">設定</span></a>
+          </div>
+        </nav>
+        <div class="main">
+          <div class="headt">
+            <span class="chip on">すべて</span><span class="chip">よみかけ</span><span class="chip">未読</span><span class="chip">読了</span>
+            <span class="sp"></span>
+            <button class="view"><svg><use href="#i-grid"/></svg></button>
+          </div>
+          <div class="scroll">
+            <div class="grid">
+              <div class="bk"><div class="cv" style="--band:hsl(210 48% 52%);--barx:26%;--barlen:46%"><span class="bar"></span><span class="vt">追放された万能薬師、辺境でスローライフを始める</span></div><div class="cap2"><span class="t">追放された万能薬師、辺境でスローライフを始める</span><button class="dots"><svg><use href="#i-dots"/></svg></button></div><div class="st">第127/205話</div></div>
+              <div class="bk"><div class="cv" style="--band:hsl(280 48% 52%);--barx:34%;--barlen:42%"><span class="bar"></span><span class="vt">黒の魔王と契約した俺、気づけば最強の従者に</span></div><div class="cap2"><span class="t">黒の魔王と契約した俺、気づけば最強の従者に</span><button class="dots"><svg><use href="#i-dots"/></svg></button></div><div class="st">第43/150話</div></div>
+              <div class="bk"><div class="cv" style="--band:hsl(95 48% 52%);--barx:22%;--barlen:50%"><span class="bar"></span><span class="vt">転生したら最弱スキルだったので草むしりしていた</span></div><div class="cap2"><span class="t">転生したら最弱スキルだったので草むしりしていた</span><button class="dots"><svg><use href="#i-dots"/></svg></button></div><div class="st"><span class="dot"></span>未読</div></div>
+              <div class="bk"><div class="cv narou" style="--band:hsl(190 48% 52%);--barx:30%;--barlen:44%"><span class="bar"></span><span class="vt">最果てのダンジョンで細々と暮らすことにした</span></div><div class="cap2"><span class="t">最果てのダンジョンで細々と暮らすことにした</span><button class="dots"><svg><use href="#i-dots"/></svg></button></div><div class="st narou">なろう・未取込</div></div>
+              <div class="bk"><div class="cv" style="--band:hsl(340 48% 52%);--barx:24%;--barlen:48%"><span class="bar"></span><span class="vt">公爵令嬢の嗜み 〜隣国で薬草園を開きます〜</span></div><div class="cap2"><span class="t">公爵令嬢の嗜み 〜隣国で薬草園を開きます〜</span><button class="dots"><svg><use href="#i-dots"/></svg></button></div><div class="st">第8/72話</div></div>
+              <div class="bk"><div class="cv" style="--band:hsl(150 48% 52%);--barx:28%;--barlen:40%"><span class="bar"></span><span class="vt">聖女は隣国で薬草を育てて暮らしたい</span></div><div class="cap2"><span class="t">聖女は隣国で薬草を育てて暮らしたい</span><button class="dots"><svg><use href="#i-dots"/></svg></button></div><div class="st">読了</div></div>
+              <div class="bk"><div class="cv narou" style="--band:hsl(50 48% 52%);--barx:24%;--barlen:46%"><span class="bar"></span><span class="vt">辺境ぐらしの隠居魔導士、今日ものんびり</span></div><div class="cap2"><span class="t">辺境ぐらしの隠居魔導士、今日ものんびり</span><button class="dots"><svg><use href="#i-dots"/></svg></button></div><div class="st narou">なろう・未取込</div></div>
+              <div class="bk"><div class="cv" style="--band:hsl(230 48% 52%);--barx:34%;--barlen:48%"><span class="bar"></span><span class="vt">星降る夜の図書館で君を待っている</span></div><div class="cap2"><span class="t">星降る夜の図書館で君を待っている</span><button class="dots"><svg><use href="#i-dots"/></svg></button></div><div class="st">読了</div></div>
+              <div class="bk"><div class="cv" style="--band:hsl(25 48% 52%);--barx:30%;--barlen:44%"><span class="bar"></span><span class="vt">異世界喫茶は今日も満席 〜珈琲と魔法のある日常〜</span></div><div class="cap2"><span class="t">異世界喫茶は今日も満席 〜珈琲と魔法のある日常〜</span><button class="dots"><svg><use href="#i-dots"/></svg></button></div><div class="st">第12/88話</div></div>
+              <div class="bk"><div class="cv" style="--band:hsl(170 48% 52%);--barx:26%;--barlen:48%"><span class="bar"></span><span class="vt">竜騎士団の末席から始める宮廷生活</span></div><div class="cap2"><span class="t">竜騎士団の末席から始める宮廷生活</span><button class="dots"><svg><use href="#i-dots"/></svg></button></div><div class="st"><span class="dot"></span>未読</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="m"><i>固定分 114dp → <b>52dp</b>（−62dp）</i><i>可視域 <b>268dp</b></i><i>カード実高 <b>188dp</b></i><i class="good">余り +80dp ＝ 次行の書影が半分見える</i><i class="good">画面名は Rail 上端に残る</i></div>
+  <div class="m"><i>参考: 本棚版 T4（キャプションの状態行 18dp を落として1行化）を足すと カード <b>170dp</b>・余り <b>+98dp</b></i></div>
+  <div class="weak">Rail 上端が「本棚 / 12冊 ＋ ＋FAB ＋ 3タブ」で三役を負い、<b>80dp 幅に情報が詰まりすぎる</b>（冊数 10px は横向きの視距離で読めるか実機確認が要る）。題字が Rail に移ると<b>本棚⇄さがすで Rail ヘッダの文字が入れ替わる</b>＝Rail が「不動のナビ」でなく画面ごとに変わる面になり、現在地の手がかりが二重化する（ヘッダの文字とタブの選択ピル）。状態チップ行だけが本文に残るので、<b>チップが4つを超えると横スクロールが発生</b>し、右端の「読了」が隠れる。参考値の T4（状態行を落とす）は<b>「第127/205話」という読書の進捗＝本棚の中核情報を消す</b>ので、さがす側の T4 より代償が大きい——本棚では推奨しない。</div>
+</div>
+
+</body>
+</html>

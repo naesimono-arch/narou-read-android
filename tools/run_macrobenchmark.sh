@@ -26,6 +26,9 @@
 #   tools/run_macrobenchmark.sh --scenario tab-swipe     # タブ横スワイプ＋遷移 jank（frame timing）を計測
 #   tools/run_macrobenchmark.sh --scenario tab-swipe --assert                    # タブスワイプ予算 assert を有効化して計測
 #   tools/run_macrobenchmark.sh --scenario tab-swipe --assert --budget-p50 1     # タブスワイプ予算を絞って FAIL 経路を実証
+#   tools/run_macrobenchmark.sh --scenario chapter-flip --method flipChaptersVertical  # 1クラス内の1本だけ走らせる
+#   tools/run_macrobenchmark.sh --scenario toc-push      # 本棚→目次 push の jank（frame timing）を計測
+#   tools/run_macrobenchmark.sh --scenario toc-push --assert   # 目次 push 予算 assert（2026-08-21 実機較正済み）
 #   tools/run_macrobenchmark.sh --scenario pdf-import    # 大PDF取込のフェーズ別時間（TraceSectionMetric）を計測
 #   tools/run_macrobenchmark.sh --scenario pdf-import --assert                    # 取込予算 assert を有効化して計測
 #   tools/run_macrobenchmark.sh --scenario pdf-import --assert --budget-extract 1 # 取込予算を絞って FAIL 経路を実証
@@ -39,6 +42,9 @@
 #                            予算 assert は --assert ＋ --budget-p50 / --budget-p90 / --budget-p99
 #                            （オプションは shelf-scroll と共用・既定予算は TabSwipeBudget 側の定数＝
 #                             2026-08-06 実機較正済み。P99 のみ厚いのは chapter-flip と同根）。
+#   --scenario toc-push      本棚→目次 push の jank 計測（TocPushBenchmark）。予算 assert は --assert ＋
+#                            --budget-p50 / --budget-p90 / --budget-p99（既定は TocPushBudget 側の定数＝
+#                            2026-08-21 実機較正済み。P90 が他面より厚いのは push 窓の構造コスト＝同定数の由来参照）。
 #   --scenario pdf-import    大PDF取込計測（PdfImportBenchmark・N6169DZ 8.5MB を assets 同梱）。予算 assert は
 #                            --assert ＋ --budget-extract / --budget-engine（ms 指定・ImportBudget が median を判定）。
 #
@@ -60,6 +66,7 @@ STARTUP_CLASS="com.novelreader.macrobenchmark.StartupBenchmark"
 SHELF_SCROLL_CLASS="com.novelreader.macrobenchmark.BookshelfScrollBenchmark"
 CHAPTER_FLIP_CLASS="com.novelreader.macrobenchmark.ChapterFlipBenchmark"
 TAB_SWIPE_CLASS="com.novelreader.macrobenchmark.TabSwipeBenchmark"
+TOC_PUSH_CLASS="com.novelreader.macrobenchmark.TocPushBenchmark"
 PDF_IMPORT_CLASS="com.novelreader.macrobenchmark.PdfImportBenchmark"
 TEST_CLASS="$STARTUP_CLASS"
 
@@ -79,7 +86,11 @@ HEARTBEAT_SEC=15          # 進行表示の周期
 DO_ASSERT=0
 DO_INSTALL=0
 SERIAL=""
-SCENARIO="startup"  # startup（既定・従来挙動）| shelf-scroll | chapter-flip | tab-swipe | pdf-import
+SCENARIO="startup"  # startup（既定・従来挙動）| shelf-scroll | chapter-flip | tab-swipe | toc-push | pdf-import
+# 1クラスに複数テストがある scenario（chapter-flip / tab-swipe）で1本だけ走らせる絞り込み。
+# なぜ要るか: 2本ぶんの走行が10分級になり、単発コマンドの上限に収まらない環境があるため分割できるようにする
+# （AndroidJUnitRunner の `-e class Class#method` 形式に載せるだけ＝除細動ループ等の作法は不変）。
+METHOD=""
 BUDGET_MEDIAN=""   # startup 専用。空なら透過しない＝StartupBudget 側の既定定数が使われる
 BUDGET_MAX=""      # 同上（--assert と併用前提。単独指定は assert 無効なら無視される）
 BUDGET_P50=""      # shelf-scroll / chapter-flip / tab-swipe 用。空なら透過しない＝ScrollBudget / FlipBudget /
@@ -94,6 +105,7 @@ while [ $# -gt 0 ]; do
     --install) DO_INSTALL=1; shift ;;
     --serial)  SERIAL="${2:-}"; shift 2 ;;
     --scenario) SCENARIO="${2:-}"; shift 2 ;;
+    --method)   METHOD="${2:-}"; shift 2 ;;
     --budget-median) BUDGET_MEDIAN="${2:-}"; shift 2 ;;
     --budget-max)    BUDGET_MAX="${2:-}"; shift 2 ;;
     --budget-p50)    BUDGET_P50="${2:-}"; shift 2 ;;
@@ -122,18 +134,19 @@ case "$SCENARIO" in
   startup)
     TEST_CLASS="$STARTUP_CLASS"
     if [ -n "$BUDGET_P50" ] || [ -n "$BUDGET_P90" ] || [ -n "$BUDGET_P99" ]; then
-      echo "--budget-p50 / --budget-p90 / --budget-p99 は --scenario shelf-scroll / chapter-flip / tab-swipe 用（startup とは併用不可）。" >&2
+      echo "--budget-p50 / --budget-p90 / --budget-p99 は --scenario shelf-scroll / chapter-flip / tab-swipe / toc-push 用（startup とは併用不可）。" >&2
       exit 2
     fi
     if [ -n "$BUDGET_EXTRACT" ] || [ -n "$BUDGET_ENGINE" ]; then
       echo "--budget-extract / --budget-engine は --scenario pdf-import 専用（startup とは併用不可）。" >&2
       exit 2
     fi ;;
-  shelf-scroll|chapter-flip|tab-swipe)
+  shelf-scroll|chapter-flip|tab-swipe|toc-push)
     case "$SCENARIO" in
       shelf-scroll) TEST_CLASS="$SHELF_SCROLL_CLASS" ;;
       chapter-flip) TEST_CLASS="$CHAPTER_FLIP_CLASS" ;;
       tab-swipe)    TEST_CLASS="$TAB_SWIPE_CLASS" ;;
+      toc-push)     TEST_CLASS="$TOC_PUSH_CLASS" ;;
     esac
     if [ -n "$BUDGET_MEDIAN" ] || [ -n "$BUDGET_MAX" ]; then
       echo "--budget-median / --budget-max は --scenario startup 専用（$SCENARIO とは併用不可）。" >&2
@@ -153,13 +166,18 @@ case "$SCENARIO" in
       exit 2
     fi
     if [ -n "$BUDGET_P50" ] || [ -n "$BUDGET_P90" ] || [ -n "$BUDGET_P99" ]; then
-      echo "--budget-p50 / --budget-p90 / --budget-p99 は --scenario shelf-scroll / chapter-flip / tab-swipe 用（pdf-import とは併用不可）。" >&2
+      echo "--budget-p50 / --budget-p90 / --budget-p99 は --scenario shelf-scroll / chapter-flip / tab-swipe / toc-push 用（pdf-import とは併用不可）。" >&2
       exit 2
     fi ;;
   *)
-    echo "不明な --scenario: '$SCENARIO'（startup | shelf-scroll | chapter-flip | tab-swipe | pdf-import）" >&2
+    echo "不明な --scenario: '$SCENARIO'（startup | shelf-scroll | chapter-flip | tab-swipe | toc-push | pdf-import）" >&2
     exit 2 ;;
 esac
+
+# --method 指定時はクラス名へ #method を足す（scenario で確定した TEST_CLASS の後に適用する）。
+if [ -n "$METHOD" ]; then
+  TEST_CLASS="${TEST_CLASS}#${METHOD}"
+fi
 
 # ---- adb コマンド組み立て（serial 指定があれば -s 付与） -----------------
 ADB=(adb)

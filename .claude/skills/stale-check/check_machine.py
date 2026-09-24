@@ -12,9 +12,9 @@ stale-check の「機械チェック実体」。
   Claude／並列エージェントが担当する。
 
 使い方:
-  python .claude/skills/stale-check/check_machine.py          # 人間可読サマリ
-  python .claude/skills/stale-check/check_machine.py --json    # 機械可読(JSON)
-  python .claude/skills/stale-check/check_machine.py --full    # 互換のため受理（出力は同じ＝機械チェックは常に全件）
+  python3 .claude/skills/stale-check/check_machine.py          # 人間可読サマリ
+  python3 .claude/skills/stale-check/check_machine.py --json    # 機械可読(JSON)
+  python3 .claude/skills/stale-check/check_machine.py --full    # 互換のため受理（出力は同じ＝機械チェックは常に全件）
 
 終了コード: 確度高(severity=high)の陳腐化が1件以上あれば 1、無ければ 0。
   ※ これはレポート用途であり hook ではない。コミット等はブロックしない。
@@ -161,6 +161,44 @@ def _actual_hooks():
     return {p.name for p in hooks_dir.glob("*.py")} if hooks_dir.is_dir() else set()
 
 
+# 意図的に settings 未登録のまま置いてある hook（＝凍結）。値は〈凍結の理由と解除条件を持つ正本, その節に
+# 必ず在るべき語〉。なぜ単なる除外リストにしないか: 名前を並べて黙らせるだけだと **なぜ凍結なのか・
+# いつ解除するのか** が数週間で失われ、次に見た人が「配線し忘れ」あるいは「不要な残骸」と読んで
+# 消すか戻すかしてしまう（このリポジトリは撤去済みフックの残骸が13日間 dead だった前科がある）。
+# ここでは名前を黙らせる代わりに **正本の節へ束縛** し、節が消えた／hook を名指さなくなった／
+# 解除条件が書かれていない状態になったら黙らずに落とす＝**理由が蒸発したこと自体を検知する**。
+FROZEN_HOOKS = {
+    # 2026-08-17 ユーザー裁定で凍結。削減 2.6% に対し未文書化 API 依存＋監視パイプライン改変で割に合わない。
+    "truncate_bash_output.py": ("docs/backlog-frozen.md", "解凍条件"),
+    # 2026-09-01 ユーザー裁定で凍結（201k 到達の通告を受けて）。技術的な減点ではないので裁定でのみ戻す。
+    "check_context_budget.py": ("docs/backlog-frozen.md", "解凍条件"),
+}
+
+
+def _frozen_justification_gap(name, doc, anchor):
+    """凍結の根拠が「今も読める形で」残っているかを見る。欠けていればその理由文字列を返す。
+
+    節単位で照合するのは、別項目の『解凍条件』を誤って自分の根拠として拾わないため
+    （backlog-frozen.md は凍結項目が並ぶ文書なので、文書全体の含有では素通りしてしまう）。
+    hook 本体側も見るのは、配線を戻す人が最初に開くのがそのファイルだから
+    （復元用 JSON 現物はコード側の注記が正本）。
+    """
+    # 『解凍条件』は**定義文の形**（直後に ＝ : ：）でのみ認める。単なる言及（「所在と解凍条件だけ持つ」等）を
+    # 拾うと、条件本体を消しても素通りする——故障注入で実際に素通りしたので後から締めた。
+    # 断っておくと、これが見るのは**根拠の形**であって中身の妥当性ではない（機械に読めるのはそこまで）。
+    defined = re.compile(rf"{re.escape(anchor)}\s*[＝=:：]")
+    txt = read_text(doc)
+    if txt is None:
+        return f"凍結の根拠 {doc} が読めない（移動・削除）"
+    sections = re.split(r"^## ", txt, flags=re.M)
+    if not any(name in sec and "凍結" in sec and defined.search(sec) for sec in sections):
+        return f"{doc} に「{name} を名指し、凍結理由と『{anchor}＝…』を書いた節」が無い（理由か解除条件が失われた）"
+    body = read_text(f".claude/hooks/{name}")
+    if body is None or "凍結" not in body[:2000] or not defined.search(body[:2000]):
+        return f".claude/hooks/{name} 冒頭の凍結注記（凍結理由と『{anchor}＝…』）が失われた"
+    return None
+
+
 def check_hooks_registration():
     actual = _actual_hooks()
     registered = _registered_hooks()
@@ -174,6 +212,15 @@ def check_hooks_registration():
         # test_*.py は hook 本体ではなく回帰テスト（guard/consume の正規表現整合を守る test_hooks.py 等）。
         # settings に登録しないのが正なので死 hook 判定から除外する（誤検知回避）。
         if a.startswith("test_") or a in non_hook_libs:
+            continue
+        if a in FROZEN_HOOKS:
+            # 凍結 hook は「未登録が正」なので通常は無言（毎回ノイズになると点検の信頼が落ちる＝
+            # 既知バグ `stale-check-false-positive`）。ただし黙るのは根拠が生きている間だけ。
+            gap = _frozen_justification_gap(a, *FROZEN_HOOKS[a])
+            if gap:
+                add("hooks", "stale", "high",
+                    f"'{a}' は凍結 hook として未登録が正のはずだが、{gap}。"
+                    "配線を戻すか、理由と解除条件を書き直すこと")
             continue
         add("hooks", "warn", "info", f"'{a}' は実在するが settings に未登録（動いていない死 hook の可能性）")
 
@@ -552,14 +599,23 @@ def check_permission_paths():
         rules = [r for v in perms.values() if isinstance(v, list)
                  for r in v if isinstance(r, str)]
         for rule in rules:
-            for tok in sorted(set(token_pat.findall(rule))):
-                prefix = tok.split("*", 1)[0].rstrip("/")
+            seen = set()
+            for m in token_pat.finditer(rule):
+                prefix = m.group(0).split("*", 1)[0].rstrip("/")
                 # ホーム相対(~)・URL 断片・スラッシュが残らない断片は再構成不能のため対象外
                 if "/" not in prefix or prefix.startswith(("http", "~")):
                     continue
-                if not (ROOT / prefix).exists():
+                # token_pat は先頭に "/" を含められない（英数始まり）ので、直前の1文字を見て
+                # 絶対パスを復元する。これを見ないと /home/... が ROOT 相対に解決され、実在する
+                # パスを「死 permission」と誤報する（2026-09-05 に4件すべてが誤検知だった）。
+                absolute = m.start() > 0 and rule[m.start() - 1] == "/"
+                if (absolute, prefix) in seen:
+                    continue
+                seen.add((absolute, prefix))
+                target = Path("/" + prefix) if absolute else (ROOT / prefix)
+                if not target.exists():
                     add("perm-path", "stale", "info",
-                        f"{sf} の許可ルール '{rule}' が指す '{prefix}' が存在しない（死 permission の疑い）")
+                        f"{sf} の許可ルール '{rule}' が指す '{target}' が存在しない（死 permission の疑い）")
 
 
 # ── 12. hook 動作点検（構文＋自己テスト）────────────────────────────────
@@ -689,9 +745,28 @@ def check_size_budgets():
     docs コミットが全体の35%）＝機械の番人だけが実効的な防御になる。
     しきい値は「目安」の1.5倍程度を high とし、通常運用の揺らぎでは鳴らさない。
     """
+    # 台帳ごとの文字数上限。正本＝CLAUDE.md「管理ドキュメントの体系」（2026-08-13 に明記）。
+    # ⚠️ 2026-08-14 まで**この番人は個別上限を1つも実装しておらず**、下の合計 42,000 字／per-file 21,000 字
+    # という古い（緩い）線だけで見ていた＝規約が宣言され機械が追いつかないまま、3本とも上限超過で緑を返していた。
+    # このファイル自身が冒頭で「規約は宣言だけだと数週間で崩れる＝機械の番人だけが実効的な防御」と書いており、
+    # その主張が自分自身に対して空振りしていたことになる。
+    LEDGER_BUDGETS = {"STATUS.md": 2500, "handover.md": 8000, "awaiting-human.md": 12000}
+    # 上限は「圧縮せよ」ではなく「**消化せよ**」の合図（2026-08-19 ユーザー裁定・正本＝CLAUDE.md「管理ドキュメントの体系」）。
+    # 要約・移設だけで字数を下げると在庫はそのまま残り、同じ量が数日で戻る＝実際に「移す」運用で3本とも再超過した。
+    OVERFLOW_HINT = ("**第一手は消化**＝中身を実行して消し込むこと"
+                     "（handover=やって消す／STATUS=現在値でなくなった記述を消す／awaiting-human=人間に出して裁定を取る）。"
+                     "縮める・他所へ移すのは最後の手段で、移してよいのは台帳の役目でないものだけ"
+                     "（知見→docs/knowledge・凍結→docs/backlog-frozen・一次情報→.claude/plans・判断→docs/decisions）")
+
     txt = read_text("STATUS.md")
     if txt is not None:
         n = txt.count("\n") + 1
+        # 主判定は文字数。行数判定も残すのは、両者が**別の病**を見ているから
+        # ＝文字数は総量、行数は「1行が長大化して拾い読みできなくなる」型（ADR 0028 症状3）。
+        chars = len(txt)
+        if chars > LEDGER_BUDGETS["STATUS.md"]:
+            add("size_budget", "stale", "high",
+                f"STATUS.md が {chars:,} 字（上限 {LEDGER_BUDGETS['STATUS.md']:,}）。{OVERFLOW_HINT}")
         if n > 90:
             add("size_budget", "stale", "high",
                 f"STATUS.md が {n} 行（目安60行）。完了ログ・git導出値の混入を疑い刈り込むこと（完了履歴は git log が正本）")
@@ -746,15 +821,14 @@ def check_size_budgets():
     elif total > LEDGER_TOTAL_BUDGET * 3 // 4:
         add("size_budget", "warn", "info",
             f"台帳2枚の合計が {total:,} 字（肥大値 {LEDGER_TOTAL_BUDGET:,} 字の3/4超）。肥大の兆候（内訳: {breakdown}）")
-    # per-file は「二分の釣り合い」の兆候として info のみ。片方が肥大値の半分を超える＝もう一方の台帳が
-    # 事実上機能していない（＝二分前の1枚台帳へ戻りつつある）合図。awaiting-human も同じ線で見る:
-    # 人間待ちは積むのが自然だが、積むべきは「待ち1件＝何を目視するか」の短い行で、
-    # 経緯を抱えたまま積むのは handover と同じ病（ADR 0028 症状1）だから緩める理由が無い。
+    # per-file は上の LEDGER_BUDGETS（CLAUDE.md が正本）で見る。合計判定と併存させるのは役割が違うため
+    # ＝合計は「片方の溢れをもう片方へ移す」抜け道を塞ぎ、per-file は「その台帳が開いて使える大きさか」を見る。
+    # awaiting-human を handover より緩く取るのは、人間待ちが積むのは自然だから。ただし積むべきは
+    # 「待ち1件＝何を見れば決まるか」の短い行で、経緯を抱えたまま積むのは handover と同じ病（ADR 0028 症状1）。
     for rel, n in ledger_chars.items():
-        if n > LEDGER_TOTAL_BUDGET // 2:
-            add("size_budget", "warn", "info",
-                f"{rel} が {n:,} 字（台帳1枚あたりの目安 {LEDGER_TOTAL_BUDGET // 2:,} 字超）。"
-                f"完了経緯の残留・1項目あたりの長文化を疑うこと")
+        if n > LEDGER_BUDGETS[rel]:
+            add("size_budget", "stale", "high",
+                f"{rel} が {n:,} 字（上限 {LEDGER_BUDGETS[rel]:,}）。{OVERFLOW_HINT}")
 
     txt = read_text("CLAUDE.md")
     if txt is not None:
@@ -887,6 +961,26 @@ def check_known_bugs_registry():
                         add("known-bugs", "stale", "high",
                             f"{bug_id}: テストクラス '{tok}' が android/app/src/test に存在しない"
                             "（削除・リネームなら状態列も無防備側へ戻すこと）")
+                elif "::" in tok:
+                    # `パス::識別子` 形式＝**ファイル内の特定のシンボル**を名指す（例 `EXPECTED_SKIPS`）。
+                    # なぜ語彙に足したか: 検知の実体が「ファイル」でも「テストクラス」でもなく
+                    # *その中の1つの表・定数* であることがある（鍵付き理由表・許可表の類）。
+                    # 素の識別子だけで書くとどの照合パターンにも当たらず info 止まりになり、
+                    # 検知手段セルが空扱い＝「検知ありと主張しているのに名指しが無い」の偽陽性を生む
+                    # （既知バグ `stale-check-false-positive` の実例そのもの）。逆に黙って通すのも不可で、
+                    # **定数がリネーム・削除されたら落ちる**ことがこの語彙の存在意義。
+                    sym_path, _, sym = tok.partition("::")
+                    sym_txt = read_text(sym_path) if sym_path else None
+                    if not sym or sym_txt is None:
+                        add("known-bugs", "stale", "high",
+                            f"{bug_id}: '{tok}' の参照先 '{sym_path}' が存在しない"
+                            "（`パス::識別子` 形式で書くこと）")
+                    elif not re.search(rf"\b{re.escape(sym)}\b", sym_txt):
+                        add("known-bugs", "stale", "high",
+                            f"{bug_id}: 識別子 '{sym}' が {sym_path} に存在しない"
+                            "（リネーム・削除なら状態列も無防備側へ戻すこと）")
+                    else:
+                        verifiable_here += counts
                 elif "/" in tok and tok.endswith((".md", ".py", ".sh", ".kt")):
                     if (ROOT / tok).exists():
                         verifiable_here += counts
@@ -896,7 +990,8 @@ def check_known_bugs_registry():
                 else:
                     add("known-bugs", "warn", "info",
                         f"{bug_id}: '{tok}' はどの照合パターンにも当たらない"
-                        "（テストクラス名は `XxxTest`・機械チェックは `check_xxx`・参照はパスで書くこと）")
+                        "（テストクラス名は `XxxTest`・機械チェックは `check_xxx`・参照はパス・"
+                        "ファイル内の定数や表は `パス::識別子` で書くこと）")
 
         # CI ゲートの主張（検知手段セルの素テキスト "CI: <Gradleタスク名>"）を workflow と突合する。
         # なぜコードスパンで書かせないか: Gradle タスク名は上のどの照合パターン（XxxTest / check_xxx /
@@ -919,7 +1014,7 @@ def check_known_bugs_registry():
         if state in _REGISTRY_DEFENDED and verifiable_here == 0:
             add("known-bugs", "stale", "high",
                 f"{bug_id}: 状態 '{state}' は検知ありを主張しているのに、"
-                "検証可能な名指し（テストクラス名／check_xxx ／パス／lint: ／CI: タスク名）が1つも無い")
+                "検証可能な名指し（テストクラス名／check_xxx ／パス／パス::識別子／lint: ／CI: タスク名）が1つも無い")
 
     if refs_seen == 0:
         add("known-bugs", "stale", "high",
@@ -1491,7 +1586,7 @@ def check_suppression_selftest():
 CHECKS = [
     (check_versions, "版数照合（CLAUDE.md ↔ gradle: minSdk / targetSdk）"),
     (check_db, "DB整合（AppDatabase.kt の version ↔ schemas 最大 ↔ MIGRATION 連番 ↔ db-migration の履歴表）"),
-    (check_hooks_registration, "hook 双方向照合（settings 参照 ↔ 実ファイル: 壊れた参照／未登録の死hook）"),
+    (check_hooks_registration, "hook 双方向照合（settings 参照 ↔ 実ファイル: 壊れた参照／未登録の死hook。凍結 hook は FROZEN_HOOKS で無言化するが、凍結理由と解除条件が正本から消えたら落ちる）"),
     (check_hook_git_tracked, "hook の git 追跡（実ファイル ↔ git ls-files: コミット漏れ）"),
     (check_conflict_markers, "コンフリクトマーカー残存"),
     (check_referenced_files, "参照ファイルの実在（CLAUDE/STATUS/handover・skill・docs/**・.claude/plans 直下が名指しする .md/.py/.js/.sh/.kt と、design-candidates のモック .html。『撤去済み』等の断り書きが同一行・直後の注記行・前置き引用ブロック・冒頭の名指し宣言のいずれかに在れば対象外）"),
@@ -1504,7 +1599,7 @@ CHECKS = [
     (check_diary_id_unique, "task_diary エントリID の一意性（#N 見出しの重複採番検知・自動リネームはしない）"),
     (check_size_budgets, "台帳のサイズ番人（STATUS=現況のみ・目安60行／handover=やることのみ）"),
     (check_delegation_meter, "委譲ターン計測フックの整合（count_delegation_turns.py の PostToolUse/SubagentStop 両配線・記録先・通告間隔）"),
-    (check_known_bugs_registry, "既知バグレジストリ（L4）の名指し実在照合（docs/known-bugs-registry.md のテストクラス名・check_xxx・参照パスが実在するか／検知ありを主張する行に名指しがあるか）"),
+    (check_known_bugs_registry, "既知バグレジストリ（L4）の名指し実在照合（docs/known-bugs-registry.md のテストクラス名・check_xxx・参照パス・`パス::識別子` が実在するか／検知ありを主張する行に名指しがあるか）"),
     (check_hook_output_channel, "hook の出力経路照合（配線イベント × モデルに届く経路: 素の stdout 不達・hookEventName の取り残し・exit 2 無しの stderr。判定不能も件数を出す）"),
     (check_suppression_selftest, "抑止則の自己テスト（項目6 の『もう無い』注記判定＝同一行/直後の注記行/引用ブロック/名指し宣言が、意図した形だけを抑止し段落・見出し境界を越えないこと）"),
     (check_removed_hook_references, "撤去フックの残存参照（git 履歴の撤去フック名＋旧ソースが作っていた生成物を現ツリーと突合。settings/実コード/.gitignore/実行コマンドは高・コメントや文書の言及は info）"),

@@ -110,3 +110,4 @@ Androidの `SupportSQLiteDatabase` でも `execSQL("PRAGMA table_info(books)")` 
 | v18 → v19 | books に shioriTipIndex / shioriLenFrac 追加（栞書影の個体差を取込時に焼き付け） |
 | v19 → v20 | books に sourceUri 追加（取込元PDFの content://＝削除機能用） |
 | v20 → v21 | books に sourceUrl / sourceSite 追加（Web取込元の作品URLとアダプタキー） |
+| v21 → v22 | pending_jobs に attempts 追加（再開の試行回数を行に持たせ、毒入りジョブの無限リトライでアプリが起動不能になるのを断つ） |

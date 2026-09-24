@@ -127,6 +127,9 @@ interface BookRepository {
     /** 再開不能と判明したジョブの除去（権限喪失時など）。永続権限も返す。 */
     suspend fun removePendingJob(uri: String)
 
+    /** 起動時リカバリが再開する直前に、そのジョブの再開回数を 1 増やす（再起動ループの止め金）。 */
+    suspend fun markResumeAttempt(uri: String)
+
     /** 全ジョブの除去（ユーザーの明示停止＝「再開してほしくない」意思の反映）。 */
     suspend fun clearPendingJobs()
 

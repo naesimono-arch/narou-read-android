@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -94,10 +95,19 @@ fun ReadingSaveBarP(fraction: Float, modifier: Modifier = Modifier) {
     Row(
         modifier = modifier
             .fillMaxWidth()
+            // 器を dp で固定する理由（2026-09-03 裁定）: この行の高さは上下 padding ＋ 子の行箱で決まるが、
+            // Text は bodyLarge の lineHeight 28sp を継承して行箱をなぞるため器が膨れる。P の等幅は
+            // 正本 `--pixel`＝Consolas（normal 比 1.17）だが Compose の PixelFamily は Android の
+            // Droid Sans Mono へ解決される**別フォント**で、しかも lineHeight は下限＝比を写す道は
+            // 原理的に閉じている。よって正本の箱の算術（padding ＋ 子の最大高）を dp で確定させる。
+            // .savebar の実高＝上下 padding 5+5 ＋ 子の最大行箱（.pc 10px × 1.17 ＝ 11.7）＝ 21.7px ≒ 22dp。
+            // 縦 padding は高さそのものだったので dp 固定に置き換える（横 13px→S12 はそのまま）。
+            // ⚠️ dp 固定のままだと fontScale に追従せず「42%」が切れた（2.0 で自然行箱 23.5dp＞22dp・実機再現）。
+            // 22dp を基準に比例追従させる＝1.0 では 22dp のまま・拡大時だけ器が伸びる（→ cartridgeBoxHeight）。
+            .height(cartridgeBoxHeight(22.dp))
             // .savebar background: linear-gradient(--lcd-hi,--lcd)（緑LCD面・テーマ不変）
             .background(Brush.verticalGradient(listOf(LcdHiCartridge, LcdCartridge)))
-            // padding 5px 13px → 離散スケール最近傍（縦 S4/横 S12）
-            .padding(horizontal = Spacing.S12, vertical = Spacing.S4),
+            .padding(horizontal = Spacing.S12),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Spacing.S8), // gap 9px → S8
     ) {
@@ -105,6 +115,11 @@ fun ReadingSaveBarP(fraction: Float, modifier: Modifier = Modifier) {
             text = "SAVE",
             fontFamily = PixelFamily,
             fontSize = 9.sp,                         // .savebar .lb 9px
+            // 行箱も併せて切る（器の dp 固定と対で置く＝knowledge/compose-lineheight-is-a-floor…）:
+            // 継承した 28sp のままだと、22dp に固定した器の中で行箱がはみ出して字面が切れる。
+            // 値は正本の算術（9px × 1.17）だが lineHeight は下限なので実効は Droid Sans Mono の
+            // 自然行高＝「28sp の幽霊行箱を落とす」ことだけが効く。版面の正は器の dp 側が持つ。
+            lineHeight = 10.5.sp,
             fontWeight = FontWeight.Bold,
             letterSpacing = 0.12.em,
             color = LcdInkCartridge.copy(alpha = 0.85f), // .lb opacity .85
@@ -129,6 +144,7 @@ fun ReadingSaveBarP(fraction: Float, modifier: Modifier = Modifier) {
             text = "$pct%",
             fontFamily = PixelFamily,
             fontSize = 10.sp,                        // .savebar .pc 10px
+            lineHeight = 11.7.sp,                    // 10px × 1.17（下限＝幽霊行箱を落とすためだけの値・上と同旨）
             fontWeight = FontWeight.Bold,
             color = LcdInkCartridge,
         )
@@ -146,14 +162,20 @@ fun SaveChipP(chapterNumber: Int, totalChapters: Int, fraction: Float, modifier:
         text = "$chapterNumber/$totalChapters · $pct%",
         fontFamily = PixelFamily,
         fontSize = 11.sp,                            // .save .n 11px
+        lineHeight = 12.9.sp,                        // 11px × 1.17（下限＝幽霊行箱を落とす・器の dp と対）
         fontWeight = FontWeight.Bold,
         letterSpacing = 0.03.em,
         color = LcdInkCartridge,
         modifier = modifier
+            // 器の dp 固定＝ReadingSaveBarP と同じ理由（等幅の比は写せない）。
+            // .save の実高＝上下 padding 4+4 ＋ .n 11px × 1.17 ＝ 20.87px ≒ 21dp。
+            // fontScale 2.0 では字面が 26.0dp＝21dp の器から切れていたので比例追従させる（→ cartridgeBoxHeight）。
+            .height(cartridgeBoxHeight(21.dp))
             .clip(RoundedCornerShape(5.dp))          // .save border-radius 5px
             .background(LcdCartridge)                // .save background --lcd
             .border(1.dp, LcdInkCartridge.copy(alpha = 0.25f), RoundedCornerShape(5.dp)) // inset 0 0 0 1px rgba(43,54,22,.25)
-            .padding(horizontal = Spacing.S8, vertical = Spacing.S4), // .save padding 4px 8px → S4/S8
+            .wrapContentHeight(Alignment.CenterVertically) // 固定した器の中で字面を中央に置く
+            .padding(horizontal = Spacing.S8), // .save padding 左右 8px → S8（上下は height が持つ）
     )
 }
 
@@ -177,10 +199,15 @@ fun StreakFlameP(streakDays: Int, modifier: Modifier = Modifier) {
     val isSeed = streakDays <= 1  // .streak.seed＝途切れ後の種火（1ドットへ戻った状態）
     Row(
         modifier = modifier
+            // 器の dp 固定＝ReadingSaveBarP と同じ理由（等幅の比は写せない）。
+            // .streak の実高＝上下 padding 4+4 ＋ 子の最大高（.flame 16px＞.d 11px×1.17）＝ 24dp。
+            // fontScale 2.0 で「N日」が 24dp の器から切れていたので比例追従させる（→ cartridgeBoxHeight）。
+            // 炎の Canvas は dp のまま＝意匠が寸法を決める側なので追従させない（器の中で中央に浮く）。
+            .height(cartridgeBoxHeight(24.dp))
             .clip(RoundedCornerShape(5.dp))          // .streak border-radius 5px
             .background(PlasticHiCartridge)          // .streak background --plastic-hi
             .border(1.dp, LineCartridge, RoundedCornerShape(5.dp)) // inset 0 0 0 1px var(--line)
-            .padding(start = Spacing.S8, end = Spacing.S8, top = Spacing.S4, bottom = Spacing.S4), // padding 4px 8px 4px 6px→近傍離散
+            .padding(start = Spacing.S8, end = Spacing.S8), // padding 左右 8px/6px→近傍離散（上下は height が持つ）
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Spacing.S4), // gap 5px→S4
     ) {
@@ -213,6 +240,7 @@ fun StreakFlameP(streakDays: Int, modifier: Modifier = Modifier) {
             text = "${streakDays}日",
             fontFamily = PixelFamily,
             fontSize = 11.sp,                        // .streak .d 11px
+            lineHeight = 12.9.sp,                    // 11px × 1.17（下限＝幽霊行箱を落とす・器の dp と対）
             fontWeight = FontWeight.Bold,
             letterSpacing = 0.02.em,                 // .d letter-spacing .02em
             color = RedLoCartridge,                  // .d color --red-lo
@@ -337,10 +365,15 @@ fun SettingsSysBarP(modifier: Modifier = Modifier) {
     Row(
         modifier = modifier
             .fillMaxWidth()
+            // 器の dp 固定＝ReadingSaveBarP と同じ理由（等幅の比は写せない）。
+            // .sysbar の実高＝上下 padding 8+8 ＋ 子の最大高（10px × 1.17 ＝ 11.7＞.dot 7px）＝ 27.7px ≒ 28dp。
+            // 現状 fontScale 2.0 でも字面 23.5dp＜28dp で切れてはいないが、同じ「字面が高さを決める器」なので
+            // 同じ規則へ揃える（文言が伸びた瞬間に切れる側へ倒れるのを構造で防ぐ）。
+            .height(cartridgeBoxHeight(28.dp))
             .clip(RoundedCornerShape(7.dp))          // .sysbar border-radius 7px
             .background(Brush.verticalGradient(listOf(LcdHiCartridge, LcdCartridge))) // linear-gradient(--lcd-hi,--lcd)
             .border(1.dp, LcdInkCartridge.copy(alpha = 0.25f), RoundedCornerShape(7.dp)) // inset 0 0 0 1px rgba(43,54,22,.25)
-            .padding(horizontal = Spacing.S12, vertical = Spacing.S8), // padding 8px 12px → S8/S12
+            .padding(horizontal = Spacing.S12), // padding 左右 12px → S12（上下は height が持つ）
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Spacing.S8), // gap 8px
     ) {
@@ -349,6 +382,7 @@ fun SettingsSysBarP(modifier: Modifier = Modifier) {
             text = "POCKET NOVEL",
             fontFamily = PixelFamily,
             fontSize = 10.sp,                        // .sysbar 10px
+            lineHeight = 11.7.sp,                    // 10px × 1.17（下限＝幽霊行箱を落とす・器の dp と対）
             fontWeight = FontWeight.Bold,
             letterSpacing = 0.12.em,
             color = LcdInkCartridge,

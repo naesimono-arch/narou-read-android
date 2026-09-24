@@ -14,7 +14,11 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
@@ -26,7 +30,10 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -36,6 +43,7 @@ import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -51,6 +59,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.SnackbarHost
@@ -59,6 +68,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -66,21 +76,27 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
 import com.novelreader.PrefKeys
 import com.novelreader.data.BookEntity
 import com.novelreader.data.ProgressEntity
@@ -88,13 +104,16 @@ import com.novelreader.data.WebNovelEntity
 import com.novelreader.discovery.model.WorkSummary
 import com.novelreader.ui.DeleteSourcePdfOption
 import com.novelreader.ui.MissingContentBadge
+import com.novelreader.ui.DeleteTargetTitlesText
 import com.novelreader.ui.MissingContentDeleteWarningText
 import com.novelreader.ui.NewChaptersBadge
 import com.novelreader.ui.ProcessingBanner
 import com.novelreader.ui.ReimportScanBanner
 import com.novelreader.ui.ReimportSweepBanner
+import com.novelreader.ui.emptyStatusSemantics
 import com.novelreader.ui.newEpisodeCountFor
 import com.novelreader.ui.components.ShioriCover
+import com.novelreader.ui.components.horizontalScrollEdgeFade
 import com.novelreader.ui.components.shioriAccentFor
 import com.novelreader.ui.components.shioriHue
 import com.novelreader.ui.skins.ShelfActions
@@ -151,7 +170,8 @@ import com.novelreader.domain.webNcodesInSelection
 //     別（モック .chip は border-radius:999・選択で塗り）ゆえ K 専用チップを置く。
 //   ・リストモード＝K 専用の案A 題字1行（KListBookCard/KWebListBookCard）。旧・D 流用は 2026-07-24 裁定で
 //     圧縮S へ置換し、2026-07-26 裁定で案A（題字1行 ellipsis・行高≈71dp・約8.6行/画面）へ再圧縮
-//     （正本モック bookshelf-list-K.html。Web未取込行は field 沈め＋青磁破線の行フレーム＝.web）。
+//     （正本モック bookshelf-list-K.html。Web未取込行は field 沈め＋青磁の四隅マーカー＝.web。
+//     四辺の破線から角だけの徴へ差し替えたのは 2026-08-26 裁定＝narouCornerMarks の KDoc に理由を置く）。
 // 色/字/余白はトークン経由（hex 直書き禁止・ADR 0014）。メタ文字は AA の LocalShelfColors.infoText を使う。
 // ============================================================
 
@@ -217,27 +237,86 @@ internal fun BookshelfK(
     val gridToggle = rememberShelfViewToggle(PrefKeys.K_GRID_VIEW, default = true)
     val isGridView = gridToggle.value
 
+    // 空棚（蔵書0）か。**FAB の出没（2026-08-20 裁定②）と空状態の分岐が同じ1つの式を読む**ように畳む。
+    // ⚠️ selectedStatus == null を式に含めるのが肝: 「この分類の本はありません」（状態フィルタで0件・蔵書はある）
+    //    は空棚ではなく CTA も持たないため、あちらで FAB を隠すと PDF 追加の導線が全部消える。
+    //    条件を2箇所に書き分けるとこの取り違えが静かに入り込むので、式は1つしか置かない。
+    val isEmptyShelf = selectedStatus == null && shelfItems.isEmpty() && !isLoading && !isProcessing
+
     var showDeleteConfirm by remember { mutableStateOf(false) }
     val gridState = rememberLazyGridState()
     val listState = rememberLazyListState()
+
+    // 向き判定は既存流儀の LocalConfiguration.orientation（回転で Configuration が変われば自動で再コンポーズ）。
+    // 横向きだけ構造が変わる（ADR 0034）＝縦向きの版面はこの val の false 枝で従来のまま通る。
+    val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+    // Rail 化の起動条件（＝タブ選択の結線が来ているか）。詳細は [LocalKTabSelect] の KDoc。
+    val railSelect = LocalKTabSelect.current
+    val railActive = isLandscape && railSelect != null
+    // 一覧下端の余白（2026-08-25 見直し）。縦向き＝[Insets.ScrollBottomForFab] 96dp のまま
+    //（拡張FAB が本文の上に浮くので回避帯が要る＝内訳は同トークンの KDoc）。
+    // 横向き（Rail 化）＝**回避すべき相手が本文の上に居なくなる**（FAB は Rail 上端＝本文の外）ので
+    // リズムの下余白 [Spacing.S24] へ戻す。96dp のまま残すと「1枚も入らない画面の末尾に 96dp の空白」
+    // という体感悪化（ADR 0034 背景の指摘そのもの）を、Rail で稼いだ縦から差し引くことになる。
+    val shelfScrollBottom = if (railActive) Spacing.S24 else Insets.ScrollBottomForFab
 
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background),
     ) {
+        // Rail は本文の**左隣**に立つので Row で受ける（ADR 0034）。縦向き・未結線では子が本文1つだけの Row
+        // ＝レイアウト結果は従来の Column 単独と同値（本文を二重に書き分けないためにこの形にしている）。
+        Row(modifier = Modifier.fillMaxSize()) {
+            if (railActive) {
+                KNavigationRail(
+                    current = KTab.BOOKSHELF,
+                    onSelect = railSelect!!,
+                    // T1 横一列化: 題字「本棚」＋冊数の移設先＝Rail のヘッダ（画面名を消さずに縦の固定分から外す）。
+                    header = { KRailHeader(title = "本棚", meta = "${libraryCount}冊") },
+                    // FAB は Rail 上端（裁定③）。出没条件は本文側の拡張FABと同一＝押す対象が二重に出ない。
+                    // 淡入淡出も縦向きの拡張FABと同一にする（2026-09-03 小口裁定①＝棚 FAB は全数対象）。
+                    // スロットへ null を渡す形をやめて常に非 null にするのは、退場アニメを再生する主体が
+                    // 消えてしまうと淡出が一瞬も描かれないため。隠れている間の AnimatedVisibility は
+                    // 高さ0＝Rail の版面は従来（null を渡していたとき）と同一。
+                    fab = {
+                        AnimatedVisibility(
+                            visible = !selectionMode && !isEmptyShelf,
+                            enter = fadeIn(tween(MotionDurationReveal)),
+                            exit = fadeOut(tween(MotionDurationDismiss)),
+                        ) {
+                            KRailFab(onClick = onFabClick)
+                        }
+                    },
+                )
+            }
         Column(
             // statusBars のみ避ける（ボトムナビは NavHost の外＝下端 nav インセットは KBottomNav が持つ・二重加算しない）。
+            // 横向きは帯が消える＝下端／本文側の nav インセットを引き受ける相手が居なくなるので、本文が自分で持つ
+            // （左端ぶんは Rail が持っているので End+Bottom だけを取る＝二重加算しない）。
             modifier = Modifier
                 .fillMaxSize()
-                .statusBarsPadding(),
+                .statusBarsPadding()
+                .then(
+                    if (railActive) {
+                        Modifier.windowInsetsPadding(
+                            WindowInsets.navigationBars.only(WindowInsetsSides.End + WindowInsetsSides.Bottom),
+                        )
+                    } else {
+                        Modifier
+                    },
+                ),
         ) {
             // ヘッダ（.head）: 「本棚」＋薄く冊数＋右端は表示切替のみ。
-            KHeader(
-                count = libraryCount,
-                isGridView = isGridView,
-                onToggleView = gridToggle::toggle,
-            )
+            // 横向き（T1）では出さない＝題字と冊数は Rail ヘッダへ移り、表示切替は状態チップ行の右端へ寄る
+            // （縦に積んだ2行〈ヘッダ68dp＋チップ46dp〉を1行 52dp へ畳むのが T1 の要件）。
+            if (!railActive) {
+                KHeader(
+                    count = libraryCount,
+                    isGridView = isGridView,
+                    onToggleView = gridToggle::toggle,
+                )
+            }
 
             // 取込中バナー（.proc 相当＝D の ProcessingBanner を流用）。出没のみ Motion スロット（reveal/dismiss）。
             AnimatedVisibility(
@@ -288,10 +367,16 @@ internal fun BookshelfK(
             }
 
             // 状態フィルタチップ行（.chips）。棚が非空のときだけ意味を持つが、D と同じく常時出して「すべて」へ戻れる導線を保つ。
+            // 横向き（T1）ではこの行が唯一の操作行になる＝右端に表示切替を同居させる（モック .headt）。
             KStatusChipRow(
                 selectedStatus = selectedStatus,
                 onSelect = onSelectStatus,
                 statusCounts = statusCounts,
+                trailing = if (railActive) {
+                    { KViewToggleButton(isGridView = isGridView, onToggleView = gridToggle::toggle) }
+                } else {
+                    null
+                },
             )
 
             when {
@@ -305,7 +390,8 @@ internal fun BookshelfK(
                     )
                 }
                 // 空状態は Loading 中は出さない（Content(空) 確定まで＝cold start の空フラッシュ回避・D の F-O と同思想）。
-                !isLoading && shelfItems.isEmpty() && !isProcessing -> {
+                // 条件は FAB の出没と共有する [isEmptyShelf] ただ1つ（上の分岐で selectedStatus != null は既に消えている）。
+                isEmptyShelf -> {
                     KEmptyState(
                         onFindWorks = onOpenDiscovery,
                         onAddPdf = onFabClick,
@@ -318,10 +404,7 @@ internal fun BookshelfK(
                     // 360−48(左右S24)−32(列間S32)=280/2）／横=5列（書影≈131dp級・可視域約162dpに書影約93%）。
                     // なぜ横だけ列数を変えるか: 縦と同じ2列だと横800dp級で書影が364dpへ肥大し1画面の収納数が
                     // 激減する（正本モック skins/bookshelf-K-landscape.html）。余白・アスペクト比・キャプション
-                    // 構成は縦横同値＝裁定の変数は列数のみ。判定は既存流儀の LocalConfiguration.orientation
-                    //（回転で Configuration が変われば自動で再コンポーズされる）。
-                    val isLandscape =
-                        LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+                    // 構成は縦横同値＝裁定の変数は列数のみ。判定（isLandscape）は画面冒頭で1度だけ取る。
                     LazyVerticalGrid(
                         columns = GridCells.Fixed(if (isLandscape) 5 else 2),
                         state = gridState,
@@ -329,7 +412,7 @@ internal fun BookshelfK(
                         modifier = Modifier.fillMaxWidth().weight(1f),
                         // 上端はヘッダ（チップ行）が持つ。下端は FAB と最終行の重なり回避ぶん（D と同じ Insets 値）。
                         contentPadding = PaddingValues(
-                            start = Spacing.S24, top = Spacing.S4, end = Spacing.S24, bottom = Insets.ScrollBottomForFab,
+                            start = Spacing.S24, top = Spacing.S4, end = Spacing.S24, bottom = shelfScrollBottom,
                         ),
                         // 行間は S16 維持。列間は 2列改A で S32 へ拡大（書影を大きく見せるための余白拡大）。
                         verticalArrangement = Arrangement.spacedBy(Spacing.S16),
@@ -379,7 +462,7 @@ internal fun BookshelfK(
                         state = listState,
                         modifier = Modifier.fillMaxWidth().weight(1f),
                         contentPadding = PaddingValues(
-                            start = Spacing.S24, top = Spacing.S4, end = Spacing.S24, bottom = Insets.ScrollBottomForFab,
+                            start = Spacing.S24, top = Spacing.S4, end = Spacing.S24, bottom = shelfScrollBottom,
                         ),
                     ) {
                         // contentType=型: 蔵書/Web はカード構成が別物のため、要素の再利用プールを型ごとに分ける（性能のみ・見た目不変）
@@ -440,20 +523,49 @@ internal fun BookshelfK(
                     onDelete = { showDeleteConfirm = true },
                 )
             }
-        }
+        } // Column（本文）
+        } // Row（Rail ＋ 本文）
 
         // 拡張FAB「＋ PDFを追加」（.fab 藍・ラベル付き）。選択モード中は下端の選択バーへ場を譲り隠す（D の Scaffold と同挙動）。
-        if (!selectionMode) {
-            ExtendedFloatingActionButton(
-                text = { Text("PDFを追加") },
-                icon = { Icon(Icons.Filled.Add, contentDescription = null) },
-                onClick = onFabClick,
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary,
+        // 横向き（Rail 化）では出さない＝FAB は Rail 上端の円形へ移る（裁定③。拡張ラベルを失う代償は受け入れ済み）。
+        // 右下据え置きを採らない理由＝横向きでは最終列の書影に恒久的に重なるため。
+        // 空棚（蔵書0）でも隠す（2026-08-20 ユーザー裁定②）＝押す対象を空棚CTA〈PDFを追加〉一本へ寄せる。
+        // 同じ操作が拡張FABと CTA で二重に出ており、fontScale 2.0 では FAB が CTA へ被っていた（実機 PGEM10）。
+        // ⚠️ [isEmptyShelf] は「この分類の本はありません」を含まない＝あちらは CTA が無いので FAB を残す。
+        // 淡入淡出（2026-09-03 小口裁定①）: 出没条件（選択モード・空棚）は長押しや 0冊目の取込完了で
+        // 瞬間的に跳ねるため、尺ゼロだと FAB がパチンと現れ／消えて何が起きたか読めない。位置ずれを
+        // 伴わない純フェードにするのは、右下固定の FAB に「動いてくる先」が無く、滑り込ませると嘘の
+        // 空間語彙を足すため。尺は同ファイルのバナー入退場と同じスロット（enter>exit＝Design/08-C）。
+        // 横向き（railActive）だけは AnimatedVisibility の外＝素の if に残す。Rail への移設は構成変更（回転）で
+        // 起き、面ごと作り直されるので出没のフェードとは別事象（包むと回転のたびに薄く光る）。
+        // 横向きの円形 FAB は Rail 側で同じ尺の淡入淡出を持つ（[KNavigationRail] へ渡す fab スロット）。
+        if (!railActive) {
+            AnimatedVisibility(
+                visible = !selectionMode && !isEmptyShelf,
+                enter = fadeIn(tween(MotionDurationReveal)),
+                exit = fadeOut(tween(MotionDurationDismiss)),
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
                     .padding(end = Spacing.S16, bottom = Spacing.S16),
-            )
+            ) {
+                ExtendedFloatingActionButton(
+                    text = { Text("PDFを追加") },
+                    icon = { Icon(Icons.Filled.Add, contentDescription = null) },
+                    onClick = onFabClick,
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                    // 読み上げ名（2026-08-07 実機 TalkBack で無名と判明）: M3 の
+                    // ExtendedFloatingActionButton は text スロットを clearAndSetSemantics{} で包む
+                    // （展開/縮退アニメで読み上げが揺れないようにするため）。結果、ラベルが見えていても
+                    // ボタンの意味ノードは Role=Button だけで text も contentDescription も空になる
+                    // ＝名前は呼び出し側が与えるしかない（unmerged ツリーで確認＝BookshelfKFabTest）。
+                    // 名前は見える文字と同一にする（label-in-name＝音声操作で「PDFを追加」と言える）。
+                    // 用語: これは端末内PDFの取り込みで、発見（A「見つける」）でも検索（B「探す」）でも
+                    // ない＝docs/patterns/discovery-terminology.md の2語を借りない。
+                    // ⚠️ 配置（align/padding）は AnimatedVisibility 側へ移した＝FAB 自身は器の中身になった。
+                    modifier = Modifier.semantics { contentDescription = "PDFを追加" },
+                )
+            }
         }
 
         SnackbarHost(
@@ -492,6 +604,8 @@ internal fun BookshelfK(
                 Column {
                     // 欠落本の警告は本文の先頭（後段の一般文より固有かつ重い）。欠落0冊なら描画そのものが無い。
                     MissingContentDeleteWarningText(lossWarning)
+                    // 削除対象の題名列挙（監査 A11・D と同じ共有部品＝先頭5件＋ほかN件。理由は部品側コメント参照）。
+                    DeleteTargetTitlesText(bookTargets.map { it.title } + webTargets.map { it.title })
                     // 選択内訳（蔵書数・Web数）で本文を出し分け（系3）＝Web に「本文データも削除」の虚偽を出さない。
                     Text(deleteConfirmBody(bookTargets.size, webTargets.size))
                     DeleteSourcePdfOption(deletableCount, alsoDeleteSource) { alsoDeleteSource = it }
@@ -548,14 +662,43 @@ private fun KHeader(
                 modifier = Modifier.alignByBaseline(),
             )
         }
-        // グリッド⇄リスト表示切替（.view＝唯一のヘッダアクション）。図柄は D の本棚と同じ規則で入替。
-        IconButton(onClick = onToggleView) {
-            Icon(
-                imageVector = if (isGridView) Icons.AutoMirrored.Filled.List else Icons.Filled.GridView,
-                contentDescription = if (isGridView) "リスト表示" else "グリッド表示",
-                tint = MaterialTheme.colorScheme.onSurface,
-            )
-        }
+        KViewToggleButton(isGridView = isGridView, onToggleView = onToggleView)
+    }
+}
+
+/**
+ * グリッド⇄リスト表示切替（.view＝唯一のヘッダアクション）。図柄は D の本棚と同じ規則で入替。
+ * 縦向きはヘッダ右端・横向き（T1）は状態チップ行の右端＝**置き場所だけが変わる**ので実装を1つに保つ。
+ */
+@Composable
+private fun KViewToggleButton(isGridView: Boolean, onToggleView: () -> Unit) {
+    IconButton(onClick = onToggleView) {
+        Icon(
+            imageVector = if (isGridView) Icons.AutoMirrored.Filled.List else Icons.Filled.GridView,
+            contentDescription = if (isGridView) "リスト表示" else "グリッド表示",
+            tint = MaterialTheme.colorScheme.onSurface,
+        )
+    }
+}
+
+/**
+ * Rail 上端の FAB（裁定③）。拡張FAB は Rail 幅 80dp に入らないので**円形**になる
+ * ＝ラベル「PDFを追加」を字として持てないぶん、読み上げ名を明示で与える（拡張FAB 側と同じ
+ * label-in-name の理由＝[BookshelfK] の ExtendedFloatingActionButton のコメント）。
+ * 寸法はモック `.rfab` 52x52 / r16（＝角丸は M3 の large と同義でなく正本値なので shape で明示する）。
+ */
+@Composable
+private fun KRailFab(onClick: () -> Unit) {
+    FloatingActionButton(
+        onClick = onClick,
+        containerColor = MaterialTheme.colorScheme.primary,
+        contentColor = MaterialTheme.colorScheme.onPrimary,
+        shape = RoundedCornerShape(16.dp),
+        modifier = Modifier
+            .size(52.dp)
+            .semantics { contentDescription = "PDFを追加" },
+    ) {
+        Icon(Icons.Filled.Add, contentDescription = null)
     }
 }
 
@@ -567,41 +710,76 @@ private fun KStatusChipRow(
     selectedStatus: ReadingStatus?,
     onSelect: (ReadingStatus?) -> Unit,
     statusCounts: Map<ReadingStatus, Int>,
+    // 行の右端に同居させる操作（横向き T1 の表示切替）。null＝縦向き＝従来どおりチップだけの行。
+    trailing: @Composable (() -> Unit)? = null,
 ) {
+    if (trailing == null) {
+        KStatusChips(selectedStatus, onSelect, statusCounts, Modifier.fillMaxWidth())
+        return
+    }
+    // T1 の操作行（モック .headt）: 左にチップ（溢れは既存の横スクロールが吸う）・右端に表示切替。
+    // チップ側を weight(1f) で残り幅にするので、切替ボタンは幅を取られず必ず右端に居る。
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+        KStatusChips(selectedStatus, onSelect, statusCounts, Modifier.weight(1f))
+        trailing()
+        Spacer(Modifier.width(Spacing.S8))
+    }
+}
+
+/** チップの並び本体（横スクロール器）。[KStatusChipRow] が縦横で置き方だけを変えて使う。 */
+@Composable
+private fun KStatusChips(
+    selectedStatus: ReadingStatus?,
+    onSelect: (ReadingStatus?) -> Unit,
+    statusCounts: Map<ReadingStatus, Int>,
+    modifier: Modifier,
+) {
+    val scrollState = rememberScrollState()
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .horizontalScroll(rememberScrollState())
+        modifier = modifier
+            // 端フェード（正本 .chipsrow .fade・2026-08-20 裁定①）。horizontalScroll の**直前**に置く＝
+            // この修飾子のノード寸法が可視域そのものになり、レイアウトノードは1つも増えない（版面不変）。
+            // bottomInset に S12 を渡すのは、下パディングがこの行の**内側**（スクロール器の中）にあり
+            // ノード高へ含まれるため＝チップの帯だけを溶かし下の余白には掛けない（正本 bottom:12px）。
+            .horizontalScrollEdgeFade(
+                scrollState = scrollState,
+                baseColor = MaterialTheme.colorScheme.background,
+                bottomInset = Spacing.S12,
+            )
+            .horizontalScroll(scrollState)
             .padding(start = Spacing.S24, end = Spacing.S24, bottom = Spacing.S12),
         horizontalArrangement = Arrangement.spacedBy(Spacing.S8),
     ) {
         // 「すべて」＝選択なし（null）。棚が非空のときだけ出る行なので常に押せる。
-        KStatusChip(label = "すべて", selected = selectedStatus == null, enabled = true) { onSelect(null) }
-        // よみかけ／未読／読了。0件の分類は enabled=false で淡く＝押しても空表示になる分類を先に塞ぐ（D と同規則）。
+        KStatusChip(label = "すべて", selected = selectedStatus == null) { onSelect(null) }
+        // よみかけ／未読／読了。0件でも淡色化しない（2026-08-07 ユーザー裁定・D と同規則＝理由は
+        // BookshelfScreen の StatusChipRow のコメント。K も「選択中の淡色化で選択が消える」同じ真因を持つ）。
         KStatusChip(
             label = "よみかけ",
             selected = selectedStatus == ReadingStatus.READING,
-            enabled = (statusCounts[ReadingStatus.READING] ?: 0) > 0,
+            isEmpty = (statusCounts[ReadingStatus.READING] ?: 0) == 0,
         ) { onSelect(ReadingStatus.READING) }
         KStatusChip(
             label = "未読",
             selected = selectedStatus == ReadingStatus.UNREAD,
-            enabled = (statusCounts[ReadingStatus.UNREAD] ?: 0) > 0,
+            isEmpty = (statusCounts[ReadingStatus.UNREAD] ?: 0) == 0,
         ) { onSelect(ReadingStatus.UNREAD) }
         KStatusChip(
             label = "読了",
             selected = selectedStatus == ReadingStatus.FINISHED,
-            enabled = (statusCounts[ReadingStatus.FINISHED] ?: 0) > 0,
+            isEmpty = (statusCounts[ReadingStatus.FINISHED] ?: 0) == 0,
         ) { onSelect(ReadingStatus.FINISHED) }
     }
 }
 
-/** フィルタチップ1個（.chip＝角丸ピル）。選択＝藍塗り＋白字／非選択＝ヘアライン枠＋補助色／0件＝淡く不活性。 */
+/** フィルタチップ1個（.chip＝角丸ピル）。選択＝藍塗り＋白字／非選択＝ヘアライン枠＋補助色。 */
 @Composable
 private fun KStatusChip(
     label: String,
     selected: Boolean,
-    enabled: Boolean,
+    // 該当0件か。**見た目には効かせない**（0件の淡色化・押下不能は 2026-08-07 裁定で廃止）。
+    // TalkBack へ「該当なし」を残すためだけに受ける＝文言は D と共有（emptyStatusSemantics）。
+    isEmpty: Boolean = false,
     onClick: () -> Unit,
 ) {
     val shape = CircleShape // border-radius:999px＝完全な丸ピル
@@ -610,21 +788,29 @@ private fun KStatusChip(
     } else {
         Modifier.border(1.dp, MaterialTheme.colorScheme.outlineVariant, shape)
     }
-    val fg = when {
-        !enabled -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
-        selected -> MaterialTheme.colorScheme.onPrimary
-        else -> MaterialTheme.colorScheme.onSurfaceVariant
-    }
+    val fg = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
     Box(
         modifier = Modifier
             .clip(shape)
             .then(base)
-            .clickable(enabled = enabled, onClick = onClick)
+            .clickable(onClick = onClick)
+            .then(emptyStatusSemantics(selected = selected, isEmpty = isEmpty))
+            // ⚠️ **見た目 34dp・当たり判定 48dp は意図的な食い違い**＝この padding を 48dp 目当てに
+            // 膨らませないこと（膨らませると上の lineHeight 修正が無意味になり、ピルが正本より太る）。
+            // 当たり判定は clickable が 48dp を下限として自動確保する＝2026-08-26 に emulator-5558 で実測:
+            // ①この画面の clickable 14件すべてが 48dp 以上 ②ピル上端(242px)の外・当たり判定上端(237px)の
+            // 内側 y=239 を叩くと選択が切り替わる。ピルが 34dp へ縮んでも下限側は 48dp のまま効く。
             .padding(horizontal = Spacing.S16, vertical = Spacing.S8),
     ) {
         Text(
             label,
             fontSize = FontChipLarge,
+            // なぜ lineHeight を明示するか: 既定の LocalTextStyle（＝Typography.bodyLarge）が
+            // lineHeight=28.sp を持つため、fontSize だけ 11.5sp へ落としても**行箱は 28sp のまま残る**。
+            // ピルは行箱の外周をなぞる＝正本 .chip（font 12.5px・line-height:normal で行箱 20px・
+            // 器の総高 34px）に対し、実測で 44.19dp まで肥大していた（+30%／2026-08-26 計測）。
+            // em で持つ理由＝正本の比（20/12.5＝1.6）を、フォント token や fontScale が動いても保つため。
+            lineHeight = 1.6.em,
             color = fg,
             fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
         )
@@ -661,7 +847,13 @@ private fun KGridBookCard(
     Column(
         modifier = modifier
             // 1冊=1トラバーサル単位に束ねる（D カードと同流儀）。
-            .semantics(mergeDescendants = true) {}
+            .semantics(mergeDescendants = true) {
+                // 選択モード中の選択状態宣言（D の GridBookCard と同文・監査 A11。理由はそちらのコメント参照）。
+                if (selectionMode) {
+                    this.selected = selected
+                    this.stateDescription = if (selected) "選択中" else "未選択"
+                }
+            }
             .combinedClickable(
                 // 通常＝タップで開く/長押しで選択モードへ。選択モード中はタップ/長押しで選択トグル（D と同挙動）。
                 onClick = { if (selectionMode) onToggleSelect() else onOpen() },
@@ -756,20 +948,63 @@ private fun KGridBookCard(
         Spacer(Modifier.height(Spacing.S4))
         if (missingLabel != null) {
             // 欠落本の状態行（案B・.st）: 進捗の徴を欠落文言に置き換える（本文が無い本に話数を出すと嘘になる）。
-            Text(missingLabel, fontSize = FontMicroLabel, color = LocalShelfColors.current.infoText)
+            Text(
+                missingLabel,
+                fontSize = FontMicroLabel,
+                lineHeight = KGridStatusLineHeight,
+                color = LocalShelfColors.current.infoText,
+            )
         } else {
-            KBookStatusLine(status = status, chapNum = chapNum, totalChaps = totalChaps)
+            KBookStatusLine(status = status, chapNum = chapNum, totalChaps = totalChaps, lineHeight = KGridStatusLineHeight)
         }
     }
 }
 
+// ============================================================
+// 行送り（lineHeight）の較正値。**すべて正本モックの該当セレクタ1つと1対1で対応させる**。
+// なぜ明示が要るか: 既定の LocalTextStyle（＝Typography.bodyLarge）は lineHeight=28.sp を持ち、
+// fontSize だけ小さくしても**行箱は 28sp のまま残る**（Compose の lineHeight は下限＝
+// docs/knowledge/compose-lineheight-is-a-floor-not-css-line-height.md）。器（ピル・バッジ・行）が
+// 行箱の外周をなぞる要素では、その 28sp がそのまま器の肥大になる。
+// em で持つ理由＝正本の比を、フォント token や fontScale が動いても保つため。
+// ============================================================
+
+/**
+ * グリッド書籍カードの状態行。正本 skins/bookshelf-K.html `.st`（font-size:10.5px・line-height 未指定
+ * ＝normal）。ゴシックの normal は実測 1.6。10.5sp では実測 17.0dp（従来の継承 28.0dp から −11.0dp）。
+ */
+private val KGridStatusLineHeight = 1.6.em
+
+/**
+ * 目録（リスト）行の題字。正本 skins/bookshelf-list-K.html `.lc .t`（font-size:16px・line-height:1.5）。
+ * FontCardTitle 16.5sp では実測 25.0dp（自然行高 24.5dp より上＝下限として効く／従来 28.0dp）。
+ */
+private val KListTitleLineHeight = 1.5.em
+
+/**
+ * 目録（リスト）行のメタ1行。正本 skins/bookshelf-list-K.html `.lc .m`（font-size:13px・line-height:1.4）。
+ * ⚠️ FontMicroLabel 10.5sp では 1.4×10.5＝14.7sp が**自然行高 15.5dp を下回るためクランプされる**
+ * ＝指定した比そのものは効かず 15.5dp に着地する（Compose の lineHeight は下限）。それでもここに置くのは、
+ * この一行の目的が「bodyLarge の 28sp 継承を切って自然行高まで落とす」ことであり、比は正本の由来を
+ * 残すための記録だから。正本どおりの 18.2px 相当を厳密に出すには行送りと箱高(dp)を対で置く必要がある
+ * （＝上記 knowledge の対処。行構造ごと作り直すことになるので本便では踏み込まない）。
+ */
+private val KListMetaLineHeight = 1.4.em
+
 /** 蔵書カードの状態行（.st）。読了＝「読了」／未読＝藍ドット＋「未読」／よみかけ＝「第N/M話」。 */
 @Composable
-private fun KBookStatusLine(status: ReadingStatus, chapNum: Int?, totalChaps: Int) {
+private fun KBookStatusLine(
+    status: ReadingStatus,
+    chapNum: Int?,
+    totalChaps: Int,
+    // グリッド（.st）と目録（.lc .m）で**正本セレクタが別＝比も別**なので、行送りは呼び出し側が渡す。
+    lineHeight: TextUnit,
+) {
     when (status) {
         ReadingStatus.FINISHED -> Text(
             "読了",
             fontSize = FontMicroLabel,
+            lineHeight = lineHeight,
             color = LocalShelfColors.current.infoText,
         )
         ReadingStatus.UNREAD -> Row(verticalAlignment = Alignment.CenterVertically) {
@@ -781,12 +1016,13 @@ private fun KBookStatusLine(status: ReadingStatus, chapNum: Int?, totalChaps: In
                     .background(MaterialTheme.colorScheme.primary),
             )
             Spacer(Modifier.width(Spacing.S4))
-            Text("未読", fontSize = FontMicroLabel, color = LocalShelfColors.current.infoText)
+            Text("未読", fontSize = FontMicroLabel, lineHeight = lineHeight, color = LocalShelfColors.current.infoText)
         }
         // よみかけ＝読んだ章/全章（進捗バーでなく到達話数を数字で示すモック流儀）。chapNum は READING では非 null。
         ReadingStatus.READING -> Text(
             "第${chapNum ?: 1}/${totalChaps}話",
             fontSize = FontMicroLabel,
+            lineHeight = lineHeight,
             color = LocalShelfColors.current.infoText,
         )
     }
@@ -813,12 +1049,28 @@ private fun KWebGridBookCard(
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     val hasProgress = lastReadEpisode > 0
-    // 破線フレーム色（青磁＝secondary）。DrawScope 内では @Composable の MaterialTheme を読めないため事前に捕捉する。
-    val seiji = MaterialTheme.colorScheme.secondary
+    // 未取込の署名色＝濃青磁（正本 --seiji-ink #50685C／トークン UnreadSeiji）。2026-08-26 ユーザー裁定で
+    // 「実装（淡 secondary #9CB3A8）を正本へ寄せる」と確定。LocalShelfColors 経由で引くのは、ライト/セピアは
+    // UnreadSeiji・ダークは暗面で合格済みの SecondaryDark を返す既存の役割配線に乗せるため（K は SkinD へ全委譲）。
+    // 新トークンは作らない＝2026-08-21 のキャプション色是正と同じく「既存トークンの適用漏れを埋める」だけ。
+    // DrawScope 内では @Composable の MaterialTheme を読めないため事前に捕捉する。
+    val seijiInk = LocalShelfColors.current.semanticMicroText
+    // 沈めた紙（正本 --field）。onSurface を NarouSinkAlpha だけ紙へ焼き込む＝ライトは #FBFAF8 → #F4F3F2。
+    val shiori = LocalShioriColors.current
+    val onSurface = MaterialTheme.colorScheme.onSurface
+    val sunkenShiori = remember(shiori, onSurface) {
+        shiori.copy(paper = onSurface.copy(alpha = NarouSinkAlpha).compositeOver(shiori.paper))
+    }
 
     Column(
         modifier = modifier
-            .semantics(mergeDescendants = true) {}
+            .semantics(mergeDescendants = true) {
+                // 選択モード中の選択状態宣言（D の GridBookCard と同文・監査 A11。理由はそちらのコメント参照）。
+                if (selectionMode) {
+                    this.selected = selected
+                    this.stateDescription = if (selected) "選択中" else "未選択"
+                }
+            }
             .combinedClickable(
                 // 選択モード中はタップ/長押しで選択トグル。通常時は進捗あれば主タップ=続きから／未読は目次、長押しで選択モードへ（系3）。
                 // 旧・長押し＝⋮は、キャプション行右端の可視⋮（KCardMenuButton）が代替導線になったため選択入口へ譲る。
@@ -828,31 +1080,29 @@ private fun KWebGridBookCard(
     ) {
         Box(modifier = Modifier.fillMaxWidth()) {
             // 未取込＝D改（2026-07-24 ユーザー裁定）: 影は付けない＝「まだ実体がない一冊」を浮かせない
-            // （実体のある蔵書カードだけ手順2の影を持つ）。輪郭は下の青磁破線が担う。
-            ShioriCover(
-                title = novel.title,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .aspectRatio(3f / 4f)
-                    .clip(RoundedCornerShape(3.dp)),
-            )
-            // 紙地一段沈め＝取込前の「仮置き」感（正本モック D改: 紙地を field 系へ）。ShioriCover の上へ
-            // onSurface 5% を薄く被せてテーマ非依存で一段くすませる（alpha は実機検分で調整）。
-            Box(
-                modifier = Modifier
-                    .matchParentSize()
-                    .clip(RoundedCornerShape(3.dp))
-                    .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f)),
-            )
-            // 青磁の破線フレーム（D改＝旧・白ピルの代替）。輪郭が未確定＝「仮置き＝まだ手元にない」の比喩。
-            // 角丸3dp＝書影 clip と整合。描画本体は共有 narouDashedOutline（リスト帯と1定義を共用）。
-            Box(
-                modifier = Modifier
-                    .matchParentSize()
-                    .narouDashedOutline(color = seiji, cornerRadius = 3.dp),
-            )
-            // 選択中は書影へ藍の細縁取り＋淡い藍かぶせ（KGridBookCard と同じ .bk.sel）。
+            // （実体のある蔵書カードだけ手順2の影を持つ）。徴は下の四隅マーカーが担う。
+            //
+            // 紙地一段沈め＝取込前の「仮置き」感。正本 `.cv.narou` は background を --field へ差し替える
+            // ＝沈めは**地**であって被膜ではない（栞棒と縦題字はくすまない）。旧実装は ShioriCover の**上**へ
+            // veil を重ねており、一覧（行の background＝内容の下）と重ね順が食い違っていた——2面とも
+            // 「地」へ揃えた（揃える先を地にしたのは、正本2枚がどちらも background 差し替えで、かつ
+            // 被膜側へ揃えると一覧のメタ文字まで曇って下の AA 是正と正面衝突するため）。
+            // ShioriCover は紙を LocalShioriColors.paper から読むので、このカードの範囲だけ沈めた紙を
+            // 供給すれば ink（縦題字）と accent（栞棒・先端）は素のまま残る＝正本と同じ効き方になる。
+            CompositionLocalProvider(LocalShioriColors provides sunkenShiori) {
+                ShioriCover(
+                    title = novel.title,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .aspectRatio(3f / 4f)
+                        .clip(RoundedCornerShape(3.dp)),
+                )
+            }
             if (selected) {
+                // 選択中は書影へ藍の細縁取り＋淡い藍かぶせ（KGridBookCard と同じ .bk.sel）。
+                // ⚠️ ここでは四隅マーカーを描かない: 2dp の藍縁取りは器の外周 0〜2dp を塗り、マーカーの線
+                // （外周 0〜1dp）と同じ画素を占める＝描いても埋もれて二重輪郭にしかならない。未取込の徴は
+                // 沈めた紙地とキャプション「なろう・未取込」が引き続き担うので、選択中に失われる情報は無い。
                 Box(
                     modifier = Modifier
                         .matchParentSize()
@@ -860,8 +1110,23 @@ private fun KWebGridBookCard(
                         .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.14f))
                         .border(2.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(3.dp)),
                 )
+            } else {
+                // 四隅マーカー（正本 `.cv.narou .mk`）。角丸3dp＝書影 clip と整合。
+                // 描画本体は共有 narouCornerMarks（一覧行と1定義を共用＝署名の脱落を構造的に防ぐ）。
+                Box(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .narouCornerMarks(
+                            color = seijiInk,
+                            cornerRadius = 3.dp,
+                            armLength = NarouMarkArmGrid,
+                        ),
+                )
             }
             // 選択モード中は書影右上に選択マーク（蔵書カードと共有の KSelectionCheck）。
+            // ⚠️ 右上マーカーと同じ隅を使う。未選択のあいだは画素が重ならない（マーク＝22dp を S8 で寄せる
+            // ＝上端/右端から 8dp・マーカーの腕は端から 12dp／線 1dp ＝実測クリアランス 7dp）が、選択された
+            // 瞬間は上の藍縁取りがマーカーを完全に覆う——そこを上の if/else で描き分けて重なりを解消している。
             if (selectionMode) {
                 KSelectionCheck(
                     selected = selected,
@@ -889,14 +1154,19 @@ private fun KWebGridBookCard(
                     Text(
                         "第${lastReadEpisode}話まで既読",
                         fontSize = FontMicroLabel,
+                        lineHeight = KGridStatusLineHeight,
                         color = LocalShelfColors.current.infoText,
                     )
                 } else {
                     Text(
                         "なろう・未取込",
                         fontSize = FontMicroLabel,
+                        lineHeight = KGridStatusLineHeight,
                         fontWeight = FontWeight.Medium,
-                        color = MaterialTheme.colorScheme.secondary,
+                        // 状態を名指す＝意味を運ぶ文字なので AA(4.5:1) が要る。青磁 secondary #9CB3A8 は
+                        // 素地 2.14:1 で未達＝ADR 0014-D の濃青磁へ寄せる（正本 skins/bookshelf-K.html の
+                        // `.st.narou` も --seiji-ink。ここが「既知の乖離（意匠裁定待ち）」として残っていた）。
+                        color = LocalShelfColors.current.semanticMicroText,
                     )
                 }
             }
@@ -963,7 +1233,13 @@ private fun KListBookCard(
         Row(
             modifier = Modifier
                 // 1冊=1トラバーサル単位に束ねる（行末⋮は別フォーカスとして残る＝D の目録行と同流儀）。
-                .semantics(mergeDescendants = true) {}
+                .semantics(mergeDescendants = true) {
+                    // 選択モード中の選択状態宣言（D の GridBookCard と同文・監査 A11。理由はそちらのコメント参照）。
+                    if (selectionMode) {
+                        this.selected = selected
+                        this.stateDescription = if (selected) "選択中" else "未選択"
+                    }
+                }
                 // 選択中は行全体に淡い藍かぶせ（D の ListBookCard と同じ・目録は色帯があるため控えめ）。
                 .background(
                     if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.08f)
@@ -996,6 +1272,7 @@ private fun KListBookCard(
                     text = book.title,
                     fontFamily = MinchoFamily,
                     fontSize = FontCardTitle,
+                    lineHeight = KListTitleLineHeight,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     color = MaterialTheme.colorScheme.onSurface,
@@ -1008,20 +1285,26 @@ private fun KListBookCard(
                         Text(
                             text = book.author,
                             fontSize = FontMicroLabel,
+                            lineHeight = KListMetaLineHeight,
                             color = LocalShelfColors.current.infoText,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                             // 著者が長くても状態・バッジを押し出さない（D の目録行と同じ収縮）。
                             modifier = Modifier.weight(1f, fill = false),
                         )
-                        Text("・", fontSize = FontMicroLabel, color = LocalShelfColors.current.infoText)
+                        Text("・", fontSize = FontMicroLabel, lineHeight = KListMetaLineHeight, color = LocalShelfColors.current.infoText)
                     }
                     // 状態部＝グリッドの KBookStatusLine を再利用（読了/未読(藍ドット)/第N/M話）＝徴を1箇所に集約。
                     // 本文欠落（案B）はグリッドと同じ置き換え（進捗の徴を出さず欠落文言のみ）。
                     if (missingLabel != null) {
-                        Text(missingLabel, fontSize = FontMicroLabel, color = LocalShelfColors.current.infoText)
+                        Text(
+                            missingLabel,
+                            fontSize = FontMicroLabel,
+                            lineHeight = KListMetaLineHeight,
+                            color = LocalShelfColors.current.infoText,
+                        )
                     } else {
-                        KBookStatusLine(status = status, chapNum = chapNum, totalChaps = totalChaps)
+                        KBookStatusLine(status = status, chapNum = chapNum, totalChaps = totalChaps, lineHeight = KListMetaLineHeight)
                     }
                     // 続き（新着）バッジ＝D の ListBookCard と同じ NewChaptersBadge を共有（internal 昇格）。メタ行末尾へ。
                     newCount?.let {
@@ -1054,10 +1337,10 @@ private fun KListBookCard(
 
 // ============================================================
 // リスト（目録）Web由来カード＝案A（2026-07-26 ユーザー裁定・正本 bookshelf-list-K.html の .web）。KWebGridBookCard の目録版。
-// 未取込の徴＝行全体を field 沈め＋青磁1.5dp破線（角丸6dp）の中空フレームで括る。グリッド .cv.narou が書影（実体）の
-//   輪郭を「未確定＝仮置き」に描くのと同じ言葉を、書影のない目録では行そのものに掛ける（旧・帯だけの破線化は
-//   2026-07-26 mockview 目視でドラフト案A のフレーム意匠へ差し替え裁定）。色帯は蔵書行と同じ title 由来色に戻す
-//   （正本 .web は --band を保持＝破線枠が「未取込」を語り、帯は「1冊=1色相」の識別に専念する役割分担）。
+// 未取込の徴＝行地を field へ沈め、行の四隅へ青磁のコーナーマーカーを置く（角丸6dp）。グリッド .cv.narou が
+//   書影（実体）の隅に同じ徴を置くのと同じ言葉を、書影のない目録では行そのものに掛ける（2026-07-26 に帯だけの
+//   破線化→行フレームへ、2026-08-26 に四辺の破線→四隅マーカーへ。後者の理由は narouCornerMarks の KDoc）。色帯は蔵書行と同じ title 由来色に戻す
+//   （正本 .web は --band を保持＝四隅マーカーが「未取込」を語り、帯は「1冊=1色相」の識別に専念する役割分担）。
 // 機能パリティは D の WebListBookCard から全数移植（タップ=進捗あれば再開/無ければ目次・長押し=選択入口・
 //   選択マーク・⋮=目次(進捗時)/取込/外す・resume 分岐）。⋮メニューは KWebGridBookCard と同じ項目を inline で持つ。
 // ============================================================
@@ -1078,28 +1361,45 @@ private fun KWebListBookCard(
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     val hasProgress = lastReadEpisode > 0
-    // 破線署名色（青磁＝secondary）。DrawScope 内では @Composable の MaterialTheme を読めないため事前に捕捉する。
-    val seiji = MaterialTheme.colorScheme.secondary
+    // 未取込の署名色＝濃青磁（正本 --seiji-ink／トークン UnreadSeiji。引き方の理由は KWebGridBookCard と同文）。
+    // 四隅マーカー（装飾）とメタ文字（AA 対象）の両方がこの1色を使う。
+    // ⚠️ メタ文字は装飾ではなく AA 対象（ADR 0014-D「意味を運ぶ文字は WCAG 4.5:1」）＝枠と別に決めてよい。
+    // 旧実装の淡 secondary #9CB3A8 は素地 2.14:1 で未達だった——2026-08-21 の是正がグリッドのキャプション
+    // （unreadLabel→semanticMicroText）にだけ入り、この一覧行が取り残されていた。濃青磁は沈めた行地
+    // #F4F3F2 上 5.45:1・素地 #FBFAF8 上 5.79:1 で AA を満たす。今回は枠の裁定も濃青磁なので1つの値を共有する。
+    // DrawScope 内では @Composable の MaterialTheme を読めないため事前に捕捉する。
+    val seijiInk = LocalShelfColors.current.semanticMicroText
     // 帯の作品識別色（蔵書行 KListBookCard と同一導出＝「1冊=1色相」を Web由来でも保つ）。
     val accentLightness = LocalShioriColors.current.accentLightness
     val bandColor = remember(novel.title, accentLightness) { shioriAccentFor(shioriHue(novel.title), accentLightness) }
 
-    // 蔵書行と違い下ヘアラインを持たない＝正本 .web が border-bottom を破線フレームへ置換しているため
-    // （残すと破線と実線の二重区切りになる）。Column 包みも不要になり Row 単体で組む。
+    // 蔵書行と違い下ヘアラインを持たない＝正本 .web が border-bottom-color を transparent にしているため
+    // （沈めた行地の縁に線を重ねると、四隅マーカーと合わせて区切りが二重に見える）。行の切れ目は前後の
+    // 蔵書行が持つヘアラインと下側マーカーが担う。Column 包みも不要になり Row 単体で組む。
     Row(
         modifier = modifier
-            .semantics(mergeDescendants = true) {}
+            .semantics(mergeDescendants = true) {
+                // 選択モード中の選択状態宣言（D の GridBookCard と同文・監査 A11。理由はそちらのコメント参照）。
+                if (selectionMode) {
+                    this.selected = selected
+                    this.stateDescription = if (selected) "選択中" else "未選択"
+                }
+            }
             // 角丸6dp＝正本 .web の border-radius。clip が field 地・選択かぶせ・リップルを枠形に収める。
             .clip(RoundedCornerShape(6.dp))
-            // 紙地一段沈め（--field）＝KWebGridBookCard と同じ onSurface 5% かぶせのテーマ非依存翻訳（alpha は実機検分で調整）。
-            .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f))
+            // 行地一段沈め（--field）＝KWebGridBookCard と同じ onSurface かぶせのテーマ非依存翻訳。
+            // ここは従来から「内容の下」＝地。グリッド側をこの重ね順へ揃えた（理由はあちらのコメント）。
+            .background(MaterialTheme.colorScheme.onSurface.copy(alpha = NarouSinkAlpha))
             // 選択中は field の上へ淡い藍かぶせ（蔵書行と同値）。
             .background(
                 if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.08f)
                 else Color.Transparent,
             )
-            // 青磁破線フレーム（線幅1.5dp・dash 4dp/3dp＝グリッド書影と同値の共有 narouDashedOutline）。
-            .narouDashedOutline(color = seiji, cornerRadius = 6.dp)
+            // 青磁の四隅マーカー（線幅1.0dp・実線・腕14dp＝グリッド書影と1定義を共用する narouCornerMarks）。
+            // グリッドと違い選択中も描いたままにする: 一覧の選択マークは Row の子として行内に並ぶ＝四隅とは
+            // 場所が競合せず、選択かぶせも背景（内容の下）なのでマーカーを覆わない＝選択作業中も
+            // 「どれが未取込か」を保てる（グリッドは書影右上で重なるため描き分けが要った）。
+            .narouCornerMarks(color = seijiInk, cornerRadius = 6.dp, armLength = NarouMarkArmList)
             .combinedClickable(
                 // 選択モード中はトグル。通常は進捗あれば主タップ=続きから／無ければ目次、長押しで選択モードへ（系3）。
                 onClick = { if (selectionMode) onToggleSelect() else if (hasProgress) onResume() else onOpen() },
@@ -1110,7 +1410,7 @@ private fun KWebListBookCard(
             .padding(top = Spacing.S12, bottom = Spacing.S12),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // 色帯（蔵書行と同寸: 幅4dp・角丸2dp）。破線フレームの左角丸6dpと重ならないよう枠内へ 6dp インセットし
+        // 色帯（蔵書行と同寸: 幅4dp・角丸2dp）。沈めた行地の左角丸6dpを跨がないよう枠内へ 6dp インセットし
         // （正本 .web::before left:6px）、題字の左位置は蔵書行と揃える＝後続ギャップを S16−インセットで相殺する。
         Box(
             modifier = Modifier
@@ -1127,40 +1427,44 @@ private fun KWebListBookCard(
                 fontFamily = MinchoFamily,
                 // 目録の題字は行の主役＝FontCardTitle・1行 ellipsis（案A＝KListBookCard と同じ）。
                 fontSize = FontCardTitle,
+                lineHeight = KListTitleLineHeight,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 color = MaterialTheme.colorScheme.onSurface,
             )
             // 題字→メタの詰め S4＝案A（正本 .m の margin-top:4px）。
             Spacer(Modifier.height(Spacing.S4))
-            // メタ1行: 著者＋状態を中黒で連結（蔵書行と同構造＝正本 .web の .m）。未取込署名の枠内にある行のため
-            // 文字は著者ごと青磁で統一する（正本 .web .m,.web .m span＝seiji-ink）。
+            // メタ1行: 著者＋状態を中黒で連結（蔵書行と同構造＝正本 .web の .m）。未取込の行なので
+            // 文字は著者ごと濃青磁で統一する（正本 .web .m,.web .m span＝--seiji-ink）。
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (novel.writer.isNotBlank()) {
                     Text(
                         text = novel.writer,
                         fontSize = FontMicroLabel,
-                        color = seiji,
+                        lineHeight = KListMetaLineHeight,
+                        color = seijiInk,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         // 著者が長くても状態を押し出さない（蔵書行と同じ収縮）。
                         modifier = Modifier.weight(1f, fill = false),
                     )
-                    Text("・", fontSize = FontMicroLabel, color = seiji)
+                    Text("・", fontSize = FontMicroLabel, lineHeight = KListMetaLineHeight, color = seijiInk)
                 }
                 // 進捗あれば「第N話まで既読」（K グリッド Web と同文言）／無ければ「なろう・未取込」（Medium＝未取込の徴）。
                 if (hasProgress) {
                     Text(
                         "第${lastReadEpisode}話まで既読",
                         fontSize = FontMicroLabel,
-                        color = seiji,
+                        lineHeight = KListMetaLineHeight,
+                        color = seijiInk,
                     )
                 } else {
                     Text(
                         "なろう・未取込",
                         fontSize = FontMicroLabel,
+                        lineHeight = KListMetaLineHeight,
                         fontWeight = FontWeight.Medium,
-                        color = seiji,
+                        color = seijiInk,
                     )
                 }
             }
@@ -1185,27 +1489,81 @@ private fun KWebListBookCard(
 }
 
 /**
- * 未取込Webカードの青磁破線輪郭（D改署名・2026-07-24 裁定）: 線幅1.5dp・破線間隔4dp/3dp。
- * なぜ共有 Modifier に集約するか: グリッド書影とリスト行フレーム（案A・2026-07-26 裁定で帯の破線化から
- * 行全体のフレームへ移行）は別 Composable で、破線値を各所へ写経すると
- * リスト新設時の署名脱落（2026-07-26 是正の真因＝圧縮S 新設時にグリッド inline 描画が持ち込まれなかった）
- * が再発する＝「未取込の破線署名」を1定義に束ねて構造的に防ぐ。
- * dashPathEffect の破線間隔はレイアウト余白でなくストローク模様の構造値＝Spacing 尺の対象外（実機で調整）。
+ * 未取込の紙地沈め（正本 --field）＝紙／行地へ onSurface をこの割合だけ焼き込む。
+ * 2026-08-26 ユーザー裁定で 5%→3% へ浅くした（四隅マーカー化と同じ便＝徴を全体に静める枠での再調整）。
+ * ライトでは #FBFAF8 → #F4F3F2。テーマ非依存に一段沈めるため固定色でなく onSurface のかぶせで持つ。
  */
-private fun Modifier.narouDashedOutline(color: Color, cornerRadius: Dp): Modifier = drawBehind {
-    val stroke = 1.5.dp.toPx()
-    drawRoundRect(
-        color = color,
-        // 半ストローク内側へ寄せ、線全体を領域内に収める（clip の角丸と整合）。
-        topLeft = Offset(stroke / 2f, stroke / 2f),
-        size = Size(size.width - stroke, size.height - stroke),
-        cornerRadius = CornerRadius(cornerRadius.toPx()),
-        style = Stroke(
-            width = stroke,
-            pathEffect = PathEffect.dashPathEffect(floatArrayOf(4.dp.toPx(), 3.dp.toPx()), 0f),
-        ),
-    )
-}
+private const val NarouSinkAlpha = 0.03f
+
+/** 未取込マーカーの線幅（2026-08-26 裁定＝1.0dp）。面別に振らないので共有定数で持つ。 */
+private val NarouMarkStroke = 1.dp
+
+/** グリッド書影の腕の長さ（正本 `.cv.narou .mk`＝12px）。 */
+private val NarouMarkArmGrid = 12.dp
+
+/** 一覧行の腕の長さ（正本 `.lc.web .mk`＝14px。行は横長なので角をやや長く取る）。 */
+private val NarouMarkArmList = 14.dp
+
+/**
+ * 未取込Webカードの徴＝四隅のコーナーマーカー（2026-08-26 ユーザー裁定・候補紙
+ * docs/design-candidates/skins/candidates/bookshelf-K-narou-frame-candidates.html の案D＋詰め D2）:
+ * 実線・線幅 [NarouMarkStroke]・色は濃青磁・角丸は器と同値・腕は [NarouMarkArmGrid]/[NarouMarkArmList]。
+ *
+ * なぜ四辺の破線をやめたのか（＝線を弱めたのではなく記号を替えた）: 2026-08-21 の実機ツアーで
+ * 「目立ちすぎ。書庫に入っているのは同じなのに存在しないように見える」と FAIL した。四辺を等しく囲う枠は
+ * 〈中身のない枠＝不在〉と読めてしまう——これは線の *強さ* ではなく *記号* の問題なので、淡く/細く/粗く
+ * する方向（候補 A/B/C/H）では「枠であること」が残り評は解けない。角だけを示せば「中身のない枠」という
+ * 読みが成立しない一方、「まだ確定していない一冊」の比喩と一目の識別は保てる、というのが裁定の理路。
+ *
+ * なぜ共有 Modifier に集約するか（従来どおり）: グリッド書影とリスト行は別 Composable で、値を各所へ
+ * 写経するとリスト新設時のような署名脱落（2026-07-26 是正の真因）が再発する＝1定義に束ねて構造的に防ぐ。
+ *
+ * なぜ [drawWithContent] か: 器の版面（栞書影の栞棒・縦題字／行の題字・メタ・⋮）を 1dp も狭めずに
+ * 上へ重ねるため。border や padding で描くと中身が痩せる＝正本モックが絶対配置のオーバーレイ（.mk）で
+ * 描いているのと同じ思想に合わせる。
+ */
+private fun Modifier.narouCornerMarks(color: Color, cornerRadius: Dp, armLength: Dp): Modifier =
+    drawWithContent {
+        drawContent()
+        val stroke = NarouMarkStroke.toPx()
+        // 線の中心を半ストローク内側へ寄せ、線全体を器の中へ収める（clip の角丸と整合）。
+        val inset = stroke / 2f
+        val r = cornerRadius.toPx()
+        // 防御: 器が極端に狭いと左右（上下）の腕が届き合って「角の徴」が「枠」に化ける＝裁定の意図が
+        // 反転する。器の半分を超えないよう丸める（fontScale 2.0 の縦伸びや横画面の細い列を想定）。
+        val arm = armLength.toPx().coerceAtMost(minOf(size.width, size.height) / 2f - inset)
+        val end = inset + arm
+        val w = size.width
+        val h = size.height
+        val path = Path().apply {
+            // 左上
+            moveTo(inset, end)
+            lineTo(inset, inset + r)
+            arcTo(Rect(inset, inset, inset + 2 * r, inset + 2 * r), 180f, 90f, false)
+            lineTo(end, inset)
+            // 右上
+            moveTo(w - end, inset)
+            lineTo(w - inset - r, inset)
+            arcTo(Rect(w - inset - 2 * r, inset, w - inset, inset + 2 * r), 270f, 90f, false)
+            lineTo(w - inset, end)
+            // 右下
+            moveTo(w - inset, h - end)
+            lineTo(w - inset, h - inset - r)
+            arcTo(Rect(w - inset - 2 * r, h - inset - 2 * r, w - inset, h - inset), 0f, 90f, false)
+            lineTo(w - end, h - inset)
+            // 左下
+            moveTo(end, h - inset)
+            lineTo(inset + r, h - inset)
+            arcTo(Rect(inset, h - inset - 2 * r, inset + 2 * r, h - inset), 90f, 90f, false)
+            lineTo(inset, h - end)
+        }
+        drawPath(
+            path = path,
+            color = color,
+            // round cap＝候補紙が裁定を受けたときの描き方（1dp 線では butt と識別できないが値を写す）。
+            style = Stroke(width = stroke, cap = StrokeCap.Round, join = StrokeJoin.Round),
+        )
+    }
 
 /**
  * 可視⋮のタップ面（モック `.cap .dots` は 28px だが、最小タップ面 32dp まで広げてある）。
@@ -1303,38 +1661,69 @@ private fun KSelectionActionBar(
 }
 
 // ============================================================
-// 空状態（.empty＝「まだ本がありません」＋説明＋CTA2つ〈作品をさがす〉〈PDFを追加〉）
+// 空状態（.empty＝「まだ本がありません」＋説明＋CTA2つ〈PDFを追加〉〈作品をさがす〉）
 // 〈作品をさがす〉はさがすタブ（発見ホーム）へ＝K は発見帯を本棚に置かず、さがすタブへ一本化した（plan 確定5）。
+// 本文と CTA の主従は 2026-09-07 裁定（ADR 0037 追記）で D の案B へ揃えた＝正本モックは
+// docs/design-candidates/skins/bookshelf-K.html の .empty。見出しだけは K の語彙のまま（同上・個性として残す側）。
 // ============================================================
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun KEmptyState(
     onFindWorks: () -> Unit,
     onAddPdf: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Column(
-        modifier = modifier.padding(horizontal = Spacing.S40),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Text(
-            "まだ本がありません",
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.onSurface,
-        )
-        Spacer(Modifier.height(Spacing.S12))
-        Text(
-            "読みたい作品をさがすか、お手元のPDFを追加して読み始めましょう。",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center,
-        )
-        Spacer(Modifier.height(Spacing.S32))
-        Row(horizontalArrangement = Arrangement.spacedBy(Spacing.S12)) {
-            // 一画面一強調＝新規ユーザーの主導線「作品をさがす」を藍の実塗り、PDF追加を輪郭ボタンに沈める。
-            Button(onClick = onFindWorks) { Text("作品をさがす") }
-            OutlinedButton(onClick = onAddPdf) { Text("PDFを追加") }
+    // なぜ Box(中央寄せ)＋内側 Column(verticalScroll) の二段構えか（監査 2026-08-06 G-6）:
+    // fontScale 2.0 では文言＋CTA の全高が親の weight(1f) 領域を超え、下端（CTA）が画面外へ切れていた。
+    // Column へ直接 verticalScroll を足すと、内容が可視域より低いとき Column が内容高で wrap して
+    // 上詰めになり 1.0 の中央寄せが崩れるため、中央寄せは外の Box・あふれ時のスクロールは内側 Column
+    // へ役割を分ける（1.0 の見た目は不変・2.0 だけスクロール可能になる）。
+    Box(modifier = modifier, contentAlignment = Alignment.Center) {
+        // ⚠️ 下端に FAB 回避帯（Insets.ScrollBottomForFab）は敷かない（2026-08-20 裁定②で撤去）。
+        // 空棚では拡張FAB 自体を出さなくなった＝避ける相手が居ない。予約だけ残すと帯の半分（48dp）ぶん
+        // 中央寄せが上へずれる（旧・敷いていた理由は「2.0 で FAB が CTA を覆う」ことへの器側の対処で、
+        // 真因＝同じ操作の二重表示そのものを裁定②が消した）。
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = Spacing.S40),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text(
+                "まだ本がありません",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            Spacer(Modifier.height(Spacing.S12))
+            // 案B〈操作と結果を明示する語り〉＝D と一字同じ本文（2026-09-07 裁定）。旧文言は操作しか言わず、
+            // このアプリの核心価値（ふりがな付きで読める）を一度も名乗らなかった。K は既定スキン＝
+            // 新規インストール直後の初見が最初に見る空棚なので、価値を告げる効きが D より大きい。
+            Text(
+                "お手元のPDFを取り込むと、ふりがな付きで読めるようになります。",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+            )
+            Spacer(Modifier.height(Spacing.S32))
+            // なぜ FlowRow か（監査 2026-08-06 G-6）: 素の Row は幅を分け合わず、2.0 では先行ボタンが実寸を
+            // 取り切って輪郭ボタンが残り幅へ1文字ずつ縦積みになる破綻が golden（BookshelfK_empty_light_2.0）に
+            // 焼かれていた。入り切らないボタンは次行へ折り返して両導線の判読を保つ（テーマ3択チップと同じ流儀）。
+            // spacedBy の第2引数 CenterHorizontally は折返し後の各行を中央へ揃える（1.0 の1行時は見た目不変）。
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(Spacing.S12, Alignment.CenterHorizontally),
+                verticalArrangement = Arrangement.spacedBy(Spacing.S12),
+            ) {
+                // 一画面一強調＝実塗りは主導線だけ・順序も主を先に置く。主従の根拠は 2026-08-20 裁定② そのもの
+                // ＝空棚では拡張FAB を出さないので、**PDF 追加の入口はこの CTA だけ**になる。一方〈作品をさがす〉は
+                // ボトムナビ（KBottomNav の さがす）に常設＝空棚 CTA が唯一の入口ではない。導線の希少性が主従を決める。
+                // 旧「新規ユーザーの主導線＝作品をさがす」は plan 確定5 由来の想定で、裁定②の後に見直されておらず、
+                // 「押す対象を空棚CTA〈PDFを追加〉一本へ寄せる」という決定に対し寄せた先が画面で最も弱いボタンだった
+                // （2026-09-07 裁定で解消・ADR 0037 追記）。ラベルは「PDFを追加」のまま＝蔵書ありの拡張FAB と同じ語。
+                Button(onClick = onAddPdf) { Text("PDFを追加") }
+                OutlinedButton(onClick = onFindWorks) { Text("作品をさがす") }
+            }
         }
     }
 }

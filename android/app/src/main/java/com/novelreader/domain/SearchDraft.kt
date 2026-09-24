@@ -103,10 +103,19 @@ data class SearchDraft(
     val word: String = "",
     // 除外語（なろうAPI notword）。空白のみは未指定として扱い、送出時に trim→空なら null 化する（word と同じ流儀）。
     val notWord: String = "",
+    // なぜ既定で4項目すべて ON か（2026-08-21 ユーザー裁定）: 検索欄の placeholder は
+    // 「作品名・作者・キーワード」と名乗って**その3つで探せると約束している**のに、既定は inTitle のみ
+    // だった＝初見の人が作者名を入れると 0 件が返り「アプリが壊れている」と読める。約束と既定値が
+    // 食い違っていた側（＝既定値）を直す。
+    // なぜ約束に無い「あらすじ」まで ON にするか: なろうAPIマニュアル§4.1 は「4項目すべて未指定＝全項目対象」と
+    // 定義しており、4つ ON は**範囲を何も指定しない素の検索と結果集合が一致する**（＝広げすぎではなく API 既定へ
+    // 揃えただけ）。しかも未指定と違って範囲チップが4つとも点灯するため「なぜこの作品が出たか」が画面から読める
+    // ＝ADR 0007 原則2「見えている条件と実送信の一致」を保ったまま既定を API 既定へ合わせられる。
+    // 絞りたい人はチップを外して狭める（最後の1つは withRangeToggled が保護する）。
     val inTitle: Boolean = true,
-    val inStory: Boolean = false,
-    val inKeyword: Boolean = false,
-    val inWriter: Boolean = false,
+    val inStory: Boolean = true,
+    val inKeyword: Boolean = true,
+    val inWriter: Boolean = true,
     val filters: SearchFilters = SearchFilters(),
     // なぜ カスタム文字数/読了時間の「生入力テキスト」を draft に持つか（単一真実源＝SSOT）:
     // これらの欄はユーザーが打った生の数値文字列（例 "1"）で、filters.length/time はそれを

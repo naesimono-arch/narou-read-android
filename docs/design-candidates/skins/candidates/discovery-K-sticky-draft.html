@@ -1,0 +1,1041 @@
+<!--
+  【一時ドラフト・裁定後に削除する前提】ランキング期間の「現在地」常時表示（sticky 化）の候補比較。
+  下敷き＝既定スキンの現行正本 docs/design-candidates/skins/discovery-K.html（トークン・構図をそのまま使用）。
+  旧世代（bookshelf-D 直下系・fusion-D）は不参照。ライトのみ・静止スナップショット（.scroll は overflow:hidden）。
+
+  【前提＝この画面の構造（.claude/plans/ranking-pager-flatten-design-2026-08-13.md §8）】
+  RankingScaffoldK は〈header（畳まれて画面外へ送られる）／pinned（畳まれない）／body（Pager×LazyColumn）〉の3スロット。
+  気分節・ジャンル節・「ランキング」見出し・期間タブは header 側＝縦スクロールで消える。
+  検索ヘッダ（「さがす」＋検索窓）はスクロール外＝常に残る。**各案は pinned スロットに何を載せるかの比較**。
+
+  【下敷きとの差（意図的・報告済み）】
+  1) 期間タブは6本（日間/週間/月間/四半期/累計/新着＝NarouOrder.entries 順・既定は週間）で描いた。
+     下敷き正本は冒頭コメントが「実装は6本」と書きながらマークアップは3本（週間/日間/月間）しかなく順序も違う。
+     ここでは実装に合わせたが、正本の修正は行っていない（勝手に直さない）。
+  2) 一覧行のメタを実装 NovelListRow に合わせて3段にした（題名／作者／状態・読了目安・期間pt）。
+     下敷き正本は1段「作者・状態 話数」で、**期間pt を持っていない**。今回の裁定はこの pt の有無に直結する
+     （pt ラベルの接頭辞が期間名そのもの＝案F の論点）ので、実データの色域を模す方を優先した。
+     色は実装どおり 作者=--ink-soft／メタ=--info で、新しい色は足していない。
+-->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>スキンK さがす — ランキング期間の現在地（sticky 候補比較・一時ドラフト）</title>
+<style>
+  :root{
+    /* ▼ 下敷き discovery-K.html のトークンをそのまま複製（値の追加・改変なし） */
+    --base:#FBFAF8;      /* 和紙地（D踏襲） */
+    --ink:#1C1F26;       /* 主文字（D踏襲） */
+    --ink-soft:#7C808B;  /* 装飾補助（OnSurfaceVariantLight 実値。ナビ非選択ラベル・作者名） */
+    --info:#5C606D;      /* 意味メタ（InfoTextLight 実値。検索プレースホルダ/説明/順位/未選択タブ/pt） */
+    --line:#ECEAE4;      /* ヘアライン（D踏襲） */
+    --ai:#1C3D5A;        /* 藍アクセント（D踏襲） */
+    --ai-pill:rgba(28,61,90,.10); /* 藍10%＝選択ピル/現在地チップ地 */
+    --field:#F1F0EC;     /* 検索フィールド地（実装 SurfaceVariantLight） */
+    --mincho:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
+    --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#E4E3DD;font-family:var(--gothic);color:var(--ink);padding:32px 28px 72px}
+
+  /* ── 比較ページの外枠（地は下敷きの body 色・面は --base＝新色なし） ── */
+  .wrap{max-width:1340px;margin:0 auto}
+  .pagehead{margin-bottom:24px}
+  .pagehead h1{font-size:20px;font-weight:700}
+  .lead{font-size:13px;color:var(--info);line-height:1.9;margin-top:10px;max-width:960px}
+  .lead b{color:var(--ink)}
+  .case{background:var(--base);border:1px solid var(--line);border-radius:14px;padding:20px;margin-bottom:24px}
+  .case h2{font-size:16px;font-weight:700}
+  .case .aim{font-size:13px;line-height:1.8;margin-top:8px}
+  .case .facts{font-size:12px;color:var(--info);line-height:1.9;margin-top:8px;list-style:none}
+  .case .facts li::before{content:"— ";}
+  .case .facts b{color:var(--ink)}
+  .frames{display:flex;gap:20px;flex-wrap:wrap;margin-top:18px}
+  .frame{width:412px}
+  .cap{font-size:12px;color:var(--info);margin-bottom:8px;line-height:1.6}
+  .cap b{color:var(--ink)}
+
+  /* ── 端末枠（下敷きと同寸 412×915） ── */
+  .phone{width:412px;height:915px;background:var(--base);border-radius:38px;overflow:hidden;position:relative;
+    box-shadow:0 24px 60px rgba(0,0,0,.26);display:flex;flex-direction:column}
+  .sb{height:44px;display:flex;align-items:center;justify-content:space-between;padding:0 26px;font-size:12px;color:var(--ink-soft);flex-shrink:0}
+
+  .top{flex-shrink:0;padding:2px 20px 14px}
+  .top h1{font-family:var(--gothic);font-weight:700;font-size:22px;color:var(--ink);letter-spacing:.02em}
+  .search{margin-top:14px;height:52px;display:flex;align-items:center;gap:10px;background:var(--field);
+    border-radius:12px;padding:0 16px;cursor:text}
+  .search svg{width:20px;height:20px;stroke:var(--info);fill:none;stroke-width:1.8;flex-shrink:0}
+  .search span{font-size:14px;color:var(--info)}
+  .search span.q{flex:1}
+
+  /* 静止スナップショット＝スクロールバーを出さない（実機は overflow:auto） */
+  .scroll{flex:1;overflow:hidden;padding:6px 20px 20px}
+  .scroll.mid{padding-top:0} /* 途中まで送った状態＝上端の余白は無い */
+  .body-rel{flex:1;position:relative;display:flex;flex-direction:column;min-height:0} /* 浮きピル用の親 */
+
+  .sec{font-family:var(--gothic);font-weight:700;font-size:13px;color:var(--ink);margin:20px 0 12px}
+  .sec:first-child{margin-top:8px}
+  .sec.flex{display:flex;align-items:baseline;justify-content:space-between}
+  .sec .pat{font-weight:400;font-size:11px;color:var(--info)}
+
+  .mood{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .md{position:relative;border:1px solid var(--line);border-radius:10px;padding:14px 14px 14px 18px;cursor:pointer}
+  .md::before{content:"";position:absolute;left:0;top:12px;bottom:12px;width:3px;border-radius:3px;background:var(--ai)}
+  .md b{font-family:var(--mincho);font-size:14.5px;color:var(--ink);font-weight:600;display:block;line-height:1.45}
+  .md span{display:block;font-size:11px;color:var(--info);margin-top:5px}
+  .mp-view{overflow:hidden;margin:0 -20px}
+  .mp-track{display:flex;transform:translateX(-70%)}
+  .mp-page{flex:0 0 80%;padding:0 8px}
+  .mp-page.side{opacity:.5}
+  .dots{display:flex;justify-content:center;gap:8px;margin-top:14px}
+  .dots i{width:7px;height:7px;border-radius:50%;background:var(--line)}
+  .dots i.on{background:var(--ai);width:18px;border-radius:4px}
+  .daynote{text-align:center;font-size:11px;color:var(--info);margin-top:8px;line-height:1.5}
+  .daynote b{color:var(--ink);font-weight:700}
+
+  .chips{display:flex;gap:8px;overflow:hidden;padding-bottom:4px}
+  .chip{flex-shrink:0;font-size:12.5px;color:var(--ink);border:1px solid var(--line);border-radius:999px;padding:8px 16px}
+  .chip.all{color:var(--ai);border-color:var(--ai)}
+
+  /* 期間タブ（実装 OrderTabsK＝Row + horizontalScroll・選択タブへの自動追従は無い） */
+  .rtabs{display:flex;gap:18px;border-bottom:1px solid var(--line);margin-bottom:2px;overflow:hidden}
+  .rtab{font-size:13px;color:var(--info);padding:10px 0;cursor:pointer;position:relative;flex-shrink:0;white-space:nowrap}
+  .rtab.on{color:var(--ai);font-weight:700}
+  .rtab.on::after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--ai)}
+
+  /* 一覧行（実装 NovelListRow 準拠の3段メタ） */
+  .rk{display:flex;gap:14px;align-items:baseline;padding:14px 0;border-bottom:1px solid var(--line)}
+  .rk .no{font-family:var(--mincho);font-size:19px;color:var(--info);width:24px;flex-shrink:0;text-align:center}
+  .rk.top3 .no{color:var(--ai)}
+  .rk .bd{flex:1;min-width:0}
+  .rk .t{font-family:var(--mincho);font-size:14.5px;color:var(--ink);line-height:1.5;
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .rk .m1{font-size:12px;color:var(--ink-soft);margin-top:4px}
+  .rk .m2{display:flex;gap:12px;margin-top:6px;font-size:11px;color:var(--info)}
+  /* 上端で切れた行＝途中まで送った状態の証拠 */
+  .cut{height:38px;overflow:hidden}
+  .cut .rk{margin-top:-46px;border-bottom:1px solid var(--line)}
+
+  .official{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:8px;padding:16px 2px 4px;
+    border-top:1px solid var(--line);font-size:13px;color:var(--info)}
+  .official svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.6;flex-shrink:0}
+
+  .nav{flex-shrink:0;height:64px;display:flex;border-top:1px solid var(--line);background:var(--base)}
+  .nt{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;color:var(--ink-soft)}
+  .nt .ico{position:relative;width:56px;height:32px;display:grid;place-items:center}
+  .nt svg{width:24px;height:24px;stroke:currentColor;fill:none;stroke-width:1.7;position:relative;z-index:1}
+  .nt span{font-size:11px}
+  .nt.on{color:var(--ai)}
+  .nt.on .ico::before{content:"";position:absolute;inset:0;width:56px;height:32px;border-radius:16px;background:var(--ai-pill)}
+
+  /* ══ 以下、候補ごとに追加した要素（すべて既存トークンのみで構成） ══ */
+
+  /* pinned スロットの器（畳まれない帯）。下との分離はヘアラインのみ＝正本に影トークンが無いため */
+  .pin{flex-shrink:0;background:var(--base);border-bottom:1px solid var(--line);position:relative}
+  .pin .rtabs{border-bottom:none;margin:0;padding:0 20px}
+
+  /* 案A-2: 溢れの可視化＝右端で切れていることを示すフェード（--base の α違いのみ・新色ではない） */
+  .pin.ovf::after{content:"";position:absolute;right:0;top:0;bottom:1px;width:44px;pointer-events:none;
+    background:linear-gradient(to right,rgba(251,250,248,0),var(--base) 78%)}
+  .rtabs.fs13 .rtab{font-size:17px} /* fontScale 1.3 相当（タブ行のみ） */
+
+  /* 案B: 現在期間チップ */
+  .now{flex-shrink:0;display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--ai);
+    background:var(--ai-pill);border-radius:999px;padding:5px 11px;white-space:nowrap}
+  .now svg{width:9px;height:9px;stroke:var(--ai);fill:none;stroke-width:2.2}
+  .floatpill{position:absolute;top:10px;right:20px;z-index:2}
+
+  /* 案C: 期間を織り込んだ見出しを pinned に置く */
+  .pinsec{padding:10px 20px 9px;font-size:13px;font-weight:700;color:var(--ink);display:flex;
+    align-items:baseline;justify-content:space-between}
+  .pinsec .of{font-weight:400;font-size:11px;color:var(--info)}
+
+  /* 案D: ページ位置インジケータ（6分割の細バー） */
+  .segbar{display:flex;gap:3px;padding:7px 20px 8px}
+  .segbar i{flex:1;height:3px;border-radius:2px;background:var(--line)}
+  .segbar i.on{background:var(--ai)}
+  .dotbar{display:flex;gap:7px;justify-content:center;padding:8px 20px}
+  .dotbar i{width:6px;height:6px;border-radius:50%;background:var(--line)}
+  .dotbar i.on{background:var(--ai);width:16px;border-radius:3px}
+
+  /* 案E: 折り畳みに連動して現れる圧縮バー */
+  .compact{display:flex;align-items:center;gap:12px;height:36px;padding:0 20px}
+  .compact .arw{font-size:13px;color:var(--info);width:12px;text-align:center}
+  .compact .side{font-size:11.5px;color:var(--info);white-space:nowrap}
+  .compact .cur{font-size:13px;font-weight:700;color:var(--ai);background:var(--ai-pill);
+    border-radius:999px;padding:4px 12px;white-space:nowrap}
+  .compact .mini{display:flex;gap:4px;margin-left:auto}
+  .compact .mini i{width:5px;height:5px;border-radius:50%;background:var(--line)}
+  .compact .mini i.on{background:var(--ai);width:13px;border-radius:3px}
+
+  /* 案F: 行メタの期間pt に委ねる（常駐要素ゼロ）。強調も新色を使わず ink への昇格だけで表現 */
+  .rk .m2 .metric{color:var(--ink)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="pagehead">
+    <h1>さがす — ランキング期間の「現在地」を常時見せる（候補比較・一時ドラフト）</h1>
+    <p class="lead">
+      横スワイプで期間を切り替えられるようにした結果、<b>期間タブ行が縦スクロールで畳まれると現在地の手掛かりが消える</b>。
+      構造は別便で決まった3スロット（header＝畳む／pinned＝畳まない／body＝Pager×LazyColumn）で、
+      <b>ここで比べているのは「pinned に何を載せるか」だけ</b>。検索ヘッダ（「さがす」＋検索窓）は常に残る。
+      すべての案について<b>下まで送った状態</b>を必ず1枚描いた（上端でだけ正しく見える案は検分にならないため）。
+      期間は実装どおり6本＝日間/週間/月間/四半期/累計/新着（既定は週間・現在地も週間で統一）。
+    </p>
+  </div>
+
+  <!-- ══════════ 0. 問題の提示（現状＝下敷き正本のまま） ══════════ -->
+  <div class="case">
+    <h2>0. 現状（sticky なし）— 何が問題か</h2>
+    <p class="aim">狙い: 比較の原点。上端では期間タブが見えているが、下まで送ると<b>画面のどこにも「週間」が無い</b>。</p>
+    <ul class="facts">
+      <li>6本タブの扱い: 既定（412dp・13px）なら6本は<b>収まる</b>（実寸で 272px／内容幅 372px）。溢れるのは fontScale 1.3↑ か 360dp 幅の端末。</li>
+      <li>行メタ末尾の「週間 7,180pt」は<b>すでに期間名を持っている</b>——ただし11px・3段目・薄色で、現在地の告知としては読まれない位置（案F の論点）。</li>
+    </ul>
+    <div class="frames">
+
+      <div class="frame">
+        <div class="cap"><b>0-a 上端</b>／期間タブが見えている。ここは問題ない</div>
+        <div class="phone">
+          <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+          <div class="top">
+            <h1>さがす</h1>
+            <div class="search">
+              <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg>
+              <span class="q">作品名・作者名・キーワードで探す</span>
+            </div>
+          </div>
+          <div class="scroll">
+            <div class="sec flex"><span>きょうの気分</span><span class="pat">② 気分転換</span></div>
+            <div class="mp-view"><div class="mp-track">
+              <div class="mp-page side"><div class="mood">
+                <div class="md"><b>ちょっとそこまで</b><span>短編・30分で読める</span></div>
+                <div class="md"><b>どっぷり一気読み</b><span>完結・10万字以上</span></div>
+                <div class="md"><b>会話劇を楽しむ</b><span>会話率が高い</span></div>
+                <div class="md"><b>挿絵のある旅</b><span>挿絵つき作品</span></div>
+              </div></div>
+              <div class="mp-page"><div class="mood">
+                <div class="md"><b>泣ける・しんみり</b><span>涙腺じんわり</span></div>
+                <div class="md"><b>スカッと爽快</b><span>痛快・無双系</span></div>
+                <div class="md"><b>ほのぼの日常</b><span>まったり癒し</span></div>
+                <div class="md"><b>ハラハラ冒険</b><span>手に汗にぎる</span></div>
+              </div></div>
+              <div class="mp-page side"><div class="mood">
+                <div class="md"><b>完結をまとめて</b><span>完結済だけ</span></div>
+                <div class="md"><b>連載を追いかける</b><span>更新中を追う</span></div>
+                <div class="md"><b>短編を数本</b><span>〜1万字</span></div>
+                <div class="md"><b>超長編にどっぷり</b><span>50万字以上</span></div>
+              </div></div>
+            </div></div>
+            <div class="dots"><i></i><i class="on"></i><i></i></div>
+            <div class="daynote">日替わりで開くページが変わる。<b>今日は②〈気分転換〉</b>から。左右スワイプで P1〈そのまま〉・P3〈読み方で選ぶ〉へ。</div>
+            <div class="sec">ジャンルから</div>
+            <div class="chips">
+              <span class="chip">恋愛</span><span class="chip">ファンタジー</span><span class="chip">文芸</span><span class="chip">SF</span><span class="chip">その他</span><span class="chip all">すべて→</span>
+            </div>
+            <div class="sec">ランキング</div>
+            <div class="rtabs">
+              <span class="rtab">日間</span><span class="rtab on">週間</span><span class="rtab">月間</span><span class="rtab">四半期</span><span class="rtab">累計</span><span class="rtab">新着</span>
+            </div>
+            <div class="rk top3"><span class="no">1</span><div class="bd">
+              <div class="t">追放された万能薬師、辺境でスローライフを始める</div>
+              <div class="m1">霧島あおい</div>
+              <div class="m2"><span>連載中 127話</span><span>約9時間</span><span class="metric">週間 12,480pt</span></div></div></div>
+            <div class="rk top3"><span class="no">2</span><div class="bd">
+              <div class="t">黒の魔王と契約した俺、気づけば最強の従者になっていた</div>
+              <div class="m1">夜灯すばる</div>
+              <div class="m2"><span>連載中 43話</span><span>約3時間</span><span class="metric">週間 10,236pt</span></div></div></div>
+          </div>
+          <div class="nav">
+            <div class="nt"><span class="ico"><svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></span><span>本棚</span></div>
+            <div class="nt on"><span class="ico"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg></span><span>さがす</span></div>
+            <div class="nt"><span class="ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span><span>設定</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="frame">
+        <div class="cap"><b>0-b 下まで送った状態（＝問題が起きる瞬間）</b>／期間の手掛かりは行メタの淡い「週間 …pt」だけ</div>
+        <div class="phone">
+          <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+          <div class="top">
+            <h1>さがす</h1>
+            <div class="search">
+              <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg>
+              <span class="q">作品名・作者名・キーワードで探す</span>
+            </div>
+          </div>
+          <div class="scroll mid">
+            <div class="cut"><div class="rk"><span class="no">6</span><div class="bd">
+              <div class="t">婚約破棄されたので、隣国の魔術学院で研究職に就きます</div>
+              <div class="m1">東雲ことは</div>
+              <div class="m2"><span>連載中 64話</span><span>約4時間</span><span>週間 7,995pt</span></div></div></div></div>
+            <div class="rk"><span class="no">7</span><div class="bd">
+              <div class="t">二度目の人生、今度は村人として生き延びる</div>
+              <div class="m1">高瀬ゆうき</div>
+              <div class="m2"><span>連載中 305話</span><span>約21時間</span><span>週間 7,180pt</span></div></div></div>
+            <div class="rk"><span class="no">8</span><div class="bd">
+              <div class="t">竜の国の門番、退屈すぎて畑を耕す</div>
+              <div class="m1">神無月かなた</div>
+              <div class="m2"><span>連載中 92話</span><span>約7時間</span><span>週間 6,743pt</span></div></div></div>
+            <div class="rk"><span class="no">9</span><div class="bd">
+              <div class="t">最強の鑑定士だけど、鑑定できるのは中古品だけ</div>
+              <div class="m1">藤沢いつき</div>
+              <div class="m2"><span>連載中 158話</span><span>約11時間</span><span>週間 6,220pt</span></div></div></div>
+            <div class="rk"><span class="no">10</span><div class="bd">
+              <div class="t">聖女は辞めます 〜二度と呼ばないでください〜</div>
+              <div class="m1">綾瀬ひなの</div>
+              <div class="m2"><span>完結 76話</span><span>約5時間</span><span>週間 5,864pt</span></div></div></div>
+            <div class="rk"><span class="no">11</span><div class="bd">
+              <div class="t">ダンジョン配信者、視聴者ゼロから最強へ</div>
+              <div class="m1">鷹取そうし</div>
+              <div class="m2"><span>連載中 187話</span><span>約13時間</span><span>週間 5,401pt</span></div></div></div>
+            <div class="rk"><span class="no">12</span><div class="bd">
+              <div class="t">隠居した宮廷魔術師の穏やかならざる日々</div>
+              <div class="m1">小鳥遊しずく</div>
+              <div class="m2"><span>連載中 55話</span><span>約4時間</span><span>週間 5,090pt</span></div></div></div>
+            <div class="rk"><span class="no">13</span><div class="bd">
+              <div class="t">幼馴染の勇者に置いていかれた俺、後方で補給線を整える</div>
+              <div class="m1">五十嵐なぎ</div>
+              <div class="m2"><span>連載中 231話</span><span>約16時間</span><span>週間 4,772pt</span></div></div></div>
+          </div>
+          <div class="nav">
+            <div class="nt"><span class="ico"><svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></span><span>本棚</span></div>
+            <div class="nt on"><span class="ico"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg></span><span>さがす</span></div>
+            <div class="nt"><span class="ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span><span>設定</span></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ══════════ 案A: 期間タブ行そのものを pinned ══════════ -->
+  <div class="case">
+    <h2>案A ─ 期間タブ行そのものを pinned にする</h2>
+    <p class="aim">狙い: <b>現在地と切替導線を同時に常駐</b>させる。読んでいる途中でも1タップで別期間へ跳べる（構造も最小＝OrderTabsK を pinned スロットへ移すだけ）。</p>
+    <ul class="facts">
+      <li>常駐コスト: <b>約40px</b>（タブ10+10・文字18・下線2）。検索ヘッダ約110px と合わせて上端が二段の帯になる。</li>
+      <li>6本の扱い: <b>横スクロール</b>（実装 OrderTabsK は Row + horizontalScroll のまま）。既定サイズなら6本収まる。</li>
+      <li><b>最大の弱点</b>: 実装のタブ行には<b>選択タブへの自動スクロールが無い</b>（DiscoveryHomeK L480-520 に animateScrollTo が無い）。fontScale 1.3 や 360dp 幅で溢れると、<b>「累計」「新着」を選んでいるのに選択タブが画面外</b>＝常時表示の約束がその条件で破れる（A-2）。追従スクロールを足すと、今度は指スワイプ中にタブ行が勝手に動く別の設計判断が要る。</li>
+    </ul>
+    <div class="frames">
+
+      <div class="frame">
+        <div class="cap"><b>A-1 下まで送った状態</b>／タブ行が検索窓の直下に張り付く（既定サイズ＝6本とも収まる）</div>
+        <div class="phone">
+          <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+          <div class="top">
+            <h1>さがす</h1>
+            <div class="search">
+              <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg>
+              <span class="q">作品名・作者名・キーワードで探す</span>
+            </div>
+          </div>
+          <div class="pin">
+            <div class="rtabs">
+              <span class="rtab">日間</span><span class="rtab on">週間</span><span class="rtab">月間</span><span class="rtab">四半期</span><span class="rtab">累計</span><span class="rtab">新着</span>
+            </div>
+          </div>
+          <div class="scroll mid">
+            <div class="cut"><div class="rk"><span class="no">6</span><div class="bd">
+              <div class="t">婚約破棄されたので、隣国の魔術学院で研究職に就きます</div>
+              <div class="m1">東雲ことは</div>
+              <div class="m2"><span>連載中 64話</span><span>約4時間</span><span>週間 7,995pt</span></div></div></div></div>
+            <div class="rk"><span class="no">7</span><div class="bd">
+              <div class="t">二度目の人生、今度は村人として生き延びる</div>
+              <div class="m1">高瀬ゆうき</div>
+              <div class="m2"><span>連載中 305話</span><span>約21時間</span><span>週間 7,180pt</span></div></div></div>
+            <div class="rk"><span class="no">8</span><div class="bd">
+              <div class="t">竜の国の門番、退屈すぎて畑を耕す</div>
+              <div class="m1">神無月かなた</div>
+              <div class="m2"><span>連載中 92話</span><span>約7時間</span><span>週間 6,743pt</span></div></div></div>
+            <div class="rk"><span class="no">9</span><div class="bd">
+              <div class="t">最強の鑑定士だけど、鑑定できるのは中古品だけ</div>
+              <div class="m1">藤沢いつき</div>
+              <div class="m2"><span>連載中 158話</span><span>約11時間</span><span>週間 6,220pt</span></div></div></div>
+            <div class="rk"><span class="no">10</span><div class="bd">
+              <div class="t">聖女は辞めます 〜二度と呼ばないでください〜</div>
+              <div class="m1">綾瀬ひなの</div>
+              <div class="m2"><span>完結 76話</span><span>約5時間</span><span>週間 5,864pt</span></div></div></div>
+            <div class="rk"><span class="no">11</span><div class="bd">
+              <div class="t">ダンジョン配信者、視聴者ゼロから最強へ</div>
+              <div class="m1">鷹取そうし</div>
+              <div class="m2"><span>連載中 187話</span><span>約13時間</span><span>週間 5,401pt</span></div></div></div>
+            <div class="rk"><span class="no">12</span><div class="bd">
+              <div class="t">隠居した宮廷魔術師の穏やかならざる日々</div>
+              <div class="m1">小鳥遊しずく</div>
+              <div class="m2"><span>連載中 55話</span><span>約4時間</span><span>週間 5,090pt</span></div></div></div>
+          </div>
+          <div class="nav">
+            <div class="nt"><span class="ico"><svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></span><span>本棚</span></div>
+            <div class="nt on"><span class="ico"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg></span><span>さがす</span></div>
+            <div class="nt"><span class="ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span><span>設定</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="frame">
+        <div class="cap"><b>A-2 溢れたとき（fontScale 1.3 相当・タブ行のみ拡大して描いた）</b>／「累計」「新着」へ切替済みでも選択タブは右外＝<b>現在地が見えない</b></div>
+        <div class="phone">
+          <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+          <div class="top">
+            <h1>さがす</h1>
+            <div class="search">
+              <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg>
+              <span class="q">作品名・作者名・キーワードで探す</span>
+            </div>
+          </div>
+          <div class="pin ovf">
+            <div class="rtabs fs13">
+              <span class="rtab">日間</span><span class="rtab">週間</span><span class="rtab">月間</span><span class="rtab">四半期</span><span class="rtab">累計</span><span class="rtab on">新着</span>
+            </div>
+          </div>
+          <div class="scroll mid">
+            <div class="cut"><div class="rk"><span class="no">6</span><div class="bd">
+              <div class="t">ひとつ屋根の下、幼馴染とゲーム実況をはじめた</div>
+              <div class="m1">一ノ瀬みなも</div>
+              <div class="m2"><span>連載中 12話</span><span>約48分</span><span>05:52 更新</span></div></div></div></div>
+            <div class="rk"><span class="no">7</span><div class="bd">
+              <div class="t">辺境の錬金術師、王都の依頼を断りきれない</div>
+              <div class="m1">桐生あさひ</div>
+              <div class="m2"><span>連載中 78話</span><span>約6時間</span><span>05:45 更新</span></div></div></div>
+            <div class="rk"><span class="no">8</span><div class="bd">
+              <div class="t">拾った子狐が、三日後に人の姿で味噌汁を作っていた</div>
+              <div class="m1">七尾まひろ</div>
+              <div class="m2"><span>連載中 34話</span><span>約2時間</span><span>05:41 更新</span></div></div></div>
+            <div class="rk"><span class="no">9</span><div class="bd">
+              <div class="t">最果ての図書館は、閉館時間になると動き出す</div>
+              <div class="m1">月島つかさ</div>
+              <div class="m2"><span>連載中 66話</span><span>約5時間</span><span>05:38 更新</span></div></div></div>
+            <div class="rk"><span class="no">10</span><div class="bd">
+              <div class="t">元宮廷料理人、屋台で三日分の伝説を作る</div>
+              <div class="m1">日向ましろ</div>
+              <div class="m2"><span>完結 21話</span><span>約1時間</span><span>05:30 更新</span></div></div></div>
+            <div class="rk"><span class="no">11</span><div class="bd">
+              <div class="t">転生先が悪役令嬢の執事だったので、まず給与交渉から始める</div>
+              <div class="m1">柊木れい</div>
+              <div class="m2"><span>連載中 103話</span><span>約8時間</span><span>05:22 更新</span></div></div></div>
+            <div class="rk"><span class="no">12</span><div class="bd">
+              <div class="t">村の鍛冶屋、伝説の剣を三本まとめて打ち直す</div>
+              <div class="m1">早瀬こはる</div>
+              <div class="m2"><span>連載中 47話</span><span>約3時間</span><span>05:14 更新</span></div></div></div>
+          </div>
+          <div class="nav">
+            <div class="nt"><span class="ico"><svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></span><span>本棚</span></div>
+            <div class="nt on"><span class="ico"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg></span><span>さがす</span></div>
+            <div class="nt"><span class="ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span><span>設定</span></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ══════════ 案B: 現在期間だけをチップ化 ══════════ -->
+  <div class="case">
+    <h2>案B ─ 現在期間だけをチップ化して常時表示（タブ行は畳ませる）</h2>
+    <p class="aim">狙い: <b>常駐面積を1語ぶんに縮める</b>。切替導線は畳んでよい・現在地だけ残す、という割り切り。置き場所を2つ描き分けた。</p>
+    <ul class="facts">
+      <li>常駐コスト: B-1 は<b>0px</b>（既存の検索窓の中に同居＝新しい帯を作らない）。B-2 は本文の上に浮くので<b>0px</b>だが1行目に被る。</li>
+      <li>6本の扱い: チップは現在の1語だけなので<b>溢れとは無関係</b>（タブ行は header 側で従来どおり横スクロール）。</li>
+      <li><b>最大の弱点</b>: B-1＝検索窓は「入力の器」で、そこに状態表示が同居すると<b>「週間で絞って検索する」と読めてしまう</b>（実際には検索は期間と無関係＝意味の濁り）。B-2＝浮き物が1行目の題名に恒常的に被り、タップ判定も一覧と競合する。共通して<b>タップしたとき何が起きるかが不明</b>（タブ行まで戻すのか、期間メニューを出すのか、別UIの発明が要る）。</li>
+    </ul>
+    <div class="frames">
+
+      <div class="frame">
+        <div class="cap"><b>B-1 検索窓の行に同居（下まで送った状態）</b>／新しい帯を1pxも足さない</div>
+        <div class="phone">
+          <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+          <div class="top">
+            <h1>さがす</h1>
+            <div class="search">
+              <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg>
+              <span class="q">作品名・作者名で探す</span>
+              <span class="now">週間<svg viewBox="0 0 12 12"><path d="M2 4.5L6 8.5L10 4.5"/></svg></span>
+            </div>
+          </div>
+          <div class="scroll mid">
+            <div class="cut"><div class="rk"><span class="no">6</span><div class="bd">
+              <div class="t">婚約破棄されたので、隣国の魔術学院で研究職に就きます</div>
+              <div class="m1">東雲ことは</div>
+              <div class="m2"><span>連載中 64話</span><span>約4時間</span><span>週間 7,995pt</span></div></div></div></div>
+            <div class="rk"><span class="no">7</span><div class="bd">
+              <div class="t">二度目の人生、今度は村人として生き延びる</div>
+              <div class="m1">高瀬ゆうき</div>
+              <div class="m2"><span>連載中 305話</span><span>約21時間</span><span>週間 7,180pt</span></div></div></div>
+            <div class="rk"><span class="no">8</span><div class="bd">
+              <div class="t">竜の国の門番、退屈すぎて畑を耕す</div>
+              <div class="m1">神無月かなた</div>
+              <div class="m2"><span>連載中 92話</span><span>約7時間</span><span>週間 6,743pt</span></div></div></div>
+            <div class="rk"><span class="no">9</span><div class="bd">
+              <div class="t">最強の鑑定士だけど、鑑定できるのは中古品だけ</div>
+              <div class="m1">藤沢いつき</div>
+              <div class="m2"><span>連載中 158話</span><span>約11時間</span><span>週間 6,220pt</span></div></div></div>
+            <div class="rk"><span class="no">10</span><div class="bd">
+              <div class="t">聖女は辞めます 〜二度と呼ばないでください〜</div>
+              <div class="m1">綾瀬ひなの</div>
+              <div class="m2"><span>完結 76話</span><span>約5時間</span><span>週間 5,864pt</span></div></div></div>
+            <div class="rk"><span class="no">11</span><div class="bd">
+              <div class="t">ダンジョン配信者、視聴者ゼロから最強へ</div>
+              <div class="m1">鷹取そうし</div>
+              <div class="m2"><span>連載中 187話</span><span>約13時間</span><span>週間 5,401pt</span></div></div></div>
+            <div class="rk"><span class="no">12</span><div class="bd">
+              <div class="t">隠居した宮廷魔術師の穏やかならざる日々</div>
+              <div class="m1">小鳥遊しずく</div>
+              <div class="m2"><span>連載中 55話</span><span>約4時間</span><span>週間 5,090pt</span></div></div></div>
+            <div class="rk"><span class="no">13</span><div class="bd">
+              <div class="t">幼馴染の勇者に置いていかれた俺、後方で補給線を整える</div>
+              <div class="m1">五十嵐なぎ</div>
+              <div class="m2"><span>連載中 231話</span><span>約16時間</span><span>週間 4,772pt</span></div></div></div>
+          </div>
+          <div class="nav">
+            <div class="nt"><span class="ico"><svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></span><span>本棚</span></div>
+            <div class="nt on"><span class="ico"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg></span><span>さがす</span></div>
+            <div class="nt"><span class="ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span><span>設定</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="frame">
+        <div class="cap"><b>B-2 一覧の上に浮かせる（下まで送った状態）</b>／帯を作らない代わりに<b>題名に被る</b></div>
+        <div class="phone">
+          <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+          <div class="top">
+            <h1>さがす</h1>
+            <div class="search">
+              <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg>
+              <span class="q">作品名・作者名・キーワードで探す</span>
+            </div>
+          </div>
+          <div class="body-rel">
+            <span class="now floatpill">週間ランキング</span>
+            <div class="scroll mid">
+              <div class="cut"><div class="rk"><span class="no">6</span><div class="bd">
+                <div class="t">婚約破棄されたので、隣国の魔術学院で研究職に就きます</div>
+                <div class="m1">東雲ことは</div>
+                <div class="m2"><span>連載中 64話</span><span>約4時間</span><span>週間 7,995pt</span></div></div></div></div>
+              <div class="rk"><span class="no">7</span><div class="bd">
+                <div class="t">二度目の人生、今度は村人として生き延びる</div>
+                <div class="m1">高瀬ゆうき</div>
+                <div class="m2"><span>連載中 305話</span><span>約21時間</span><span>週間 7,180pt</span></div></div></div>
+              <div class="rk"><span class="no">8</span><div class="bd">
+                <div class="t">竜の国の門番、退屈すぎて畑を耕す</div>
+                <div class="m1">神無月かなた</div>
+                <div class="m2"><span>連載中 92話</span><span>約7時間</span><span>週間 6,743pt</span></div></div></div>
+              <div class="rk"><span class="no">9</span><div class="bd">
+                <div class="t">最強の鑑定士だけど、鑑定できるのは中古品だけ</div>
+                <div class="m1">藤沢いつき</div>
+                <div class="m2"><span>連載中 158話</span><span>約11時間</span><span>週間 6,220pt</span></div></div></div>
+              <div class="rk"><span class="no">10</span><div class="bd">
+                <div class="t">聖女は辞めます 〜二度と呼ばないでください〜</div>
+                <div class="m1">綾瀬ひなの</div>
+                <div class="m2"><span>完結 76話</span><span>約5時間</span><span>週間 5,864pt</span></div></div></div>
+              <div class="rk"><span class="no">11</span><div class="bd">
+                <div class="t">ダンジョン配信者、視聴者ゼロから最強へ</div>
+                <div class="m1">鷹取そうし</div>
+                <div class="m2"><span>連載中 187話</span><span>約13時間</span><span>週間 5,401pt</span></div></div></div>
+              <div class="rk"><span class="no">12</span><div class="bd">
+                <div class="t">隠居した宮廷魔術師の穏やかならざる日々</div>
+                <div class="m1">小鳥遊しずく</div>
+                <div class="m2"><span>連載中 55話</span><span>約4時間</span><span>週間 5,090pt</span></div></div></div>
+              <div class="rk"><span class="no">13</span><div class="bd">
+                <div class="t">幼馴染の勇者に置いていかれた俺、後方で補給線を整える</div>
+                <div class="m1">五十嵐なぎ</div>
+                <div class="m2"><span>連載中 231話</span><span>約16時間</span><span>週間 4,772pt</span></div></div></div>
+            </div>
+          </div>
+          <div class="nav">
+            <div class="nt"><span class="ico"><svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></span><span>本棚</span></div>
+            <div class="nt on"><span class="ico"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg></span><span>さがす</span></div>
+            <div class="nt"><span class="ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span><span>設定</span></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ══════════ 案C: 見出しに期間を織り込み、その見出しを pinned ══════════ -->
+  <div class="case">
+    <h2>案C ─ セクション見出しに期間を織り込む（「週間ランキング」を pinned）</h2>
+    <p class="aim">狙い: <b>新しい常駐部品をひとつも発明しない</b>。既にある見出しの語を「週間ランキング」に変え、その1行だけを畳まない側へ置く。</p>
+    <ul class="facts">
+      <li>常駐コスト: <b>約35px</b>（見出し1行）。案A より約5px 小さいだけだが、<b>部品の種類が増えない</b>のが差。</li>
+      <li>6本の扱い: 見出しは1語なので<b>溢れとは無関係</b>。タブ行は header 側で横スクロールのまま畳まれる。</li>
+      <li><b>最大の弱点</b>: 畳まれた瞬間に<b>切替導線が画面から消える</b>——「他にも期間がある」ことも「横スワイプできる」ことも読み取れず、下まで送った初見のユーザーには<b>週間しか存在しない画面に見える</b>。右端の「6期間中2」注記（描画済み）はその緩和だが、注記が読めるかは裁定対象。</li>
+    </ul>
+    <div class="frames">
+
+      <div class="frame">
+        <div class="cap"><b>C-1 上端付近（気分節の下端まで来たところ）</b>／見出しが「週間ランキング」に変わっている（タブはまだ見える）</div>
+        <div class="phone">
+          <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+          <div class="top">
+            <h1>さがす</h1>
+            <div class="search">
+              <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg>
+              <span class="q">作品名・作者名・キーワードで探す</span>
+            </div>
+          </div>
+          <div class="scroll mid">
+            <div class="dots" style="margin-top:8px"><i></i><i class="on"></i><i></i></div>
+            <div class="daynote">日替わりで開くページが変わる。<b>今日は②〈気分転換〉</b>から。左右スワイプで P1〈そのまま〉・P3〈読み方で選ぶ〉へ。</div>
+            <div class="sec">ジャンルから</div>
+            <div class="chips">
+              <span class="chip">恋愛</span><span class="chip">ファンタジー</span><span class="chip">文芸</span><span class="chip">SF</span><span class="chip">その他</span><span class="chip all">すべて→</span>
+            </div>
+            <div class="sec">週間ランキング</div>
+            <div class="rtabs">
+              <span class="rtab">日間</span><span class="rtab on">週間</span><span class="rtab">月間</span><span class="rtab">四半期</span><span class="rtab">累計</span><span class="rtab">新着</span>
+            </div>
+            <div class="rk top3"><span class="no">1</span><div class="bd">
+              <div class="t">追放された万能薬師、辺境でスローライフを始める</div>
+              <div class="m1">霧島あおい</div>
+              <div class="m2"><span>連載中 127話</span><span>約9時間</span><span>週間 12,480pt</span></div></div></div>
+            <div class="rk top3"><span class="no">2</span><div class="bd">
+              <div class="t">黒の魔王と契約した俺、気づけば最強の従者になっていた</div>
+              <div class="m1">夜灯すばる</div>
+              <div class="m2"><span>連載中 43話</span><span>約3時間</span><span>週間 10,236pt</span></div></div></div>
+            <div class="rk top3"><span class="no">3</span><div class="bd">
+              <div class="t">公爵令嬢の嗜み 〜隣国で薬草園を開きます〜</div>
+              <div class="m1">白河すずら</div>
+              <div class="m2"><span>完結 88話</span><span>約6時間</span><span>週間 9,517pt</span></div></div></div>
+            <div class="rk"><span class="no">4</span><div class="bd">
+              <div class="t">転生したら最弱スキルだったので草むしりしていたら世界樹が生えた</div>
+              <div class="m1">青葉みのり</div>
+              <div class="m2"><span>連載中 210話</span><span>約15時間</span><span>週間 8,904pt</span></div></div></div>
+          </div>
+          <div class="nav">
+            <div class="nt"><span class="ico"><svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></span><span>本棚</span></div>
+            <div class="nt on"><span class="ico"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg></span><span>さがす</span></div>
+            <div class="nt"><span class="ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span><span>設定</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="frame">
+        <div class="cap"><b>C-2 下まで送った状態</b>／見出し1行だけが残る。タブは畳まれて切替導線は消える</div>
+        <div class="phone">
+          <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+          <div class="top">
+            <h1>さがす</h1>
+            <div class="search">
+              <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg>
+              <span class="q">作品名・作者名・キーワードで探す</span>
+            </div>
+          </div>
+          <div class="pin">
+            <div class="pinsec"><span>週間ランキング</span><span class="of">6期間中 2</span></div>
+          </div>
+          <div class="scroll mid">
+            <div class="cut"><div class="rk"><span class="no">6</span><div class="bd">
+              <div class="t">婚約破棄されたので、隣国の魔術学院で研究職に就きます</div>
+              <div class="m1">東雲ことは</div>
+              <div class="m2"><span>連載中 64話</span><span>約4時間</span><span>週間 7,995pt</span></div></div></div></div>
+            <div class="rk"><span class="no">7</span><div class="bd">
+              <div class="t">二度目の人生、今度は村人として生き延びる</div>
+              <div class="m1">高瀬ゆうき</div>
+              <div class="m2"><span>連載中 305話</span><span>約21時間</span><span>週間 7,180pt</span></div></div></div>
+            <div class="rk"><span class="no">8</span><div class="bd">
+              <div class="t">竜の国の門番、退屈すぎて畑を耕す</div>
+              <div class="m1">神無月かなた</div>
+              <div class="m2"><span>連載中 92話</span><span>約7時間</span><span>週間 6,743pt</span></div></div></div>
+            <div class="rk"><span class="no">9</span><div class="bd">
+              <div class="t">最強の鑑定士だけど、鑑定できるのは中古品だけ</div>
+              <div class="m1">藤沢いつき</div>
+              <div class="m2"><span>連載中 158話</span><span>約11時間</span><span>週間 6,220pt</span></div></div></div>
+            <div class="rk"><span class="no">10</span><div class="bd">
+              <div class="t">聖女は辞めます 〜二度と呼ばないでください〜</div>
+              <div class="m1">綾瀬ひなの</div>
+              <div class="m2"><span>完結 76話</span><span>約5時間</span><span>週間 5,864pt</span></div></div></div>
+            <div class="rk"><span class="no">11</span><div class="bd">
+              <div class="t">ダンジョン配信者、視聴者ゼロから最強へ</div>
+              <div class="m1">鷹取そうし</div>
+              <div class="m2"><span>連載中 187話</span><span>約13時間</span><span>週間 5,401pt</span></div></div></div>
+            <div class="rk"><span class="no">12</span><div class="bd">
+              <div class="t">隠居した宮廷魔術師の穏やかならざる日々</div>
+              <div class="m1">小鳥遊しずく</div>
+              <div class="m2"><span>連載中 55話</span><span>約4時間</span><span>週間 5,090pt</span></div></div></div>
+          </div>
+          <div class="nav">
+            <div class="nt"><span class="ico"><svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></span><span>本棚</span></div>
+            <div class="nt on"><span class="ico"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg></span><span>さがす</span></div>
+            <div class="nt"><span class="ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span><span>設定</span></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ══════════ 案D: ページ位置インジケータ ══════════ -->
+  <div class="case">
+    <h2>案D ─ ページ位置インジケータだけ（6分割の細バー／点）</h2>
+    <p class="aim">狙い: <b>面積を極小化</b>する。気分ページャの3点ドットと同じ語彙で「6つのうち何番目か」だけを示し、名前は出さない。</p>
+    <ul class="facts">
+      <li>常駐コスト: <b>約18px</b>（細バー3px＋上下余白）。全案で最小。</li>
+      <li>6本の扱い: セグメントは幅を等分するので<b>絶対に溢れない</b>（6本でも12本でも成立する唯一の案）。</li>
+      <li><b>最大の弱点</b>: <b>「何番目か」は分かっても「何期間か」が分からない</b>。日間/週間/月間 は順序を覚えられても、四半期・累計・新着の並びまで暗記している利用者はいない＝<b>問いへの答えになっていない</b>（現在地の名前が要るのに位置しか言わない）。初見では「これは何のバーか」も不明。</li>
+    </ul>
+    <div class="frames">
+
+      <div class="frame">
+        <div class="cap"><b>D-1 細バー版（下まで送った状態）</b>／検索窓の直下に3pxの6分割バー。名前を持たない</div>
+        <div class="phone">
+          <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+          <div class="top">
+            <h1>さがす</h1>
+            <div class="search">
+              <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg>
+              <span class="q">作品名・作者名・キーワードで探す</span>
+            </div>
+          </div>
+          <div class="pin">
+            <div class="segbar"><i></i><i class="on"></i><i></i><i></i><i></i><i></i></div>
+          </div>
+          <div class="scroll mid">
+            <div class="cut"><div class="rk"><span class="no">6</span><div class="bd">
+              <div class="t">婚約破棄されたので、隣国の魔術学院で研究職に就きます</div>
+              <div class="m1">東雲ことは</div>
+              <div class="m2"><span>連載中 64話</span><span>約4時間</span><span>週間 7,995pt</span></div></div></div></div>
+            <div class="rk"><span class="no">7</span><div class="bd">
+              <div class="t">二度目の人生、今度は村人として生き延びる</div>
+              <div class="m1">高瀬ゆうき</div>
+              <div class="m2"><span>連載中 305話</span><span>約21時間</span><span>週間 7,180pt</span></div></div></div>
+            <div class="rk"><span class="no">8</span><div class="bd">
+              <div class="t">竜の国の門番、退屈すぎて畑を耕す</div>
+              <div class="m1">神無月かなた</div>
+              <div class="m2"><span>連載中 92話</span><span>約7時間</span><span>週間 6,743pt</span></div></div></div>
+            <div class="rk"><span class="no">9</span><div class="bd">
+              <div class="t">最強の鑑定士だけど、鑑定できるのは中古品だけ</div>
+              <div class="m1">藤沢いつき</div>
+              <div class="m2"><span>連載中 158話</span><span>約11時間</span><span>週間 6,220pt</span></div></div></div>
+            <div class="rk"><span class="no">10</span><div class="bd">
+              <div class="t">聖女は辞めます 〜二度と呼ばないでください〜</div>
+              <div class="m1">綾瀬ひなの</div>
+              <div class="m2"><span>完結 76話</span><span>約5時間</span><span>週間 5,864pt</span></div></div></div>
+            <div class="rk"><span class="no">11</span><div class="bd">
+              <div class="t">ダンジョン配信者、視聴者ゼロから最強へ</div>
+              <div class="m1">鷹取そうし</div>
+              <div class="m2"><span>連載中 187話</span><span>約13時間</span><span>週間 5,401pt</span></div></div></div>
+            <div class="rk"><span class="no">12</span><div class="bd">
+              <div class="t">隠居した宮廷魔術師の穏やかならざる日々</div>
+              <div class="m1">小鳥遊しずく</div>
+              <div class="m2"><span>連載中 55話</span><span>約4時間</span><span>週間 5,090pt</span></div></div></div>
+          </div>
+          <div class="nav">
+            <div class="nt"><span class="ico"><svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></span><span>本棚</span></div>
+            <div class="nt on"><span class="ico"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg></span><span>さがす</span></div>
+            <div class="nt"><span class="ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span><span>設定</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="frame">
+        <div class="cap"><b>D-2 点版（下まで送った状態）</b>／気分ページャの3点ドットと同語彙。6点だと「気分の3点」と紛れる</div>
+        <div class="phone">
+          <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+          <div class="top">
+            <h1>さがす</h1>
+            <div class="search">
+              <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg>
+              <span class="q">作品名・作者名・キーワードで探す</span>
+            </div>
+          </div>
+          <div class="pin">
+            <div class="dotbar"><i></i><i class="on"></i><i></i><i></i><i></i><i></i></div>
+          </div>
+          <div class="scroll mid">
+            <div class="cut"><div class="rk"><span class="no">6</span><div class="bd">
+              <div class="t">婚約破棄されたので、隣国の魔術学院で研究職に就きます</div>
+              <div class="m1">東雲ことは</div>
+              <div class="m2"><span>連載中 64話</span><span>約4時間</span><span>週間 7,995pt</span></div></div></div></div>
+            <div class="rk"><span class="no">7</span><div class="bd">
+              <div class="t">二度目の人生、今度は村人として生き延びる</div>
+              <div class="m1">高瀬ゆうき</div>
+              <div class="m2"><span>連載中 305話</span><span>約21時間</span><span>週間 7,180pt</span></div></div></div>
+            <div class="rk"><span class="no">8</span><div class="bd">
+              <div class="t">竜の国の門番、退屈すぎて畑を耕す</div>
+              <div class="m1">神無月かなた</div>
+              <div class="m2"><span>連載中 92話</span><span>約7時間</span><span>週間 6,743pt</span></div></div></div>
+            <div class="rk"><span class="no">9</span><div class="bd">
+              <div class="t">最強の鑑定士だけど、鑑定できるのは中古品だけ</div>
+              <div class="m1">藤沢いつき</div>
+              <div class="m2"><span>連載中 158話</span><span>約11時間</span><span>週間 6,220pt</span></div></div></div>
+            <div class="rk"><span class="no">10</span><div class="bd">
+              <div class="t">聖女は辞めます 〜二度と呼ばないでください〜</div>
+              <div class="m1">綾瀬ひなの</div>
+              <div class="m2"><span>完結 76話</span><span>約5時間</span><span>週間 5,864pt</span></div></div></div>
+            <div class="rk"><span class="no">11</span><div class="bd">
+              <div class="t">ダンジョン配信者、視聴者ゼロから最強へ</div>
+              <div class="m1">鷹取そうし</div>
+              <div class="m2"><span>連載中 187話</span><span>約13時間</span><span>週間 5,401pt</span></div></div></div>
+            <div class="rk"><span class="no">12</span><div class="bd">
+              <div class="t">隠居した宮廷魔術師の穏やかならざる日々</div>
+              <div class="m1">小鳥遊しずく</div>
+              <div class="m2"><span>連載中 55話</span><span>約4時間</span><span>週間 5,090pt</span></div></div></div>
+          </div>
+          <div class="nav">
+            <div class="nt"><span class="ico"><svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></span><span>本棚</span></div>
+            <div class="nt on"><span class="ico"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg></span><span>さがす</span></div>
+            <div class="nt"><span class="ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span><span>設定</span></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ══════════ 案E: 折り畳みに連動して圧縮バーへ変形 ══════════ -->
+  <div class="case">
+    <h2>案E ─ 畳むと6タブが「圧縮バー」へ変形する（現在地＋隣接＋位置を1行に）</h2>
+    <p class="aim">狙い: <b>案Aの情報量と案Dの省面積を両取り</b>する。上端では6タブ、畳まれると〈前の期間 ‹ 週間 › 次の期間＋位置ドット〉に縮む。</p>
+    <ul class="facts">
+      <li>常駐コスト: <b>約36px</b>（案Aとほぼ同じ）。得ているのは高さでなく<b>横スクロールの消滅</b>＝現在地が常に中央に居る（案Aの弱点をここで潰す）。</li>
+      <li>6本の扱い: 圧縮時は<b>常に3語（前・現在・次）＋6点</b>だけを出す固定幅構成なので溢れない。fontScale 1.3 でも「日間 ‹週間› 月間」で 300px 程度。</li>
+      <li><b>最大の弱点</b>: <b>実装コストと不確実性が最大</b>——畳み進行に連動して pinned の高さ／中身が変わるため、§2.3 の SubcomposeLayout 1パス測定（header 高を測って body の contentPadding に渡す）と噛み合わせる設計が別途要る。加えて上端と畳み後で見た目が別物＝<b>同じものだと学習してもらう必要がある</b>（変形の途中状態がちらつくと最悪）。</li>
+    </ul>
+    <div class="frames">
+
+      <div class="frame">
+        <div class="cap"><b>E-1 上端付近</b>／畳まれる前は通常の6タブ（案0と同じ）</div>
+        <div class="phone">
+          <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+          <div class="top">
+            <h1>さがす</h1>
+            <div class="search">
+              <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg>
+              <span class="q">作品名・作者名・キーワードで探す</span>
+            </div>
+          </div>
+          <div class="scroll mid">
+            <div class="dots" style="margin-top:8px"><i></i><i class="on"></i><i></i></div>
+            <div class="daynote">日替わりで開くページが変わる。<b>今日は②〈気分転換〉</b>から。左右スワイプで P1〈そのまま〉・P3〈読み方で選ぶ〉へ。</div>
+            <div class="sec">ジャンルから</div>
+            <div class="chips">
+              <span class="chip">恋愛</span><span class="chip">ファンタジー</span><span class="chip">文芸</span><span class="chip">SF</span><span class="chip">その他</span><span class="chip all">すべて→</span>
+            </div>
+            <div class="sec">ランキング</div>
+            <div class="rtabs">
+              <span class="rtab">日間</span><span class="rtab on">週間</span><span class="rtab">月間</span><span class="rtab">四半期</span><span class="rtab">累計</span><span class="rtab">新着</span>
+            </div>
+            <div class="rk top3"><span class="no">1</span><div class="bd">
+              <div class="t">追放された万能薬師、辺境でスローライフを始める</div>
+              <div class="m1">霧島あおい</div>
+              <div class="m2"><span>連載中 127話</span><span>約9時間</span><span>週間 12,480pt</span></div></div></div>
+            <div class="rk top3"><span class="no">2</span><div class="bd">
+              <div class="t">黒の魔王と契約した俺、気づけば最強の従者になっていた</div>
+              <div class="m1">夜灯すばる</div>
+              <div class="m2"><span>連載中 43話</span><span>約3時間</span><span>週間 10,236pt</span></div></div></div>
+            <div class="rk top3"><span class="no">3</span><div class="bd">
+              <div class="t">公爵令嬢の嗜み 〜隣国で薬草園を開きます〜</div>
+              <div class="m1">白河すずら</div>
+              <div class="m2"><span>完結 88話</span><span>約6時間</span><span>週間 9,517pt</span></div></div></div>
+            <div class="rk"><span class="no">4</span><div class="bd">
+              <div class="t">転生したら最弱スキルだったので草むしりしていたら世界樹が生えた</div>
+              <div class="m1">青葉みのり</div>
+              <div class="m2"><span>連載中 210話</span><span>約15時間</span><span>週間 8,904pt</span></div></div></div>
+          </div>
+          <div class="nav">
+            <div class="nt"><span class="ico"><svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></span><span>本棚</span></div>
+            <div class="nt on"><span class="ico"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg></span><span>さがす</span></div>
+            <div class="nt"><span class="ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span><span>設定</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="frame">
+        <div class="cap"><b>E-2 下まで送った状態</b>／圧縮バー＝現在地は藍ピルで中央、左右に隣接期間、右端に6点の位置</div>
+        <div class="phone">
+          <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+          <div class="top">
+            <h1>さがす</h1>
+            <div class="search">
+              <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg>
+              <span class="q">作品名・作者名・キーワードで探す</span>
+            </div>
+          </div>
+          <div class="pin">
+            <div class="compact">
+              <span class="arw">‹</span><span class="side">日間</span>
+              <span class="cur">週間</span>
+              <span class="side">月間</span><span class="arw">›</span>
+              <span class="mini"><i></i><i class="on"></i><i></i><i></i><i></i><i></i></span>
+            </div>
+          </div>
+          <div class="scroll mid">
+            <div class="cut"><div class="rk"><span class="no">6</span><div class="bd">
+              <div class="t">婚約破棄されたので、隣国の魔術学院で研究職に就きます</div>
+              <div class="m1">東雲ことは</div>
+              <div class="m2"><span>連載中 64話</span><span>約4時間</span><span>週間 7,995pt</span></div></div></div></div>
+            <div class="rk"><span class="no">7</span><div class="bd">
+              <div class="t">二度目の人生、今度は村人として生き延びる</div>
+              <div class="m1">高瀬ゆうき</div>
+              <div class="m2"><span>連載中 305話</span><span>約21時間</span><span>週間 7,180pt</span></div></div></div>
+            <div class="rk"><span class="no">8</span><div class="bd">
+              <div class="t">竜の国の門番、退屈すぎて畑を耕す</div>
+              <div class="m1">神無月かなた</div>
+              <div class="m2"><span>連載中 92話</span><span>約7時間</span><span>週間 6,743pt</span></div></div></div>
+            <div class="rk"><span class="no">9</span><div class="bd">
+              <div class="t">最強の鑑定士だけど、鑑定できるのは中古品だけ</div>
+              <div class="m1">藤沢いつき</div>
+              <div class="m2"><span>連載中 158話</span><span>約11時間</span><span>週間 6,220pt</span></div></div></div>
+            <div class="rk"><span class="no">10</span><div class="bd">
+              <div class="t">聖女は辞めます 〜二度と呼ばないでください〜</div>
+              <div class="m1">綾瀬ひなの</div>
+              <div class="m2"><span>完結 76話</span><span>約5時間</span><span>週間 5,864pt</span></div></div></div>
+            <div class="rk"><span class="no">11</span><div class="bd">
+              <div class="t">ダンジョン配信者、視聴者ゼロから最強へ</div>
+              <div class="m1">鷹取そうし</div>
+              <div class="m2"><span>連載中 187話</span><span>約13時間</span><span>週間 5,401pt</span></div></div></div>
+            <div class="rk"><span class="no">12</span><div class="bd">
+              <div class="t">隠居した宮廷魔術師の穏やかならざる日々</div>
+              <div class="m1">小鳥遊しずく</div>
+              <div class="m2"><span>連載中 55話</span><span>約4時間</span><span>週間 5,090pt</span></div></div></div>
+          </div>
+          <div class="nav">
+            <div class="nt"><span class="ico"><svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></span><span>本棚</span></div>
+            <div class="nt on"><span class="ico"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg></span><span>さがす</span></div>
+            <div class="nt"><span class="ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span><span>設定</span></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ══════════ 案F: 常駐要素ゼロ（既にある行メタに委ねる） ══════════ -->
+  <div class="case">
+    <h2>案F ─ 常駐要素を足さない（行メタの「週間 …pt」を昇格させるだけ）</h2>
+    <p class="aim">狙い: <b>実装がすでに全行に期間名を書いている</b>という事実に乗る（pointLabel＝「週間 7,180pt」）。色を --info から --ink へ上げ、視線が当たるようにするだけ。</p>
+    <ul class="facts">
+      <li>常駐コスト: <b>0px</b>。pinned スロットを使わない（§8 の「pinned は使わなくても損はしない」に該当）。</li>
+      <li>6本の扱い: 常駐部品が無いので<b>溢れの論点自体が消える</b>。</li>
+      <li><b>最大の弱点</b>: <b>新着タブで完全に破綻する</b>——pointLabel は NarouOrder.NEW で null を返し（DiscoveryCommon.kt L99-101「pt が並びに関与しない＝説明にならない数値は出さない」）、代わりに「05:45 更新」が出る＝<b>6本のうち1本だけ期間名がどこにも無い状態</b>が残る（F-2）。加えて11px の3段目は読み飛ばされる位置で、色を上げると今度は<b>順位の根拠でしかない値が題名と競う</b>。</li>
+    </ul>
+    <div class="frames">
+
+      <div class="frame">
+        <div class="cap"><b>F-1 週間・下まで送った状態</b>／メタ末尾を ink へ昇格（他5期間はこれで名前が出ている）</div>
+        <div class="phone">
+          <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+          <div class="top">
+            <h1>さがす</h1>
+            <div class="search">
+              <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg>
+              <span class="q">作品名・作者名・キーワードで探す</span>
+            </div>
+          </div>
+          <div class="scroll mid">
+            <div class="cut"><div class="rk"><span class="no">6</span><div class="bd">
+              <div class="t">婚約破棄されたので、隣国の魔術学院で研究職に就きます</div>
+              <div class="m1">東雲ことは</div>
+              <div class="m2"><span>連載中 64話</span><span>約4時間</span><span class="metric">週間 7,995pt</span></div></div></div></div>
+            <div class="rk"><span class="no">7</span><div class="bd">
+              <div class="t">二度目の人生、今度は村人として生き延びる</div>
+              <div class="m1">高瀬ゆうき</div>
+              <div class="m2"><span>連載中 305話</span><span>約21時間</span><span class="metric">週間 7,180pt</span></div></div></div>
+            <div class="rk"><span class="no">8</span><div class="bd">
+              <div class="t">竜の国の門番、退屈すぎて畑を耕す</div>
+              <div class="m1">神無月かなた</div>
+              <div class="m2"><span>連載中 92話</span><span>約7時間</span><span class="metric">週間 6,743pt</span></div></div></div>
+            <div class="rk"><span class="no">9</span><div class="bd">
+              <div class="t">最強の鑑定士だけど、鑑定できるのは中古品だけ</div>
+              <div class="m1">藤沢いつき</div>
+              <div class="m2"><span>連載中 158話</span><span>約11時間</span><span class="metric">週間 6,220pt</span></div></div></div>
+            <div class="rk"><span class="no">10</span><div class="bd">
+              <div class="t">聖女は辞めます 〜二度と呼ばないでください〜</div>
+              <div class="m1">綾瀬ひなの</div>
+              <div class="m2"><span>完結 76話</span><span>約5時間</span><span class="metric">週間 5,864pt</span></div></div></div>
+            <div class="rk"><span class="no">11</span><div class="bd">
+              <div class="t">ダンジョン配信者、視聴者ゼロから最強へ</div>
+              <div class="m1">鷹取そうし</div>
+              <div class="m2"><span>連載中 187話</span><span>約13時間</span><span class="metric">週間 5,401pt</span></div></div></div>
+            <div class="rk"><span class="no">12</span><div class="bd">
+              <div class="t">隠居した宮廷魔術師の穏やかならざる日々</div>
+              <div class="m1">小鳥遊しずく</div>
+              <div class="m2"><span>連載中 55話</span><span>約4時間</span><span class="metric">週間 5,090pt</span></div></div></div>
+            <div class="rk"><span class="no">13</span><div class="bd">
+              <div class="t">幼馴染の勇者に置いていかれた俺、後方で補給線を整える</div>
+              <div class="m1">五十嵐なぎ</div>
+              <div class="m2"><span>連載中 231話</span><span>約16時間</span><span class="metric">週間 4,772pt</span></div></div></div>
+          </div>
+          <div class="nav">
+            <div class="nt"><span class="ico"><svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></span><span>本棚</span></div>
+            <div class="nt on"><span class="ico"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg></span><span>さがす</span></div>
+            <div class="nt"><span class="ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span><span>設定</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="frame">
+        <div class="cap"><b>F-2 新着・下まで送った状態（＝この案の破綻）</b>／pt が無く「05:45 更新」になり、<b>画面のどこにも期間名が無い</b></div>
+        <div class="phone">
+          <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+          <div class="top">
+            <h1>さがす</h1>
+            <div class="search">
+              <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg>
+              <span class="q">作品名・作者名・キーワードで探す</span>
+            </div>
+          </div>
+          <div class="scroll mid">
+            <div class="cut"><div class="rk"><span class="no">6</span><div class="bd">
+              <div class="t">ひとつ屋根の下、幼馴染とゲーム実況をはじめた</div>
+              <div class="m1">一ノ瀬みなも</div>
+              <div class="m2"><span>連載中 12話</span><span>約48分</span><span class="metric">05:52 更新</span></div></div></div></div>
+            <div class="rk"><span class="no">7</span><div class="bd">
+              <div class="t">辺境の錬金術師、王都の依頼を断りきれない</div>
+              <div class="m1">桐生あさひ</div>
+              <div class="m2"><span>連載中 78話</span><span>約6時間</span><span class="metric">05:45 更新</span></div></div></div>
+            <div class="rk"><span class="no">8</span><div class="bd">
+              <div class="t">拾った子狐が、三日後に人の姿で味噌汁を作っていた</div>
+              <div class="m1">七尾まひろ</div>
+              <div class="m2"><span>連載中 34話</span><span>約2時間</span><span class="metric">05:41 更新</span></div></div></div>
+            <div class="rk"><span class="no">9</span><div class="bd">
+              <div class="t">最果ての図書館は、閉館時間になると動き出す</div>
+              <div class="m1">月島つかさ</div>
+              <div class="m2"><span>連載中 66話</span><span>約5時間</span><span class="metric">05:38 更新</span></div></div></div>
+            <div class="rk"><span class="no">10</span><div class="bd">
+              <div class="t">元宮廷料理人、屋台で三日分の伝説を作る</div>
+              <div class="m1">日向ましろ</div>
+              <div class="m2"><span>完結 21話</span><span>約1時間</span><span class="metric">05:30 更新</span></div></div></div>
+            <div class="rk"><span class="no">11</span><div class="bd">
+              <div class="t">転生先が悪役令嬢の執事だったので、まず給与交渉から始める</div>
+              <div class="m1">柊木れい</div>
+              <div class="m2"><span>連載中 103話</span><span>約8時間</span><span class="metric">05:22 更新</span></div></div></div>
+            <div class="rk"><span class="no">12</span><div class="bd">
+              <div class="t">村の鍛冶屋、伝説の剣を三本まとめて打ち直す</div>
+              <div class="m1">早瀬こはる</div>
+              <div class="m2"><span>連載中 47話</span><span>約3時間</span><span class="metric">05:14 更新</span></div></div></div>
+          </div>
+          <div class="nav">
+            <div class="nt"><span class="ico"><svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></span><span>本棚</span></div>
+            <div class="nt on"><span class="ico"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg></span><span>さがす</span></div>
+            <div class="nt"><span class="ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span><span>設定</span></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="case">
+    <h2>裁定のときに効く軸（比較の補助・意見ではなく観測点）</h2>
+    <ul class="facts">
+      <li><b>常駐の高さ</b>: D 約18px ＜ C 約35px ＜ E 約36px ＜ A 約40px（B・F は 0px）。検索ヘッダ約110px＋ナビ64px が既に固定なので、一覧の可視行は7行前後で拮抗する。</li>
+      <li><b>切替導線が畳んだ後も残るか</b>: A ○／E ○／B △（タップ時の挙動を別途決める必要あり）／C ×／D ×／F ×。</li>
+      <li><b>期間名が出るか</b>: A・B・C・E ○／D ×（位置のみ）／F △（新着だけ×）。</li>
+      <li><b>溢れ耐性（fontScale 1.3・360dp 幅）</b>: D・E・F ○／B ○（1語）／C ○（1行）／<b>A ×</b>（選択タブが画面外へ出うる）。</li>
+      <li><b>実装の重さ</b>: A＝OrderTabsK を pinned へ移すだけ ／ C＝見出しの語と置き場だけ ／ B・D＝小部品を1つ足す ／ <b>E＝畳み量と連動する変形＝別設計が要る</b>。</li>
+    </ul>
+  </div>
+
+</div>
+</body>
+</html>

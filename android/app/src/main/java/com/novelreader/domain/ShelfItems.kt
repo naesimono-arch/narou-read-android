@@ -27,46 +27,29 @@ sealed interface ShelfItem {
 }
 
 /**
- * 本棚の並び順キー（二層）。ADR 0016 の実装（2026-07-16 改訂・層反転）。
+ * 本棚の並び順キー（単一タイムライン）。ADR 0016 改訂（2026-09-01）の実装。
  *
- * なぜ二層か: 旧・単層 `MAX(addedAt, lastReadAt)` では取込順と読書順が混ざり並びの意図が読めなかった。
- * そこで tier で「触ったか否か」を大分類し、層内を時刻降順にする二層キーにする。
- *
- * なぜ未読を上（層反転・2026-07-16 実使用フィードバック）: 旧版は「読書中（lastReadAt>0）」を上層に置いたが、
- * 実使用で「取り込んだばかりの未読が読みかけの下に埋もれて見つけにくい」不満が出た。ユーザー裁定により
- * 「取り込んだ本＝まだ読んでいない本を最上位に」へ反転する。すなわち:
- *   ・tier1（上層）＝未読/未接触（lastReadAt=0）: `addedAt` 降順＝最近入れた本ほど上。
- *   ・tier0（下層）＝触った本（lastReadAt>0）: `lastReadAt` 降順＝最後に触った本ほど上。
- * BookDao.getAllBooks の ORDER BY もこの二層規則に一致させている（並びの正は DAO）。
- *
- * ※受け入れたトレードオフ（ADR 0016 改訂節）: 読みかけの本が、入れたての未読新刊より下へ下がる。
- *   旧版のトレードオフ（放置本が未読新刊の上に居座る）を実使用で嫌ったユーザーが、明示的にこちらを選好した。
+ * なぜ単一タイムラインか: 2026-07-16 改訂は「未読/既読の二層」（未読が常に最優先で既読本にどれだけ
+ * 追い越されない）として記録・実装されていたが、ストア掲載文の文言確認の過程で、この記録がユーザー
+ * 本人の本来の意図と最初からズレていたことが判明した。本来の意図は「追加した瞬間は最上位、他の本を
+ * 開いたら（＝別の本の lastReadAt/addedAt が更新されたら）都度落ちていく」という単一タイムラインで、
+ * 未読/既読の区別なくその本の最後の活動時刻（触った本は lastReadAt・未読は addedAt）の降順で一列に
+ * 並べるものだった。そこで tier による大分類を撤廃し、value のみで比較する。
+ * BookDao.getAllBooks の ORDER BY もこの単一タイムライン規則に一致させている（並びの正は DAO）。
  */
-data class RecencyKey(val tier: Int, val value: Long) : Comparable<RecencyKey> {
-    override fun compareTo(other: RecencyKey): Int {
-        val t = tier.compareTo(other.tier)
-        return if (t != 0) t else value.compareTo(other.value)
-    }
+data class RecencyKey(val value: Long) : Comparable<RecencyKey> {
+    override fun compareTo(other: RecencyKey): Int = value.compareTo(other.value)
 }
 
-/** 蔵書の並び順キーを二層規則で作る（未読=tier1/addedAt が上層・触った本=tier0/lastReadAt が下層）。 */
-internal fun recencyKeyOf(addedAt: Long, lastReadAt: Long): RecencyKey =
-    if (lastReadAt > 0L) RecencyKey(tier = 0, value = lastReadAt)
-    else RecencyKey(tier = 1, value = addedAt)
-
 /**
- * Web 由来（未取込）カードの並び順キー。**tier 特権なし＝常に tier0** で、「自身の直近の操作時刻」
- * （触った web＝最終接触時刻・未接触＝棚に置いた時刻 addedAt）を通常キーとして並ぶ。
+ * 蔵書・Web由来カード共通の並び順キー。触った本は lastReadAt、未読/未接触は addedAt の降順。
  *
- * なぜ蔵書の recencyKeyOf を使わないか（2026-07-26 実機ユーザー報告の裁定変更）: 旧実装は未接触 web を
- * 蔵書と同じ規則で tier1（上層）へ写像していたが、実棚では蔵書がほぼ全て「触った本」（tier0）になるため、
- * 未接触 web カードが唯一の tier1 住人として**恒久最上位に張り付き**、直近に取り込んだ・読んだ作品を
- * 差し置いた（tier が値に優先する比較ゆえ、読んだ直後の本 tier0 は何をしても上回れない）。
- * tier1 は「取込という意図的操作を経た未読の実蔵書」の特権に限定し、web カード（発見メモ・取込前）は
- * 特権なしの通常キーへ降ろす＝ADR 0016 初版の「Web 由来カードは tier0 扱い」への部分回帰（要 ADR 追記）。
+ * なぜ蔵書と Web で同一関数か（2026-09-01 統合）: 旧実装は蔵書用 recencyKeyOf と Web 用
+ * webRecencyKeyOf を分けていたが、それは「未読の蔵書だけ tier1 の特権を持つ」二層設計の名残で、
+ * 単一タイムラインではロジックが完全に同一になり、2関数を維持する理由が無い。
  */
-internal fun webRecencyKeyOf(addedAt: Long, lastReadAt: Long): RecencyKey =
-    RecencyKey(tier = 0, value = if (lastReadAt > 0L) lastReadAt else addedAt)
+internal fun recencyKeyOf(addedAt: Long, lastReadAt: Long): RecencyKey =
+    RecencyKey(value = if (lastReadAt > 0L) lastReadAt else addedAt)
 
 /**
  * 蔵書へ取り込み済みの作品を表す ncode の保存キー集合（trim+大文字＝[Ncode.storageKey]）。
@@ -149,16 +132,15 @@ fun activeWebNovels(books: List<BookEntity>, webNovels: List<WebNovelEntity>): L
 }
 
 /**
- * 蔵書リストと Web由来（未取込）リストを「最近の活動順」で1本にマージする純関数。
+ * 蔵書リストと Web由来（未取込）リストを「最近の活動順」（単一タイムライン）で1本にマージする純関数。
  *
- * - 蔵書の並びは BookDao.getAllBooks（二層: 未読を上・触った本を下）が正本で、ここでは崩さない。
- *   Web 由来カードの挿入位置を決めるためだけに、同じ二層規則（recencyKeyOf）をここでも計算する。
- *   **意図的な式の重複**: DAO クエリの並びキーは SELECT 列に出ておらず、取り出すには一覧クエリの
- *   返却型ごと変える必要があり、既存呼び出し・テストへの波及が大きい。規則は recencyKeyOf の
+ * - 蔵書の並びは BookDao.getAllBooks（単一タイムライン: 触った本は lastReadAt・未読は addedAt の降順）が
+ *   正本で、ここでは崩さない。Web 由来カードの挿入位置を決めるためだけに、同じ規則（recencyKeyOf）を
+ *   ここでも計算する。**意図的な式の重複**: DAO クエリの並びキーは SELECT 列に出ておらず、取り出すには
+ *   一覧クエリの返却型ごと変える必要があり、既存呼び出し・テストへの波及が大きい。規則は recencyKeyOf の
  *   数行なので、返却型変更よりコメントで対にする方を選んだ（挙動の正は DAO 側）。
- * - Web 由来（未取込）カードは **tier 特権なし（常に tier0）** で「直近の操作時刻」により並ぶ
- *   （webRecencyKeyOf。触った web＝最終接触時刻・未接触＝addedAt）。未接触 web を tier1 へ写像すると
- *   実棚（蔵書が全て tier0）で恒久最上位に張り付くための裁定変更＝2026-07-26。詳細は webRecencyKeyOf の KDoc。
+ * - Web 由来（未取込）カードも蔵書と同一の recencyKeyOf で「直近の操作時刻」（触った web＝最終接触時刻・
+ *   未接触＝addedAt）により並ぶ。単一タイムラインでは蔵書とWebカードを区別する特別扱いは無い。
  * - 取込済み（books.ncode と同一 ncode、または題名＋作者の完全一致＝[isPromotedWeb]）の Web カードは
  *   非表示にする＝取込が完了した時点で蔵書カードへ「自然昇格」し、二重表示しない。
  *   ※この昇格は 2026-07-29 以降 [activeWebNovels] が棚データの供給点（BookshelfViewModel.uiState）で
@@ -177,7 +159,7 @@ fun mergeShelfItems(
     webReadingProgress: Map<String, Int> = emptyMap(),
     // ncode(正規化済み大文字)→web 読書の最終接触時刻(lastReadAt)。web カードの並びキー（触った web は接触時刻で並ぶ）に使う。
     // なぜ episode 表示用マップと別立てか: 表示は episode(話数)・並びは接触時刻(ミリ秒)と必要な量が異なり、
-    // episode を時刻代わりに使うと蔵書の lastReadAt と桁が違い層内順が壊れる（近似で並びを嘘にしない）。
+    // episode を時刻代わりに使うと蔵書の lastReadAt と桁が違い並び順が壊れる（近似で並びを嘘にしない）。
     // 既定 emptyMap は既存テスト・呼び出し互換（接触時刻なしなら全 web が未接触＝自身の addedAt で並ぶ）。
     webLastReadAt: Map<String, Long> = emptyMap(),
 ): List<ShelfItem> {
@@ -188,11 +170,11 @@ fun mergeShelfItems(
         val lastReadAt = progressMap[book.id]?.lastReadAt ?: 0L
         ShelfItem.Book(book, recencyKeyOf(book.addedAt, lastReadAt))
     }
-    // Web 由来カードは tier 特権なしの通常キー（webRecencyKeyOf＝常に tier0・直近の操作時刻）でキー化する。
-    // 蔵書列は DAO が二層降順、web 列はここでキー降順に整列してから同じ RecencyKey 比較でマージする。
+    // Web 由来カードも蔵書と同一の recencyKeyOf で「直近の操作時刻」によりキー化する。
+    // 蔵書列は DAO が単一タイムライン降順、web 列はここでキー降順に整列してから同じ RecencyKey 比較でマージする。
     val webItems: List<Pair<WebNovelEntity, RecencyKey>> = webNovels
         .filterNot { isPromotedWeb(it, importedNcodes, importedTitleWriters) }
-        .map { it to webRecencyKeyOf(it.addedAt, webLastReadAt[Ncode(it.ncode).storageKey] ?: 0L) }
+        .map { it to recencyKeyOf(it.addedAt, webLastReadAt[Ncode(it.ncode).storageKey] ?: 0L) }
         .sortedByDescending { it.second }
 
     // Web カードに読書位置を載せる。web_novels.ncode も web_reading_progress.ncode も trim+uppercase 正規化済みで
@@ -200,12 +182,12 @@ fun mergeShelfItems(
     fun webItem(n: WebNovelEntity): ShelfItem.Web =
         ShelfItem.Web(n, webReadingProgress[Ncode(n.ncode).storageKey] ?: 0)
 
-    // 両列とも二層キー降順ソート済みの前提でマージする（books は DAO・webItems は直前の sort が保証）。
+    // 両列ともキー降順ソート済みの前提でマージする（books は DAO・webItems は直前の sort が保証）。
     val result = ArrayList<ShelfItem>(bookItems.size + webItems.size)
     var bi = 0
     var wi = 0
     while (bi < bookItems.size && wi < webItems.size) {
-        // 二層キーで比較し、同値は蔵書優先（>= で book を先に置く）。
+        // キーで比較し、同値は蔵書優先（>= で book を先に置く）。
         if (bookItems[bi].recencyKey >= webItems[wi].second) {
             result.add(bookItems[bi]); bi++
         } else {
@@ -266,11 +248,12 @@ fun chapterNumberOf(lastReadFilename: String?): Int? =
 // なぜ最終章スクロール中を 1f にしないか（公理8・ssot Major 2026-07-12）:
 // 旧実装は「1行でもスクロール＝1.0」だったため、最終章を1行送った瞬間に 100%・朱印『了』・
 // READING フィルタから消えて読了へ移動していた＝「今読んでいる本」が『よみかけ』で見つからない嘘。
-// スクロールしただけでは末尾に到達した保証は無い（章内総量を DB に持たないため末尾検出は不能）ので、
-// READING に留まる <1f（最終章を読み途中を表す (N-0.5)/N）を返す。真の読了（100%・『了』）は
-// 「末尾到達フラグ」にのみ結ぶべきだが、そのフラグは ProgressEntity に無く、読書画面での
-// 末尾検出→保存の配線が要る（=別レーンの配線依頼）。本関数だけでは 1f を出せないため、
-// 到達フラグが入るまで readingStatusFor の FINISHED は成立しない（近似で嘘の 100% を出さない選択）。
+// スクロールしただけでは末尾に到達した保証は無い（章内総量を DB に持たないため、位置情報だけを見る
+// 本関数では末尾検出は不能）ので、READING に留まる <1f（最終章を読み途中を表す (N-0.5)/N）を返す。
+// 真の読了（100%・『了』）は末尾到達フラグ reachedEnd にのみ結ぶ（v18 で ProgressEntity に追加済み。
+// 読書画面が末尾を可視化したとき ProgressDao.markReachedEnd が立て、readingStatusFor（下記）が
+// FINISHED を判定する）。役割分担＝本関数は進捗率の近似計算のみを担い reachedEnd を読まない——
+// だからここでは 1f を出さない（近似で嘘の 100% を出さない選択）。
 // ============================================================
 fun progressFractionFor(
     chapNum: Int?,

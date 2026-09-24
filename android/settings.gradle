@@ -18,6 +18,8 @@ pluginManagement {
         // KGP 2.2.21 の「fully supported」AGP は 7.3.1–8.11.1＝8.10.1 はその内側。
         id 'com.android.application' version '8.10.1' apply false
         id 'com.android.test' version '8.10.1' apply false
+        // Baseline Profile の生成/取り込み。版は benchmark-macro-junit4 と揃える（1.4.1）。
+        id 'androidx.baselineprofile' version '1.4.1' apply false
         // ── Kotlin 2.2.21（2026-08-05・ADR 0029 の1便で 1.9.22 から移行）──
         // なぜ 2.2.21 か（Gradle wrapper 8.11.1 を動かさずに済む最新系列）:
         // JetBrains の KGP 互換表で 2.2.20–2.2.21 は Gradle 7.6.3–8.14・AGP 7.3.1–8.11.1 が
@@ -67,3 +69,4 @@ dependencyResolutionManagement {
 rootProject.name = "NovelReader"
 include ':app'
 include ':macrobenchmark'
+include ':baselineprofile'

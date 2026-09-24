@@ -1,0 +1,242 @@
+<!-- @dsCard group="UI-n / スキンK候補（明快）" name="K. さがす — 期間sticky候補C（コンテンツ上に浮遊チップ）" -->
+<!--
+  【一時ドラフト・複数案比較用＝裁定後削除】（visual-language の型。正本 skins/discovery-K.html は無変更）
+  ランキング横スワイプ採用裁定（2026-08-06）の条件「現在地常時表示」の候補C。
+  狙い: 固定クロームに常設場所を取らず、期間行が消えたときだけリスト右上に現在期間チップを浮遊させる
+  ＝トップ帯（題字・検索）の静けさを守りつつ、現在地をリスト面の文脈内に置く。
+  B との構造差: B はチップを固定トップ（題字行）に常設枠として持つ／C は枠を持たずコンテンツへ重ねる
+  （＝レイアウトを一切動かさないが、下の順位テキストと重なるトレードオフを持つ）。
+  浮遊の描き方: 下の文字が透けると読めないため地は不透明 --base＋藍ヘアライン枠。浮遊は面の重なりなので
+  ヘアラインだけでは下のリスト罫と区別できず、最小限の持ち上げ影のみ許容（phone 枠と同系の弱い影）。
+  位置は上端右＝現在地は上が自然で、下端はボトムナビの現在地表示（さがすタブ）と混線するため。
+  正本からの差分は4点のみ（それ以外は構造・トークン完全引き継ぎ）:
+    ① .scroll 先頭に高さ0の sticky アンカー＋浮遊 .pchip（末尾の「候補C差分」CSS ブロック）
+    ② 期間行の可視状態でチップを出し入れする小スクリプト
+    ③ 順位を10位まで延長＝スクロール済み状態を実演するための実データ模写（裁定対象外）
+    ④ 初期表示を「期間行が消えチップが出た状態」へ固定
+  既知乖離（実装ランキングタブ6本 日間/週間/月間/四半期/累計/新着 等）は正本と同じく持ち越し＝ここでは直さない。
+  翻訳時留意: チップのタップは「期間行へ戻す」動線を想定（モックでは見た目のみ・挙動は実機後詰め層）。
+-->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>スキンK さがす — 期間sticky候補C（浮遊現在期間チップ）</title>
+<style>
+  :root{
+    --base:#FBFAF8;      /* 和紙地（D踏襲） */
+    --ink:#1C1F26;       /* 主文字（D踏襲） */
+    --ink-soft:#7C808B;  /* 装飾補助（OnSurfaceVariantLight 実値。ナビ非選択ラベル） */
+    --info:#5C606D;      /* 意味メタ（InfoTextLight 実値。検索プレースホルダ/説明/順位/作者/未選択タブ） */
+    --line:#ECEAE4;      /* ヘアライン（D踏襲） */
+    --ai:#1C3D5A;        /* 藍アクセント（D踏襲） */
+    --ai-pill:rgba(28,61,90,.10); /* 藍10%＝選択ピル/現在地チップ地 */
+    --field:#F1F0EC;     /* 検索フィールド地（実装 SurfaceVariantLight＝薄地の沈めた面） */
+    --mincho:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
+    --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#E4E3DD;display:flex;align-items:center;justify-content:center;min-height:100vh;padding:24px;font-family:var(--gothic)}
+
+  .phone{width:412px;height:915px;background:var(--base);border-radius:38px;overflow:hidden;position:relative;
+    box-shadow:0 24px 60px rgba(0,0,0,.26);display:flex;flex-direction:column}
+
+  .sb{height:44px;display:flex;align-items:center;justify-content:space-between;padding:0 26px;font-size:12px;color:var(--ink-soft);flex-shrink:0}
+
+  /* 固定トップ: 画面タイトル＋実検索（常時可視・第一強調） */
+  .top{flex-shrink:0;padding:2px 20px 14px}
+  .top h1{font-family:var(--gothic);font-weight:700;font-size:22px;color:var(--ink);letter-spacing:.02em}
+  .search{margin-top:14px;height:52px;display:flex;align-items:center;gap:10px;background:var(--field);
+    border-radius:12px;padding:0 16px;cursor:text}
+  .search svg{width:20px;height:20px;stroke:var(--info);fill:none;stroke-width:1.8;flex-shrink:0}
+  .search span{font-size:14px;color:var(--info)}
+
+  .scroll{flex:1;overflow:auto;padding:6px 20px 20px}
+
+  /* 見出し: 淡色字間装飾でなく gothic bold ink＝自己説明性優先 */
+  .sec{font-family:var(--gothic);font-weight:700;font-size:13px;color:var(--ink);margin:20px 0 12px}
+  .sec:first-child{margin-top:8px}
+
+  /* きょうの気分: 1ページ4枚（2列×2行）。左に藍の縦ルール・明朝の見出し */
+  .mood{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .md{position:relative;border:1px solid var(--line);border-radius:10px;padding:14px 14px 14px 18px;cursor:pointer}
+  .md::before{content:"";position:absolute;left:0;top:12px;bottom:12px;width:3px;border-radius:3px;background:var(--ai)}
+  .md b{font-family:var(--mincho);font-size:14.5px;color:var(--ink);font-weight:600;display:block;line-height:1.45}
+  .md span{display:block;font-size:11px;color:var(--info);margin-top:5px}
+
+  /* 気分ページャ（2026-07-24 確定・discovery-mood-pager-K で合格）: 今日のページ中心・左右に隣ページが覗く */
+  .sec.flex{display:flex;align-items:baseline;justify-content:space-between}
+  .sec .pat{font-weight:400;font-size:11px;color:var(--info)}
+  .mp-view{overflow:hidden;margin:0 -20px} /* scroll の左右余白を食い、隣ページを画面端まで覗かせる */
+  .mp-track{display:flex;transform:translateX(-70%)} /* P2(index1)を中央へ寄せる（80%幅×index+余白） */
+  .mp-page{flex:0 0 80%;padding:0 8px}
+  .mp-page.side{opacity:.5} /* 非アクティブページは沈めて現在地を示す */
+  .dots{display:flex;justify-content:center;gap:8px;margin-top:14px}
+  .dots i{width:7px;height:7px;border-radius:50%;background:var(--line)}
+  .dots i.on{background:var(--ai);width:18px;border-radius:4px} /* 現在ページ＝藍の伸びたピル */
+  .daynote{text-align:center;font-size:11px;color:var(--info);margin-top:8px;line-height:1.5}
+  .daynote b{color:var(--ink);font-weight:700}
+
+  /* ジャンルから: 横スクロールチップ */
+  .chips{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;scrollbar-width:none}
+  .chips::-webkit-scrollbar{display:none}
+  .chip{flex-shrink:0;font-size:12.5px;color:var(--ink);border:1px solid var(--line);border-radius:999px;padding:8px 16px;cursor:pointer}
+  .chip.all{color:var(--ai);border-color:var(--ai)}
+
+  /* ランキング: タブ＋順位リスト */
+  .rtabs{display:flex;gap:18px;border-bottom:1px solid var(--line);margin-bottom:2px}
+  .rtab{font-size:13px;color:var(--info);padding:10px 0;cursor:pointer;position:relative}
+  .rtab.on{color:var(--ai);font-weight:700}
+  .rtab.on::after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--ai)}
+  .rk{display:flex;gap:14px;align-items:baseline;padding:14px 0;border-bottom:1px solid var(--line);cursor:pointer}
+  .rk .no{font-family:var(--mincho);font-size:19px;color:var(--info);width:24px;flex-shrink:0;text-align:center}
+  .rk.top3 .no{color:var(--ai)}
+  .rk .bd{flex:1;min-width:0}
+  .rk .t{font-family:var(--mincho);font-size:14.5px;color:var(--ink);line-height:1.5;
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .rk .a{font-size:12px;color:var(--info);margin-top:4px}
+
+  /* 公式サイトへの逃げ道（handover ★A 要件）: ヘアラインで区切った外部リンク行 */
+  .official{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:8px;padding:16px 2px 4px;
+    border-top:1px solid var(--line);font-size:13px;color:var(--info);cursor:pointer}
+  .official svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.6;flex-shrink:0}
+
+  /* 恒常ボトムナビ: 3等分・アイコン24px＋11pxラベル・選択中は藍＋背後ピル */
+  .nav{flex-shrink:0;height:64px;display:flex;border-top:1px solid var(--line);background:var(--base)}
+  .nt{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;cursor:pointer;color:var(--ink-soft)}
+  .nt .ico{position:relative;width:56px;height:32px;display:grid;place-items:center}
+  .nt svg{width:24px;height:24px;stroke:currentColor;fill:none;stroke-width:1.7;position:relative;z-index:1}
+  .nt span{font-size:11px}
+  .nt.on{color:var(--ai)}
+  .nt.on .ico::before{content:"";position:absolute;inset:0;width:56px;height:32px;border-radius:16px;background:var(--ai-pill)}
+
+  /* ── 候補C差分 ─────────────────────────────────────
+     高さ0の sticky アンカーを .scroll 先頭に置き、その右端へチップを絶対配置＝レイアウトを一切動かさず
+     コンテンツ上に浮遊させる。地は不透明 --base（--ai-pill は10%透過＝下の文字が透けて読めない）＋藍ヘアライン枠。
+     浮遊は面の重なりなので、リスト罫との区別に最小限の持ち上げ影のみ許容（和モダンの例外・理由は冒頭コメント）。
+     z-index 明示＝気分カードの藍ルール（::before）等の positioned 要素より上に描くため */
+  .float-anchor{position:sticky;top:10px;height:0;z-index:3}
+  .pchip{position:absolute;top:0;right:0;font-size:12px;color:var(--ai);background:var(--base);
+    border:1px solid var(--ai);border-radius:999px;padding:6px 12px;box-shadow:0 2px 10px rgba(0,0,0,.10);
+    cursor:pointer;opacity:0;pointer-events:none;transition:opacity .16s ease}
+  .pchip.show{opacity:1;pointer-events:auto}
+</style>
+</head>
+<body>
+  <div class="phone" role="img" aria-label="スキンK さがす画面 期間sticky候補C">
+    <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+
+    <div class="top">
+      <h1>さがす</h1>
+      <div class="search">
+        <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg>
+        <span>作品名・作者名・キーワードで探す</span>
+      </div>
+    </div>
+
+    <div class="scroll">
+      <!-- 浮遊チップの係留点（高さ0＝リストのレイアウトに影響しない）。期間行が画面外のときだけ出る。
+           タップで期間行へ戻す想定 -->
+      <div class="float-anchor"><span class="pchip">ランキング・週間</span></div>
+
+      <div class="sec flex"><span>きょうの気分</span><span class="pat">② 気分転換</span></div>
+      <div class="mp-view">
+        <div class="mp-track">
+          <!-- P1 そのまま（左に覗く・沈める） -->
+          <div class="mp-page side"><div class="mood">
+            <div class="md"><b>ちょっとそこまで</b><span>短編・30分で読める</span></div>
+            <div class="md"><b>どっぷり一気読み</b><span>完結・10万字以上</span></div>
+            <div class="md"><b>会話劇を楽しむ</b><span>会話率が高い</span></div>
+            <div class="md"><b>挿絵のある旅</b><span>挿絵つき作品</span></div>
+          </div></div>
+          <!-- P2 気分転換（今日・中央・アクティブ） -->
+          <div class="mp-page"><div class="mood">
+            <div class="md"><b>泣ける・しんみり</b><span>涙腺じんわり</span></div>
+            <div class="md"><b>スカッと爽快</b><span>痛快・無双系</span></div>
+            <div class="md"><b>ほのぼの日常</b><span>まったり癒し</span></div>
+            <div class="md"><b>ハラハラ冒険</b><span>手に汗にぎる</span></div>
+          </div></div>
+          <!-- P3 読み方で選ぶ（右に覗く・沈める） -->
+          <div class="mp-page side"><div class="mood">
+            <div class="md"><b>完結をまとめて</b><span>完結済だけ</span></div>
+            <div class="md"><b>連載を追いかける</b><span>更新中を追う</span></div>
+            <div class="md"><b>短編を数本</b><span>〜1万字</span></div>
+            <div class="md"><b>超長編にどっぷり</b><span>50万字以上</span></div>
+          </div></div>
+        </div>
+      </div>
+      <div class="dots"><i></i><i class="on"></i><i></i></div>
+      <div class="daynote">日替わりで開くページが変わる。<b>今日は②〈気分転換〉</b>から。左右スワイプで P1〈そのまま〉・P3〈読み方で選ぶ〉へ。</div>
+
+      <div class="sec">ジャンルから</div>
+      <div class="chips">
+        <span class="chip">恋愛</span><span class="chip">ファンタジー</span><span class="chip">文芸</span><span class="chip">SF</span><span class="chip">その他</span><span class="chip all">すべて→</span>
+      </div>
+
+      <div class="sec">ランキング</div>
+      <div class="rtabs">
+        <span class="rtab on">週間</span><span class="rtab">日間</span><span class="rtab">月間</span>
+      </div>
+      <div class="rk top3"><span class="no">1</span><div class="bd">
+        <div class="t">追放された万能薬師、辺境でスローライフを始める</div>
+        <div class="a">霧島あおい・連載中 127話</div></div></div>
+      <div class="rk top3"><span class="no">2</span><div class="bd">
+        <div class="t">黒の魔王と契約した俺、気づけば最強の従者に</div>
+        <div class="a">夜灯すばる・連載中 43話</div></div></div>
+      <div class="rk top3"><span class="no">3</span><div class="bd">
+        <div class="t">公爵令嬢の嗜み 〜隣国で薬草園を開きます〜</div>
+        <div class="a">白河すずら・完結 88話</div></div></div>
+      <div class="rk"><span class="no">4</span><div class="bd">
+        <div class="t">転生したら最弱スキルだったので草むしりしていた</div>
+        <div class="a">青葉みのり・連載中 210話</div></div></div>
+      <div class="rk"><span class="no">5</span><div class="bd">
+        <div class="t">辺境伯家の次男は今日も書庫にこもる</div>
+        <div class="a">水無月れん・短編</div></div></div>
+      <!-- 6位以下＝スクロール済み状態を実演するための実データ模写（正本は5位まで。裁定対象外） -->
+      <div class="rk"><span class="no">6</span><div class="bd">
+        <div class="t">宮廷魔導師はもう限界です 〜辞表を出したら引き留められた〜</div>
+        <div class="a">古都ひいらぎ・連載中 156話</div></div></div>
+      <div class="rk"><span class="no">7</span><div class="bd">
+        <div class="t">悪役令嬢は今日も定時で帰りたい</div>
+        <div class="a">桐生ことは・連載中 67話</div></div></div>
+      <div class="rk"><span class="no">8</span><div class="bd">
+        <div class="t">錬金術師の静かな食卓</div>
+        <div class="a">椎名ゆずり・完結 112話</div></div></div>
+      <div class="rk"><span class="no">9</span><div class="bd">
+        <div class="t">影の英雄は表舞台に立たない</div>
+        <div class="a">堀江たくみ・連載中 98話</div></div></div>
+      <div class="rk"><span class="no">10</span><div class="bd">
+        <div class="t">雨宿りの魔女と迷子の騎士</div>
+        <div class="a">小鳥遊しの・短編</div></div></div>
+
+      <div class="official">
+        <span>小説家になろう公式サイトで探す</span>
+        <svg viewBox="0 0 24 24"><path d="M7 17L17 7M9 7h8v8"/></svg>
+      </div>
+    </div>
+
+    <div class="nav">
+      <div class="nt"><span class="ico"><svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></span><span>本棚</span></div>
+      <div class="nt on"><span class="ico"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg></span><span>さがす</span></div>
+      <div class="nt"><span class="ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span><span>設定</span></div>
+    </div>
+  </div>
+
+  <script>
+    // 候補C実演: 期間行が scrollport から上へ消えている間だけ浮遊チップを出す
+    // （行が見えている間は行そのものが現在地を示す＝二重表示しない）。
+    const sc = document.querySelector('.scroll');
+    const tabs = document.querySelector('.rtabs');
+    const chip = document.querySelector('.pchip');
+    const sync = () => {
+      chip.classList.toggle('show', tabs.getBoundingClientRect().bottom < sc.getBoundingClientRect().top);
+    };
+    sc.addEventListener('scroll', sync);
+    // 裁定対象＝「行が消えチップが浮いた状態」を初期表示に固定（+60 で消えた直後より少し先まで送る）。
+    // 実スクロールで上へ戻せば、チップが消えて行に主役が戻る切替も確認できる。
+    sc.scrollTop = tabs.getBoundingClientRect().bottom - sc.getBoundingClientRect().top + 60;
+    sync();
+  </script>
+</body>
+</html>

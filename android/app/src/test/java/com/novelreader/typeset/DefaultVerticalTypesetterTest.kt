@@ -85,6 +85,20 @@ class DefaultVerticalTypesetterTest {
     }
 
     @Test
+    fun `異体字セレクタつきの約物は1ユニットのまま行頭禁則になる`() {
+        // 実データの ‼U+203C・⁉U+2049 は VS15(U+FE0E) を伴って届く（N3957FQ で 1,253 件）。
+        // 書記素分割が VS を切り離さないこと（1ユニット）と、その状態で禁則が効くことを一気に固定する
+        // ＝分割層と禁則層のどちらが壊れても、実データ相当の入力で赤くなる。
+        val layout = typesetter.typeset(listOf(TextSegment.Plain("あいうえお\u203C\uFE0E")), constraints)
+        val mark = layout.glyphs.first { it.text.startsWith("\u203C") }
+        assertEquals("VS が切り離されず1ユニットであること", "\u203C\uFE0E", mark.text)
+        // 行頭禁則が効いた結果、5マス目の「お」を道連れに列1へ追い出される（列頭に来ない）。
+        assertEquals(1, mark.columnIndex)
+        val col1 = layout.glyphs.filter { it.columnIndex == 1 }
+        assertEquals("お", col1.first().text)
+    }
+
+    @Test
     fun `StyledBlockは例外`() {
         val block = TextSegment.StyledBlock("前書き", persistentListOf(TextSegment.Plain("中身")))
         try {

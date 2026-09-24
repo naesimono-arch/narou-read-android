@@ -1,21 +1,33 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
   API 31+ の Auto Backup（cloud-backup）と D2D 端末間転送（device-transfer）の層別ルール。
-  内容・理由は backup_rules.xml（API<31）と同一＝ADR 0015 参照。
-  D2D は 25MB 上限が無いが、ルールを揃える理由: 転送経路によって復元結果（実体の有無）が
-  変わると「同じ復元なのに片方だけ本文がある」という予測不能な差を生むため、
-  全経路で〈メタデータ層のみ・本文は再取込〉に統一する。
+  **内容・理由・案C' の精度上げ方針は backup_rules.xml（API<31）のコメントが正本**＝ADR 0015 参照。
+  2枚を同一に保つ理由: 転送経路によって復元結果（実体の有無）が変わると「同じ復元なのに片方だけ
+  本文がある」という予測不能な差を生むため、全経路で〈メタデータ層のみ・本文は再取込〉に統一する。
+  ⚠️ 片方だけ直すと経路によって挙動が割れる。**必ず2枚とも同じ列挙にすること。**
+
+  運ぶかどうか自体（利用者のトグル）は NovelReaderBackupAgent が決める＝OFF のときはここは評価されない。
 -->
 <data-extraction-rules>
-    <!-- include 方式＝列挙のみが対象。HTML 実体（files/novels/）は構造的に対象外
-         （明示 exclude は lint「included path 内にない exclude」エラーになるため書かない）。 -->
+    <!-- include 方式＝列挙のみが対象。本文実体（files/novels/）は構造的に対象外、cache/ は
+         プラットフォームが常に除外、SAF の永続 URI 権限はバックアップの概念外
+         （3点の機序と、それでも運ばれてしまう URI 文字列への防御は backup_rules.xml のコメント）。 -->
     <cloud-backup>
         <include domain="database" path="." />
+        <!-- WorkManager の内部 DB（本アプリのデータではない）。名前は work-runtime 2.10.5 の実バイナリ由来。 -->
+        <exclude domain="database" path="androidx.work.workdb" />
+        <exclude domain="database" path="androidx.work.workdb-journal" />
+        <exclude domain="database" path="androidx.work.workdb-shm" />
+        <exclude domain="database" path="androidx.work.workdb-wal" />
         <include domain="sharedpref" path="." />
         <include domain="file" path="datastore/" />
     </cloud-backup>
     <device-transfer>
         <include domain="database" path="." />
+        <exclude domain="database" path="androidx.work.workdb" />
+        <exclude domain="database" path="androidx.work.workdb-journal" />
+        <exclude domain="database" path="androidx.work.workdb-shm" />
+        <exclude domain="database" path="androidx.work.workdb-wal" />
         <include domain="sharedpref" path="." />
         <include domain="file" path="datastore/" />
     </device-transfer>

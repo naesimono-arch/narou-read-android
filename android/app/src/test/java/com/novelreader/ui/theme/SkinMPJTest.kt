@@ -16,7 +16,7 @@ import org.junit.Test
  * なぜ SkinCTest の assertMeaningPairsAA を流用せず別ヘルパーか: SkinC は本棚背景（colorScheme.background）と
  * 読書背景（reading.background）が全変種で同値だが、P は読書=温白スクリーン/本棚=プラ筐体、J は読書=3テーマ/
  * 本棚=固定ダーク森面と「家系で地色が分かれる」。ゆえに読書トークンは reading.background に、本棚トークン
- * （shelf.unreadLabel/infoText）は material(theme).background に対して各々 AA を判定する（契約を弱めず正確化）。
+ * （shelf.semanticMicroText/infoText）は material(theme).background に対して各々 AA を判定する（契約を弱めず正確化）。
  */
 class SkinMPJTest {
 
@@ -48,7 +48,7 @@ class SkinMPJTest {
             assertAA("$skinName/$theme ruby", r.ruby, r.background)
             val shelfBg = tokens.material(theme).background
             val shelf = tokens.shelf(theme)
-            assertAA("$skinName/$theme unreadLabel", shelf.unreadLabel, shelfBg)
+            assertAA("$skinName/$theme semanticMicroText", shelf.semanticMicroText, shelfBg)
             assertAA("$skinName/$theme shelf.infoText", shelf.infoText, shelfBg)
         }
     }
@@ -123,7 +123,7 @@ class SkinMPJTest {
         }
     }
 
-    // ---- 意味文字コントラスト回帰（text/infoText/ruby × 読書地・unreadLabel/infoText × 本棚地）----
+    // ---- 意味文字コントラスト回帰（text/infoText/ruby × 読書地・semanticMicroText/infoText × 本棚地）----
 
     @Test
     fun `M の意味文字ペアは地色に対し AA 4_5対1 以上`() = assertMeaningPairsAA("SkinM", SkinM)

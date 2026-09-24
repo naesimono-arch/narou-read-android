@@ -39,7 +39,7 @@ value class Ncode(val value: String) {
     val apiParam: String get() = value.trim()
 
     /** 表記ゆれ（前後空白・大小文字）を無視した同一作品判定＝storageKey 同士の一致。
-     *  型化時は既存サイト（NovelDetailViewModel.isImported）の equals(ignoreCase) を素通しで
+     *  型化時は既存サイト（NovelDetailViewModel.importedBookId＝当時は isImported）の equals(ignoreCase) を素通しで
      *  移していたが、保存・突合の正本は storageKey（trim＋大文字）であり、非 ASCII では
      *  ignoreCase 比較と uppercase 突合の結果が割れ得る（例: "ß"）＝同一作品判定だけが
      *  第4流儀として残っていた。2026-07-27 ユーザー裁定で storageKey 突合へ統一

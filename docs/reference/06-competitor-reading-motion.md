@@ -1,6 +1,6 @@
 # 06 — 競合5アプリの「読書/目次」モーション横断解析
 
-> 収蔵: 2026-07-15。`book-api-analysis` リポジトリ（`/mnt/c/Users/qingj/Desktop/project/book-api-analysis/06-competitor-reading-motion.md`）で
+> 収蔵: 2026-07-15。`book-api-analysis` リポジトリ（`/mnt/c/Users/naesimono/Desktop/project/book-api-analysis/06-competitor-reading-motion.md`）で
 > 実施した静的解析レポートをそのまま収蔵したもの。本文中の `apks_decompiled/`・`_recon/` 配下の file:line は
 > 同リポジトリのローカル作業成果でありここには非収蔵（04/05 と同じ扱い）。
 > §4 冒頭の「自作アプリの実依存版は未確認」は収蔵時に突合済み＝自作は **compose-bom 2025.02.00

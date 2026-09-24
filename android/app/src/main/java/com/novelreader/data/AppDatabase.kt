@@ -28,7 +28,8 @@ import androidx.sqlite.db.SupportSQLiteDatabase
     //      PDF由来は両方 NULL＝汎用Web小説DL基盤の取込元記録。sourceUri〔削除用の content://〕とは別物・混同注意）。
     //      v20/v21 が別版に分かれているのは並列レーン開発（feat/delete-source-pdf ∥ feat/scraping-prep）の名残＝
     //      2026-07 の統合マージで一本化済み（並列 version 先取りの定石は task_diary #39）。
-    version = 21,
+    // v22: pending_jobs に attempts 列を追加（取込の再起動ループを構造的に止める＝MIGRATION_21_22 の why）。
+    version = 22,
     exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -361,16 +362,39 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * v21→v22: pending_jobs に attempts 列を追加（**取込の再起動ループの止め金**）。
+         *
+         * 直した欠陥: 取込が「catch できない形」で落ちる（OOM・OEM kill でプロセスごと死ぬ）と
+         * pending_jobs 行が未完了のまま残り、次回起動のリカバリが同じ PDF を再投入して同じ地点で
+         * また死ぬ＝**アプリが二度と起動できなくなる**。回数を数えるカウンタはプロセスと一緒に消えるので、
+         * 「プロセスが死んでも残る場所」＝行そのものに持たせる（[PendingJobEntity.attempts] の why）。
+         *
+         * 既存行は DEFAULT 0＝「まだ一度も再開していない」＝従来どおり再開される（挙動保存）。
+         * NOT NULL + DEFAULT なので ALTER TABLE ADD COLUMN がそのまま通る（Room の期待スキーマと一致）。
+         */
+        internal val MIGRATION_21_22 = object : Migration(21, 22) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL("ALTER TABLE pending_jobs ADD COLUMN attempts INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
         fun getDatabase(context: Context): AppDatabase =
+            // 二重チェックロック（監査 A6: singleton-dcl-missing-inner-check）: 内側の `INSTANCE ?:` が必須。
+            // 外側 null 判定〜lock 獲得の間に別スレッドが生成済みだと、再チェック無しでは2つ目の
+            // AppDatabase を作って INSTANCE を上書きする。競合経路は NewEpisodeCheckWorker.doWork が
+            // Application の `by lazy`（大半の経路を直列化）の外からバックグラウンドで呼ぶ1本のみだが、
+            // 二重生成が起きると DAO とトランザクション境界が別インスタンスへ割れて削除の原子性が
+            // 無音で外れ（孤児 progress 残留）、InvalidationTracker の取りこぼしと接続の恒久リークも伴う。
             INSTANCE ?: synchronized(this) {
-                Room.databaseBuilder(context, AppDatabase::class.java, "novel_reader_db")
+                INSTANCE ?: Room.databaseBuilder(context, AppDatabase::class.java, "novel_reader_db")
                     .addMigrations(
                         MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7,
                         MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11,
                         MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14,
                         MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17,
                         MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20,
-                        MIGRATION_20_21,
+                        MIGRATION_20_21, MIGRATION_21_22,
                     )
                     .build()
                     .also { INSTANCE = it }

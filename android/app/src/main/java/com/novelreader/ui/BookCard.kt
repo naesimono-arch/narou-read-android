@@ -26,7 +26,9 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.PlatformTextStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -115,7 +117,7 @@ private fun BookProgressRow(
             modifier = modifier,
             fontSize = FontLabel,
             letterSpacing = 0.8.sp,
-            color = LocalShelfColors.current.unreadLabel,
+            color = LocalShelfColors.current.semanticMicroText,
         )
     }
 }
@@ -283,7 +285,17 @@ internal fun GridBookCard(
         modifier = modifier
             // TalkBack で1冊=1トラバーサル単位に束ねる（critic Major 2026-07-12）。題字/著者/進捗/続きバッジが
             // 個別ノードに割れて何度もスワイプさせる問題を解消する。
-            .semantics(mergeDescendants = true) {}
+            .semantics(mergeDescendants = true) {
+                // 選択モード中は選択状態を支援技術へも宣言する（縁取り・チェックマークの視覚だけに
+                // 閉じない＝DiscoveryHomeK 期間タブと同じ規約。2026-08-06 監査 A11: 宣言が無いと
+                // TalkBack は複数削除の対象を確認できない）。stateDescription を併記する理由:
+                // selected=false は既定では無音になり得るため、未選択も明示的に発話させる。
+                // 通常時（非選択モード）は宣言しない＝一覧ブラウズ中に無関係な選択状態を読み上げさせない。
+                if (selectionMode) {
+                    this.selected = selected
+                    this.stateDescription = if (selected) "選択中" else "未選択"
+                }
+            }
             .graphicsLayer { scaleX = scale; scaleY = scale }
             .combinedClickable(
                 interactionSource = interactionSource,
@@ -560,7 +572,13 @@ internal fun ListBookCard(
             modifier = Modifier
                 // 1冊=1トラバーサル単位に束ねる（critic Major）。行末の⋮ IconButton は自身が併合ノード境界の
                 // ため別フォーカスとして残る＝「本1ノード＋⋮1ノード」の2単位になり、題字/著者/進捗の分割読みを解消。
-                .semantics(mergeDescendants = true) {}
+                .semantics(mergeDescendants = true) {
+                    // 選択モード中の選択状態宣言（GridBookCard と同文・監査 A11。理由はそちらのコメント参照）。
+                    if (selectionMode) {
+                        this.selected = selected
+                        this.stateDescription = if (selected) "選択中" else "未選択"
+                    }
+                }
                 .graphicsLayer { scaleX = scale; scaleY = scale }
                 // 選択中は行全体に淡い藍かぶせ（正本 .bk.sel 相当・目録は色帯があるため控えめに）。
                 .background(

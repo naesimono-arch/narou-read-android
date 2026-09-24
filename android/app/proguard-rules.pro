@@ -47,3 +47,26 @@
 # 受けないと解されるが、R8 の enum 最適化（unboxing 等）の版差挙動を排除しきれない
 # ため未確定要素への保険として防御的に keep する（自アプリの enum のみ・サイズ影響は微小）。
 -keepclassmembers enum com.novelreader.** { *; }
+
+# release から android.util.Log 呼び出しを一括除去する（監査 B7: log-leaks-content-identifier）。
+# なぜ: 蔵書タイトル・作品 URL・SAF パス（primary:Download/なろう_〇〇.pdf 形＝フォルダ構成と書名）が
+# 計7箇所（NewEpisodeCheckWorker:161 / PdfTreeScanner:43,52,62,92 / BookshelfViewModel:525 /
+# WebBookImporter:166〔Throwable の message 経由〕）で release logcat に平文で残り、バグレポート同梱・
+# READ_LOGS を持つ OEM 診断アプリ・adb logcat 経由で端末外へ出うる。「ログもまた保存層」
+# （PdfImportViewModel:100-103 の既存規約）を release では機械的に全面適用する＝各サイトの文言を
+# 個別に薄める対処より真因側（release にログを残さない）で断つ。debug ビルドは R8 非適用のため
+# ログはそのまま残り診断性は落ちない。
+# R8 前提の注意:
+#  ・assume 系は最適化の一部＝-dontoptimize 下では適用されない。本アプリは
+#    proguard-android-optimize.txt（build.gradle release ブロック）前提で有効。
+#  ・呼び出しは引数の文字列連結ごと到達不能として消えるが、戻り値（int）を使う呼び出しは
+#    既定値 0 へ置換される（本リポジトリに戻り値を使う Log 呼び出しは無い）。
+#  ・Log.wtf は対象外: 「回復不能の報告」でプロセス終了しうる意味論＝ログ出力ではなく挙動なので
+#    除去すると振る舞いが変わる（現状使用 0 件だが、将来の追加を無音で無効化しない）。
+-assumenosideeffects class android.util.Log {
+    public static int v(...);
+    public static int d(...);
+    public static int i(...);
+    public static int w(...);
+    public static int e(...);
+}

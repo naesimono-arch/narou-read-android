@@ -45,15 +45,20 @@ import androidx.compose.ui.layout.onSizeChanged
  *
  * @param initialTileHeightPx トーラス周期＝縦タイル高（px。初期は画面高の推定値。backdrop が実測して setTileHeight で補正）。
  * @param factor スクロール差分→視差の係数（正本 R1 FACTOR 0.08＝知覚可能な最小の極微視差・不変）。
- * @param reduceMotion アニメーター無効（開発者設定/省電力）。true なら視差を積まない（現状の視差無効と同義）。
+ * @param reduceMotion アニメーター無効（開発者設定/省電力）の初期値。true なら視差を積まない（現状の視差無効と同義）。
  */
 @Stable
 class SkyParallaxController(
     initialOffsetPx: Float,
     initialTileHeightPx: Float,
     private val factor: Float,
-    val reduceMotion: Boolean,
+    reduceMotion: Boolean,
 ) {
+    // なぜ val（コンストラクタ束縛）でなく可変の状態か（監査 2026-08-06 C2）: この controller は rememberSaveable が
+    // 所有し、reduce-motion 設定の変更（構成変更を伴わない）では作り直されない。val のままだと、判定源を live 化しても
+    // M の視差・流星だけが旧値で走り続ける＝二重の凍結になる。上流（MainActivity）が live 値をここへ写す。
+    // 状態にするのは、読み手（DeepSkyM/HighLoadSkyM）がコンポーズ内で読むため＝変化を再コンポーズへ伝える必要があるから。
+    var reduceMotion by mutableStateOf(reduceMotion)
     // トーラス周期（px）。backdrop の onSizeChanged が実測タイル高で更新する（draw の 2 タイル記録の周期と一致させる）。
     private var tileHeightPx: Float = initialTileHeightPx.coerceAtLeast(1f)
 

@@ -1,6 +1,7 @@
 package com.novelreader.typeset
 
 import com.novelreader.model.TextSegment
+import com.novelreader.perf.TypesetWorkProbe
 import com.novelreader.ui.compose.RubyLayoutHelper
 
 /**
@@ -30,16 +31,40 @@ data class PositionedGlyph(
 )
 
 /**
+ * ルビ1書記素ぶんの描画セル（分割と向きの判定を**組版時に確定**させたもの）。
+ *
+ * なぜ組版時に持つか: 以前は描画のたびに `drawParagraphLayout` が読みを
+ * [com.novelreader.ui.compose.RubyLayoutHelper.splitGraphemes] で分割し直し
+ * （＝ルビ1本につき BreakIterator を1本生成）、さらに [CharClassifier] で分類し直していた。
+ * どちらも入力が同じなら結果も同じ純粋計算で、しかも同じ分割・同じ分類を
+ * [RubyPlacer] が採寸のために**既に済ませている**＝draw 段に残す理由が無かった。
+ * 描画は座標の消化だけにする、という P2 描画層の分業（ADR 0020）にも本来こちらが沿う。
+ */
+data class RubyCell(
+    val text: String,
+    val charClass: CharClass,
+)
+
+/**
  * 配置済みのルビ部分文字列。
+ * @param cells 描画順（列内 上→下）の書記素セル。draw はこれを順に消化するだけ。
  * @param x ルビ帯中心 x（列の右側）
  * @param y ルビの天（上端）
  */
 data class PositionedRuby(
-    val text: String,
+    val cells: List<RubyCell>,
     val columnIndex: Int,
     val x: Float,
     val y: Float,
-)
+) {
+    /**
+     * この部分に割り当てられた読み（テスト・デバッグ用の可読表現）。
+     * なぜ保持でなく導出か: 分割前の文字列と分割後のセル列を両方フィールドに持つと、
+     * 片方だけ書き換えた瞬間に「採寸した読み」と「描く読み」が静かに食い違う。
+     * 描画経路はセル列しか見ないので、文字列側を導出にして二重管理を無くす。
+     */
+    val text: String get() = cells.joinToString("") { it.text }
+}
 
 /** 1段落の組版結果（純データ）。 */
 data class ParagraphLayout(
@@ -63,8 +88,33 @@ interface VerticalTypesetter {
  * 既定の自前組版器。
  * 処理順: segments を書記素ユニット列へ展開 → LineBreaker で列へ折る →
  * 列ごとに x（列0＝最右）を確定 → RubyPlacer → ParagraphLayout。
+ * 寸法源（[FontMetricsProvider]）は内側で [CachingFontMetrics] に覆われる＝下の構築子の KDoc。
  */
-class DefaultVerticalTypesetter(private val metrics: FontMetricsProvider) : VerticalTypesetter {
+class DefaultVerticalTypesetter internal constructor(
+    metrics: FontMetricsProvider,
+    cacheAdvances: Boolean,
+) : VerticalTypesetter {
+
+    /**
+     * 本番の入口。寸法源は必ず [CachingFontMetrics] で覆う（改善 D＝advance キャッシュ）。
+     *
+     * なぜ組版器の内側で覆うか: この覆いが正しいのは「同じ書体の同じ delegate に対して」だけで、
+     * 妥当な寿命は〈その delegate を使い続ける単位〉＝組版器そのもの。組版器は章ごとに1つ
+     * （`VerticalChapterContent` の `remember(content)`）なので、内側に持たせるだけで寿命が章に一致し、
+     * 呼び出し側が覆い忘れる余地も消える。
+     */
+    constructor(metrics: FontMetricsProvider) : this(metrics, cacheAdvances = true)
+
+    /**
+     * 実際に叩く寸法源。[cacheAdvances] が false のときだけ素の delegate をそのまま使う。
+     *
+     * なぜ切れる縫い目を残すか: D の裁定は「実測値を覚えるだけ・定数化はしない」なので、
+     * **キャッシュの有無で版面が1ビットも変わらない**ことを機械で固定し続けられる形が要る。
+     * その対照群を同じ組版器で取るための internal 構築子（`CachedAdvanceLayoutIdentityTest`）で、
+     * 本番の public 構築子は1引数のまま＝出荷経路に切替の余地は無い。
+     */
+    private val metrics: FontMetricsProvider =
+        if (cacheAdvances) CachingFontMetrics.wrapping(metrics) else metrics
 
     override fun typeset(segments: List<TextSegment>, constraints: TypesetConstraints): ParagraphLayout {
         val units = ArrayList<TypesetUnit>()
@@ -120,7 +170,9 @@ class DefaultVerticalTypesetter(private val metrics: FontMetricsProvider) : Vert
                         advancePx = placed.advance,
                     ),
                 )
-                // 追い込みで容量超過しうるため、実測の列底を最大値で拾う。
+                // 句読点のぶら下げ（[LineBreaker] B-11）で列高を最大1字ぶん超えうるため、実測の列底を
+                // 最大値で拾う。⚠️ 2026-09-03 以前は「追い込み」で超過が無制限だった＝この max は
+                // 「たまに1字はみ出す」ための保険であって、無制限の超過を吸収する仕掛けではない。
                 heightPx = maxOf(heightPx, placed.yTop + placed.advance)
             }
         }
@@ -134,6 +186,10 @@ class DefaultVerticalTypesetter(private val metrics: FontMetricsProvider) : Vert
             metrics = metrics,
         )
 
+        // 組版の「仕事量」計測点（既定 OFF・出荷では volatile 読み1回で抜ける）。
+        // ここが縦書き再組版の唯一の入口＝呼び出し元5箇所（見出し/段落/ブロックラベル/ブロック内段落）
+        // すべてがこの1関数を通るため、各 remember ブロックに撒かずここ1点で数え切れる。
+        TypesetWorkProbe.onVerticalTypeset(glyphs = glyphs.size, columns = columnCount)
         return ParagraphLayout(glyphs, rubies, columnCount, widthPx, heightPx)
     }
 

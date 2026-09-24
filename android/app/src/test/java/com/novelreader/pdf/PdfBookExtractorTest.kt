@@ -33,7 +33,10 @@ class PdfBookExtractorTest {
             metaError?.let { throw it }
             return meta
         }
-        override fun runEngine(onProgress: (EnginePhase, Int, Int) -> Unit): List<String> {
+        override fun runEngine(
+            blockStarts: MutableSet<Int>,
+            onProgress: (EnginePhase, Int, Int) -> Unit,
+        ): List<String> {
             engineError?.let { throw it }
             // 実装(runFinalEngine)と同順＝load(全ページ抽出)を先に、process(段落化)を後に発火する。
             loadTicks.forEach { (loaded, total) -> onProgress(EnginePhase.LOAD, loaded, total) }

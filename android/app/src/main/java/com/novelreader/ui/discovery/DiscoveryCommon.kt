@@ -4,6 +4,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -17,10 +19,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.novelreader.discovery.model.SerialState
 import com.novelreader.discovery.model.WorkSummary
@@ -208,6 +212,7 @@ internal fun rememberOrderMetricLabel(order: NarouOrder, work: WorkSummary): Str
  *   なぜ remember で凍結するか: 再コンポーズのたびに読み直すと一覧が同一フレーム内で別々の「今」を持ちうる。
  *   代償として日跨ぎ直後は行が再生成されるまで「05:45 更新」が残るが、粒度が日なので実害は無い。
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun NovelListRow(
     rank: Int,
@@ -223,6 +228,12 @@ fun NovelListRow(
             .clickable(onClick = onClick)
             .padding(vertical = Spacing.S16),
     ) {
+        // 順位セルの幅。器を 34.dp 固定にすると FontRankNumeral(20.sp) だけが fontScale で伸び、
+        // 2.0 で「10」が「1」「0」に縦割れして10位が1位に読めていた（順位はランキングの情報本体＝事実誤認。
+        // なろうランキングは常に10件出るので 2.0 利用者は毎回踏む）。34.sp→dp 換算で幅を字と一緒に
+        // 伸ばす（fontScale 1.0 では従来の 34.dp と同寸＝通常表示は不変。全行同幅なのでタイトル列の
+        // 左端揃えも保たれる）。同じ「器dp・中身sp」の非対称は下の作者行 weight 対処と同根。
+        val rankCellWidth = with(LocalDensity.current) { 34.sp.toDp() }
         Text(
             text = rank.toString(),
             fontFamily = MinchoFamily,
@@ -231,8 +242,11 @@ fun NovelListRow(
             // onSurfaceVariant（装飾用）は素地上 3.79:1 で AA 未達（ADR 0014-D 裁定で情報用途のみ分離）。
             color = if (rank <= 3) MaterialTheme.colorScheme.primary
             else LocalShelfColors.current.infoText,
+            // 折返し禁止は幅追従の保険（想定外の桁でも縦割れではなく横はみ出しに倒し、順位の誤読を防ぐ）。
+            maxLines = 1,
+            softWrap = false,
             modifier = Modifier
-                .width(34.dp)
+                .width(rankCellWidth)
                 .padding(top = Spacing.S4),
         )
         Column(modifier = Modifier.weight(1f)) {
@@ -252,6 +266,13 @@ fun NovelListRow(
                 Text(
                     text = novel.author,
                     fontSize = FontLabel,
+                    // なぜ lineHeight を明示するか: 既定の LocalTextStyle（＝Typography.bodyLarge）は
+                    // lineHeight=28.sp を持つため、fontSize だけ落としても**行箱は 28sp のまま残る**
+                    // ＝ランキング行が正本より縦に膨らむ（2026-08-26 実測 48dp／本棚K のフィルタチップと同根）。
+                    // 比は正本モック discovery-home-D.html の `.rk .a`（11px・line-height 未指定＝normal）から。
+                    // ゴシック体（--gothic）の normal は実測 1.6（本棚K の .chip 12.5px→行箱 20px と同値）。
+                    // sp の直値でなく em で持つ理由＝フォントトークンや fontScale が動いても正本の比を保つため。
+                    lineHeight = 1.6.em,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     // なぜ weight(1f)+ellipsis: 作者名が長い作品（例「藍銅 紅@『お姉様は…』」）だと
                     // 右のジャンルタグが狭いカラムに押し出され1文字ずつ縦積みになる実機バグが出るため、
@@ -264,8 +285,13 @@ fun NovelListRow(
                     Text(
                         text = genre,
                         fontSize = FontLabel,
+                        // 正本では `.rk .a em`＝著者名 `.a` の**内側のインライン要素**で、行箱は親（11px×1.6）を
+                        // そのまま継ぐ。Compose では兄弟 Text なので同じ比を明示して行箱を揃える（理由は上に同じ）。
+                        lineHeight = 1.6.em,
                         letterSpacing = 0.5.sp,
-                        color = MaterialTheme.colorScheme.secondary,
+                        // ジャンル名は分類を名指す＝意味を運ぶ文字なので AA(4.5:1) が要る。
+                        // 青磁 secondary #9CB3A8 は素地 2.14:1 で未達＝ADR 0014-D の濃青磁へ寄せる。
+                        color = LocalShelfColors.current.semanticMicroText,
                         // なぜ maxLines=1+softWrap=false: タグ自体が改行して縦積みになるのを防ぎ、
                         // 常に横一列で表示させる（タグは固定内容なので折返し不要）。
                         maxLines = 1,
@@ -273,13 +299,28 @@ fun NovelListRow(
                     )
                 }
             }
-            Row(
+            // なぜ Row ではなく FlowRow か（Row だと最終要素が1行1文字に割れて画面外へ流出する）:
+            // Compose の Row は weight を持たない子を「先着順に**残り幅**を渡す」形で測るため、
+            // 3つ目（指標＝週間 54,321pt）へ届く maxWidth が fontScale 2.0 で 1 文字ぶんまで痩せ、
+            // maxLines も無いので1文字ずつ縦に折り返して下端から溢れていた（golden
+            // DiscoveryResultScreen_list_*_2.0＝走査(c) が真陽性として赤にしていた実バグ）。
+            // 正本 `.rk .m` は `display:flex`＝CSS 既定の `flex-shrink:1`＋`min-width:auto` で
+            // **不足分を3要素が按分する**規則なので、1要素だけを飢えさせる Row は誤訳だった。
+            // FlowRow は各子を「行の残り」ではなく**コンテナ全幅**で測ってから折返し位置を決める＝
+            // 飢餓が起きず、収まらない要素は次段へ送られる。CSS が字単位で按分した結果と同じ
+            // 「全要素が読める多段」に落ちる（正本が規定するのは要素の省略ではなく共有ゆえ、
+            // maxLines/ellipsis で握り潰す形は採らない）。fontScale 1.0＝モックの条件では
+            // 3つとも1段に収まるので版面は不変。段間を 0 にしてあるのも正本準拠
+            // （CSS の折返し行の間隔は line-height ちょうどで、追加の余白は入らない）。
+            FlowRow(
                 modifier = Modifier.padding(top = Spacing.S8),
                 horizontalArrangement = Arrangement.spacedBy(Spacing.S12),
             ) {
                 Text(
                     text = novelStatusLabel(novel),
                     fontSize = FontMicroLabel,
+                    // メタ行は正本 `.rk .m`（10.5px・line-height 未指定＝normal→1.6）。理由は著者名に同じ。
+                    lineHeight = 1.6.em,
                     // 連載状態は情報を運ぶ文字＝infoText（AA 4.5:1）。装飾用 onSurfaceVariant と分離（ADR 0014-D）。
                     color = LocalShelfColors.current.infoText,
                 )
@@ -287,6 +328,8 @@ fun NovelListRow(
                     Text(
                         text = it,
                         fontSize = FontMicroLabel,
+                        // 行箱は同じ `.rk .m` の一員なので著者名と同じ比（理由は上に同じ）。
+                        lineHeight = 1.6.em,
                         // 読了目安も情報テキスト＝infoText（AA 4.5:1・ADR 0014-D 裁定）。
                         color = LocalShelfColors.current.infoText,
                     )
@@ -297,6 +340,8 @@ fun NovelListRow(
                     Text(
                         text = it,
                         fontSize = FontMicroLabel,
+                        // 行箱は同じ `.rk .m` の一員なので著者名と同じ比（理由は上に同じ）。
+                        lineHeight = 1.6.em,
                         fontWeight = FontWeight.Medium,
                         color = MaterialTheme.colorScheme.primary,
                     )

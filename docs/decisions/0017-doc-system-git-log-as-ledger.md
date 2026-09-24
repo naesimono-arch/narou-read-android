@@ -9,7 +9,7 @@ git 履歴と台帳の実測で、文章管理が開発の主役になってい�
 直近200コミットの **35% が docs 専用**・変更頻度1位2位が handover/STATUS（最頻コードファイルの3倍）・
 3台帳のうち毎セッション価値があるのは **15〜20%**（残りは git/plans に正本がある二重管理か完了ログ）・
 3台帳とも行数は単調増加で刈り込み不全。CLAUDE.md はプロジェクト＋グローバルで毎ターン約30KBの固定費だった。
-（外部基準: `/mnt/c/Users/qingj/Desktop/project/claude-bestpractice/claude-md/knowledge/01-principles.md`＝指示予算 ~150-200・削減テスト・「ルールは罠であって地図でない」）
+（外部基準: `/mnt/c/Users/naesimono/Desktop/project/claude-bestpractice/claude-md/knowledge/01-principles.md`＝指示予算 ~150-200・削減テスト・「ルールは罠であって地図でない」）
 
 ## 決定
 

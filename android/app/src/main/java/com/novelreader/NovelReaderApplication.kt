@@ -14,6 +14,7 @@ import com.novelreader.diagnostics.CrashReporter
 import com.novelreader.diagnostics.DiagnosticsRecorder
 import com.novelreader.diagnostics.DiagnosticsStore
 import com.novelreader.diagnostics.JankTracker
+import com.novelreader.diagnostics.NoBackupFileInstallSentinel
 import com.novelreader.diagnostics.SessionWatch
 import com.novelreader.narou.DataStoreSearchHistoryStore
 import com.novelreader.narou.NovelApiRepository
@@ -67,9 +68,21 @@ class NovelReaderApplication : Application(), androidx.work.Configuration.Provid
         DiagnosticsRecorder(this, DiagnosticsStore(java.io.File(filesDir, "diagnostics")))
     }
 
-    /** 前面セッションの開閉監視（異常終了の推定）。設定は他と同じ app_prefs へ置く。 */
+    /**
+     * 前面セッションの開閉監視（異常終了の推定）。設定は他と同じ app_prefs へ置く。
+     *
+     * 第3引数の徴は **noBackupFilesDir**（`Context.getNoBackupFilesDir()`）へ置く。
+     * app_prefs は Auto Backup で丸ごと復元されるため、そこに置いた印では
+     * 「前回の自分が書いた DIAG_*」と「他のインストールから復元された DIAG_*」を区別できず、
+     * 復元直後に旧端末の時刻で偽の異常終了を1件記録してしまう（機序と方式比較＝[InstallSentinel]）。
+     * ⚠️ **ここに filesDir 等バックアップ対象の場所を渡すと、この防御は無音で無効になる。**
+     */
     val sessionWatch: SessionWatch by lazy {
-        SessionWatch(getSharedPreferences(PrefKeys.FILE_APP_PREFS, MODE_PRIVATE), diagnostics)
+        SessionWatch(
+            getSharedPreferences(PrefKeys.FILE_APP_PREFS, MODE_PRIVATE),
+            diagnostics,
+            NoBackupFileInstallSentinel(noBackupFilesDir),
+        )
     }
 
     /** 実利用のフレーム落ち計測（画面別）。window への接続は MainActivity が行う。 */
@@ -193,11 +206,14 @@ class NovelReaderApplication : Application(), androidx.work.Configuration.Provid
                 .toSet()
             // partition・keepUris の導出は純関数へ集約（measure §E: 回復パスを JVM テストで固定するため）。
             val plan = StartupRecovery.computePlan(pending, persisted)
-            // 失敗取込の権限リーク回収（恒久リーク対策・root cause）: 取込失敗時は M7 の再試行成立の
-            // ため addBook が pending_jobs 行だけ消し永続 URI 権限を残すが、再試行 Snackbar はプロセス
-            // 生存中しか出せないため、再試行されずに終わった分の権限が次回起動時に「pending_jobs 非紐付け」
-            // として孤立し恒久リークする（端末上限128件へ）。ここで解放する。pending が空でも走らせる必要が
-            // あるため、下の early return より前に置く（リークの典型形＝pending_jobs 行ゼロ＋孤児権限1件）。
+            // 孤児になった永続 URI 権限の回収（恒久リーク対策・root cause）: ADR 0043 以降、取込の確定は
+            // 成否によらず永続 URI 権限を解放しない（PendingJobStore.settleJob の why＝あの層は「生きている
+            // 本の取込元か」を判定できない）。よって解放を判断できる唯一の地点がここになる。回収対象は
+            // 「どの pending_jobs 行も どの books.sourceUri も名乗らない」権限＝取込に失敗して再試行もされず
+            // 終わった分（再試行 Snackbar はプロセス生存中しか出せない）・重複で本にならなかった分・明示停止
+            // で捨てられた分・書込権限が取れず sourceUri に採られなかった分。放置すると端末上限128件へ
+            // 溜まり続ける。pending が空でも走らせる必要があるため、下の early return より前に置く
+            // （リークの典型形＝pending_jobs 行ゼロ＋孤児権限1件）。
             // keepPermissionUris（＝現在の pending URI 全体・空 pending なら空集合）に加え、取込元PDF削除機能で
             // books が保持する取込元 URI（sourceUri）も keep へ合流させる。これを足さないと、変換完了後も本の
             // 生存中ずっと保持すべき取込元権限を毎起動で誤解放し、その後の取込元PDF削除が権限失効で失敗する
@@ -209,11 +225,24 @@ class NovelReaderApplication : Application(), androidx.work.Configuration.Provid
                 val names = plan.lost.joinToString("、") { "「${it.displayName.ifEmpty { "不明" }}」" }
                 emitError("中断された $names の変換を再開できませんでした。もう一度ファイルを選択してください")
             }
+            // 再開を規定回数試して毎回プロセスごと落ちたジョブは、ここで自動再開を打ち切る。
+            // これが無いと「起動→再開→同じ地点で死ぬ」が永久に続き、ユーザーには
+            // 「アプリが二度と起動しない」ように見える（StartupRecovery.MAX_RESUME_ATTEMPTS の why）。
+            // 行を消すのは lost と同じ理由＝もう自動では触らないと決めた以上、残すと毎起動で再判定するだけ。
+            // 権限は remove（settle）で返す＝ユーザーが選び直せば普通の新規取込としてやり直せる。
+            plan.exhausted.forEach { repository.removePendingJob(it.uri) }
+            if (plan.exhausted.isNotEmpty()) {
+                val names = plan.exhausted.joinToString("、") { "「${it.displayName.ifEmpty { "不明" }}」" }
+                emitError("$names の変換は端末の空きメモリでは完了できませんでした。取り込みを中止します")
+            }
             if (plan.resumable.isEmpty()) return@launch
             emitError("中断されていた変換 ${plan.resumable.size} 件を再開します")
             // getPendingJobs は enqueue 昇順を返すため、この順で再投入すれば元のキュー順が保たれる。
             // Service 側の ACTION_START が同じ URI を REPLACE で再記帳するので二重行にもならない。
             plan.resumable.forEach { job ->
+                // ⚠️ 再投入の**前**に加算する。後にすると、再開した取込が同じ地点でプロセスごと落ちた場合に
+                // 加算が実行されず、次回起動も同じ値を見て同じことを繰り返す＝止め金が一度も進まない。
+                repository.markResumeAttempt(job.uri)
                 val intent = Intent(this@NovelReaderApplication, PdfProcessingService::class.java).apply {
                     action = PdfProcessingService.ACTION_START
                     data = Uri.parse(job.uri)

@@ -19,14 +19,33 @@
       「再取込が必要」への graceful degrade（読書位置は保持）で構造対処するため、
       旧判断が恐れた resolvedFile==null の行き止まりは成立しなくなる。
       ルール本体: API31+ は @xml/data_extraction_rules、API26-30 は @xml/backup_rules。
+
+      2026-09-03 追記（アプリ内トグル＝設計ドラフト .claude/plans/auto-backup-design-2026-08-26.md 案C）:
+      backupAgent + fullBackupOnly の組は「Auto Backup を利用者が止められるようにする」ための唯一の手段。
+      allowBackup / dataExtractionRules / fullBackupContent はいずれもビルド時固定で実行時に変えられず、
+      BackupManager.setBackupEnabled は @SystemApi＝通常アプリから呼べないため（機序は
+      NovelReaderBackupAgent の KDoc が正本）。
+      ・android:allowBackup="true" は**外さない**——agent は「対象を運ぶか運ばないか」を実行時に決めるだけで、
+        false にすると agent ごと呼ばれなくなり ON にした利用者も救えなくなる。
+      ・android:fullBackupOnly="true" が要るのは、agent を宣言した時点で既定の扱いが key-value
+        バックアップへ倒れ、上記 XML ルールが効かなくなるため（full-data のまま agent を挟む宣言）。
+      ⚠️ **既定は OFF**（2026-09-03 人間裁定）＝このビルドへ更新した既存利用者は、設定で明示的に ON に
+        しない限りバックアップが止まる。
     -->
-    <!-- enableOnBackInvokedCallback=true: Predictive Back（戻りプレビュー）へのオプトイン（API 33+。それ未満では無視される）。
-         ルート（本棚タブ page 0）ではアプリ側の Back 割込みが全て enabled=false になるため、システムの
-         「ホームへ戻る」プレビューアニメがそのまま効く。深い画面の BackHandler は activity-compose の
+    <!-- enableOnBackInvokedCallback=true: Predictive Back（戻りプレビュー）へのオプトイン（API 33+。それ未満では無視される。
+         Android 16＝API 36 を target とするアプリでは OS 側が既定 ON のため——本アプリの targetSdk は 36
+         〔build.gradle:115〕＝実機ではこの宣言は「明示の意思表示」の意味になる）。
+         ルート（本棚タブ page 0）ではアプリ側の Back 割込みが1つも**登録されない**ため、システムの
+         「ホームへ戻る」プレビューアニメがそのまま効く。⚠️ 旧記載「割込みが全て enabled=false になる」は
+         Predictive Back 下では不正確＝OS へ割込みが届くかは OnBackInvokedDispatcher への**登録の有無**で決まり、
+         既存コールバックの enabled 反転に頼る形は実機で届かなかった（2026-08-14 バグ①②。機序と対処は
+         TabPagerHost の Back 規則コメントが正本）。深い画面の BackHandler は activity-compose の
          OnBackInvokedDispatcher 互換層経由で従来どおり動く（挙動変化なし）。 -->
     <application
         android:name=".NovelReaderApplication"
         android:allowBackup="true"
+        android:backupAgent=".backup.NovelReaderBackupAgent"
+        android:fullBackupOnly="true"
         android:enableOnBackInvokedCallback="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"

@@ -36,8 +36,8 @@ am broadcast --include-stopped-packages -n <package>/<ReceiverClass> -a <action>
 - **受信の検証を必ず resultCode で行う**（ordered broadcast の setResultCode に件数等を載せ、
   期待値不一致で fail）。「送信成功」は配達の証拠にならないのが本知見の核心。
 
-実装現物＝`macrobenchmark/…/BookshelfScrollBenchmark.kt` の `seedLibrary`。
-経緯の一次情報＝`.claude/plans/macrobenchmark-kickoff-2026-07-17.md` ②節。
+実装現物＝旧 `seedLibrary`（BookshelfScrollBenchmark）だったが、2026-08-06 の横展開で撤去済み
+（現行の実装現物は下記追記の `LibrarySeeding.kt`）。経緯の一次情報＝`.claude/plans/macrobenchmark-kickoff-2026-07-17.md` ②節。
 
 ## 追記 2026-08-06: 上の処方「dead への shell broadcast」も状態依存で落ちる＝生存前面配達＋resultData 実在検証へ改訂
 
@@ -47,6 +47,7 @@ am broadcast --include-stopped-packages -n <package>/<ReceiverClass> -a <action>
 - さらに罠: ordered broadcast の**初期値 result=0 が「期待値 0」と衝突すると不達を検知できない**——
   検証は resultCode でなく **resultData に実在する内容（例「cleared books N」）を載せ、その実在で判定**する。
 - **現行の処方**: `am start` で前面生存させてから配達＋resultData 実在検証＋副作用の UI 検証（0冊表示等）。
-  実装現物＝`macrobenchmark/…/PdfImportBenchmark.kt`（2026-08-06 修理）。shelf-scroll/chapter-flip の seed は
-  旧処方のまま（不達時は count 不一致で loud fail＝サイレントではない）＝横展開は handover 小物。
+  実装現物＝`macrobenchmark/…/PdfImportBenchmark.kt`（2026-08-06 修理）。shelf-scroll/chapter-flip/tab-swipe の
+  seed も同日中に共通ヘルパ `macrobenchmark/…/LibrarySeeding.kt`（clear 前置き＋前面配達＋resultData 実在検証＋
+  「100冊」UI 検証）へ横展開済み＝旧処方は残っていない。
   切り分けの全時系列＝`.claude/plans/macrobenchmark-kickoff-2026-07-17.md` ⑦。

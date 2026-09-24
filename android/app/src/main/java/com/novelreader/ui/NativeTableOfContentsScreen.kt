@@ -19,10 +19,12 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -40,6 +42,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -52,9 +56,10 @@ import com.novelreader.ui.skins.j.TocPortalJ
 import com.novelreader.ui.skins.k.TocK
 import com.novelreader.ui.skins.m.TocSkyM
 import com.novelreader.ui.skins.p.TocCartridgeP
+import com.novelreader.ui.skins.tocHereChipContentDescription
+import com.novelreader.ui.skins.tocHereChipLabel
 import com.novelreader.ui.theme.FontButtonLabel
 import com.novelreader.ui.theme.FontCaption
-import com.novelreader.ui.theme.FontLabel
 import com.novelreader.ui.theme.FontSectionTitle
 import com.novelreader.ui.theme.FontSheetTitle
 import com.novelreader.ui.theme.FontSubTitle
@@ -97,7 +102,10 @@ sealed interface TocState {
  * @param workTitle 作品名（目次ヘッダの作品名サブに使う。K形伝播で D/C/M/P/J も受け取る＝各スキンの header に副題を出す。null なら副題を出さない）
  * @param currentChapterFile 最後に表示していた章のファイル名（null なら未読。ハイライト＋自動スクロールに使う）
  * @param onSelectChapter 章ファイル名を引数にして章選択時に呼ぶコールバック
- * @param onNavigateToBookshelf 本棚に戻るコールバック
+ * @param onNavigateToBookshelf 目次の ← が押されたときのコールバック。⚠️ 名前に反して行き先は本棚固定ではない
+ *   ＝実体は読書フローの脱出（ReadingScreen の performBack →[back] が null→ MainActivity.upFromReading）で、
+ *   入場元が本棚なら本棚・作品詳細の「アプリで読む」ならその詳細へ帰る。引数名は D/C/M/P/J の全目次が
+ *   共有する呼び名のため改名していない（受け取る側は「← が押された」以上の意味を持たない）。
  * @param onRetry 目次パースを再試行するコールバック（Error 状態の再読込に使う）
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -330,7 +338,12 @@ private fun TocTopBarD(
             IconButton(onClick = onNavigateToBookshelf) {
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "本棚に戻る",
+                    // 行き先が入場形で変わる（本棚／作品詳細）ため、行き先を名乗らず操作名にする。
+                    // ⚠️ 章の ←（"目次に戻る"）と非対称でよい: 章の ← の一つ上は必ず目次＝行き先が一意なので
+                    // 名乗れるが、目次の ← の一つ上は読書フローの外＝入場元次第で変わるので名乗れない。
+                    // 旧 "本棚に戻る" は作品詳細から入場した場合に**嘘の読み上げ**だった（ユーザー裁定 2026-09-07）。
+                    // 全スキンで同じ語であることは TocBackButtonLabelTest が固定する。
+                    contentDescription = "戻る",
                 )
             }
         },
@@ -366,8 +379,11 @@ private fun HereBarD(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (currentIndex >= 0) {
+            // 見える文字は「第N話」だけ（裁定 2026-08-07・4スキン同型）。前置き「いま読んでいる 」は
+            // このチップが非加重子として幅を先取りする分の実質を占め、進捗の取り分を可視0文字まで潰していた。
+            // 削った語は読み上げ（contentDescription）に残す＝機序と数値は tocHereChipContentDescription が正本。
             Text(
-                "いま読んでいる 第${currentIndex + 1}話",
+                tocHereChipLabel(currentIndex),
                 fontSize = FontButtonLabel, // .herechip 12.5px
                 fontWeight = FontWeight.Bold,
                 color = colors.accent, // var(--ai)
@@ -375,16 +391,28 @@ private fun HereBarD(
                     .clip(RoundedCornerShape(999.dp))
                     .background(colors.accent.copy(alpha = 0.10f)) // --ai-tint 藍10%
                     .clickable(onClick = onJumpToCurrent)
-                    .padding(horizontal = Spacing.S16, vertical = Spacing.S8), // .herechip 6px 14px
+                    .padding(horizontal = Spacing.S16, vertical = Spacing.S8) // .herechip 6px 14px
+                    .semantics { contentDescription = tocHereChipContentDescription(currentIndex) },
             )
         }
-        Spacer(Modifier.weight(1f))
         val progress = buildString {
             append("全${total}話")
             // 読了率は現在章が既知（見当識が立つ）ときのみ。未読は分母だけ出す（捏造禁止）。
             if (currentIndex >= 0 && total > 0) append("・読了率${tocReadProgressPercent(currentIndex, total)}%")
         }
-        Text(progress, fontSize = FontCaption, color = colors.infoText) // .prog 12px
+        // なぜ weight(1f)+maxLines=1 か（監査 2026-08-06 G-1・4スキン同型）: fontScale 2.0 でこの進捗文が
+        // チップの余り幅へ折り返して縦に膨張し、現在地バーの行高ごと下の章一覧を初期表示外へ押し出していた。
+        // 余り幅の全量を進捗側へ渡して1行に固定し、入り切らない分は末尾省略で縮退させる
+        //（章一覧の押し出しより軽い縮退を選ぶ）。右寄せは旧 Spacer(weight(1f)) と同じ見た目を textAlign=End で保つ。
+        Text(
+            progress,
+            fontSize = FontCaption, // .prog 12px
+            color = colors.infoText,
+            textAlign = TextAlign.End,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
     }
 }
 
@@ -475,20 +503,22 @@ private fun TocList(
                                 else -> colors.text
                             },
                         )
-                        // 行末（モック .li .end）: 現在＝唯一の実アクション「ここから再開」／既読＝✓／未読＝なし。
+                        // 行末（モック .li .end）: 現在＝唯一の実アクション（▶ の丸チップ）／既読＝✓／未読＝なし。
+                        // 2026-08-07 裁定でアイコンのみへ（機序＝K の ChapterRowK と同型・TocK.kt 冒頭の注記）。
                         when {
-                            isCurrent -> Text(
-                                "ここから再開",
-                                fontSize = FontLabel, // .resume 11px
-                                fontWeight = FontWeight.Bold,
-                                // 塗り藍ボタンの実文字＝対比保証の primary/onPrimary 対（K の ChapterRowK と同型。
-                                // タップは行 Surface の clickable が担う＝二重クリックを避け別 onClick は付けない）。
-                                color = MaterialTheme.colorScheme.onPrimary,
+                            isCurrent -> Icon(
+                                Icons.Filled.PlayArrow,
+                                // アイコンだけでは何のボタンか分からない＝読み上げ用の名前は必須（裁定の条件）。
+                                // タップは行 Surface の clickable が担う＝二重クリックを避け別 onClick は付けない。
+                                contentDescription = "ここから再開",
+                                // 塗り藍ボタンの上の実グリフ＝対比保証の primary/onPrimary 対（K の ChapterRowK と同型）。
+                                tint = MaterialTheme.colorScheme.onPrimary,
                                 modifier = Modifier
                                     .padding(end = Spacing.S16) // .end padding-right 18px → S16
-                                    .clip(RoundedCornerShape(999.dp))
+                                    .clip(CircleShape)
                                     .background(MaterialTheme.colorScheme.primary)
-                                    .padding(horizontal = Spacing.S12, vertical = Spacing.S4), // .resume 5px 11px
+                                    .padding(Spacing.S4)
+                                    .size(16.dp), // 16dp グリフ＋S4 の縁＝24dp の丸（既読✓の 16dp と同じ視覚重量帯）
                             )
                             isRead -> Icon(
                                 Icons.Filled.Check,

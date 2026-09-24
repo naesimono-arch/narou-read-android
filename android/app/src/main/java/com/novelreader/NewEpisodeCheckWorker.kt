@@ -89,7 +89,9 @@ class NewEpisodeCheckWorker(
         // --- Web 蔵書パス（既読話数の統合・判定は NewEpisodeCheckLogic.kt の純関数が正本） ---
         if (webBooks.isNotEmpty()) {
             val webStates = collectWebBookStates(webBooks, app)
-            val siteTotals = fetchWebSiteTotals(webStates.filter { shouldCheckWebBookNow(it) })
+            // 照会ゲート（shouldCheckWebBookNow）は fetchWebSiteTotals の内側にある＝「どの本が再フェッチ
+            // 対象に選ばれたか」がフェイクのアダプタ束で観測できる（結線テストの単位を1つにするため）。
+            val siteTotals = fetchWebSiteTotals(webStates)
             val (webAlerts, webMarks) = computeWebNewEpisodeAlerts(webStates, marks, siteTotals)
             alerts += webAlerts
             newMarks += webMarks
@@ -135,35 +137,6 @@ class NewEpisodeCheckWorker(
         }
     }
 
-    /**
-     * 照会対象の Web 蔵書のサイト総話数（目次の章数）を取得する（bookId → 総話数。失敗した本は載せない）。
-     * 規約ゲート: 必ず [SiteAdapterRegistry.resolve] を通す（ADR 0024 の登録ゲートが単一正本）。取込後に
-     * Blocked/pending へ移ったサイトの蔵書は Supported にならず、ここで自然に照会対象から外れる。
-     * Crawl-delay/per-host スロットルは ScrapeHttpClient が内蔵＝直列ループで足り、追加の sleep はしない。
-     */
-    private suspend fun fetchWebSiteTotals(eligible: List<WebBookCheckState>): Map<String, Int> {
-        if (eligible.isEmpty()) return emptyMap()
-        // registry は走行ごとに生成（BookshelfViewModel 等の既存流儀）。1回の doWork 内で1インスタンスを
-        // 共有するため、per-host スロットルは同一走行内の全フェッチへ確実に効く。
-        val registry = SiteAdapterRegistry()
-        val totals = mutableMapOf<String, Int>()
-        for (state in eligible) {
-            val supported = registry.resolve(state.sourceUrl) as? SiteAdapterRegistry.Resolution.Supported
-                ?: continue
-            try {
-                totals[state.bookId] = supported.adapter.fetchToc(supported.workUrl).chapters.size
-            } catch (e: ScrapeException) {
-                // 取得系の失敗は ScrapeHttpClient/各アダプタが ScrapeException へ正規化済み（唯一の失敗契約）。
-                // 一過性失敗・構造破損はこの本だけスキップして翌日に任せる（構造破損の恒常検知は fixture
-                // ゴールデンの領分＝ここで失敗化しない）。基準値は totals 非搭載により据え置き＝真因を
-                // 握り潰さず「増分不明の日は判定しない」へ倒す防御。CancellationException は正規化対象外で
-                // ここを素通りし Worker のキャンセルへ伝播する。
-                Log.w(TAG, "Web新着チェックをスキップ(${state.bookTitle}): ${e.message}")
-            }
-        }
-        return totals
-    }
-
     private fun showNotification(alert: NewEpisodeAlert) {
         // Android 13+ は POST_NOTIFICATIONS が無いと notify が SecurityException になり得るため先に弾く
         // （権限フローは本棚の取込導線に既存＝ここでは静かに諦めるだけでよい）。
@@ -202,6 +175,53 @@ class NewEpisodeCheckWorker(
         private const val TAG = "NewEpisodeCheckWorker"
         const val UNIQUE_WORK_NAME = "new_episode_check"
         const val NEW_EPISODE_NOTIFICATION_ID = 2001
+
+        /**
+         * 照会対象の Web 蔵書のサイト総話数（目次の章数）を取得する（bookId → 総話数。失敗した本は載せない）。
+         * 照会ゲートは2段で、どちらもこの関数の内側にある:
+         *  ① 既読が取込済み章数へ追いついた本だけを対象にする（[shouldCheckWebBookNow]＝既読話数の統合点）。
+         *  ② 必ず [SiteAdapterRegistry.resolve] を通す（ADR 0024 の登録ゲートが単一正本）。取込後に
+         *     Blocked/pending へ移ったサイトの蔵書は Supported にならず、ここで自然に照会対象から外れる。
+         * Crawl-delay/per-host スロットルは ScrapeHttpClient が内蔵＝直列ループで足り、追加の sleep はしない。
+         *
+         * なぜアダプタ束（[registry]）を差し替え可能にし、companion の internal 関数として置くか（＝継ぎ目の理由）:
+         * 既定のアダプタ束は実 HTTP（ScrapeHttpClient）へ直結していて、「**どの本が再フェッチ対象に選ばれたか**」を
+         * 実ネットワーク無しに観測する手段が無かった。①②の判定そのものは純関数側（NewEpisodeCheckLogic /
+         * SiteAdapterRegistry）のテストが契約を持つが、**その結線**——ゲートを通った本だけが実際にフェッチされ、
+         * 落ちた本へは1リクエストも出ないこと——は本関数の内側にしか存在せず、フェイクの束を差せて初めて縛れる
+         * （結線テスト＝NewEpisodeCheckWorkerTest）。引数1つの注入は DefaultBookRepository / WebBookImporter と
+         * 同じ既存作法（新しい DI 機構は入れない）。インスタンス状態を持たない処理なので companion へ置く＝
+         * テストが WorkerParameters を組まずに呼べる（work-testing 依存を足さずに済む）。
+         */
+        internal suspend fun fetchWebSiteTotals(
+            states: List<WebBookCheckState>,
+            /** null＝本番の既定アダプタ束。既定値を引数側に書かず null 番兵にするのは、ゲート①で全滅した
+             *  走行では共有束（ScrapeHttpClient）の初期化に触れない、という従前の生成タイミングを保つため。 */
+            registry: SiteAdapterRegistry? = null,
+        ): Map<String, Int> {
+            val eligible = states.filter { shouldCheckWebBookNow(it) }
+            if (eligible.isEmpty()) return emptyMap()
+            // registry の生成は走行ごとだが、既定アダプタ束（＝ScrapeHttpClient）はプロセス全体で1つ
+            // （SiteAdapterRegistry.sharedDefaultAdapters）。よって per-host スロットルはこの走行内だけでなく、
+            // 同時に走る取込（DefaultBookRepository）との間でも効く（監査 2026-08-06 C4 の是正）。
+            val resolver = registry ?: SiteAdapterRegistry()
+            val totals = mutableMapOf<String, Int>()
+            for (state in eligible) {
+                val supported = resolver.resolve(state.sourceUrl) as? SiteAdapterRegistry.Resolution.Supported
+                    ?: continue
+                try {
+                    totals[state.bookId] = supported.adapter.fetchToc(supported.workUrl).chapters.size
+                } catch (e: ScrapeException) {
+                    // 取得系の失敗は ScrapeHttpClient/各アダプタが ScrapeException へ正規化済み（唯一の失敗契約）。
+                    // 一過性失敗・構造破損はこの本だけスキップして翌日に任せる（構造破損の恒常検知は fixture
+                    // ゴールデンの領分＝ここで失敗化しない）。基準値は totals 非搭載により据え置き＝真因を
+                    // 握り潰さず「増分不明の日は判定しない」へ倒す防御。CancellationException は正規化対象外で
+                    // ここを素通りし Worker のキャンセルへ伝播する。
+                    Log.w(TAG, "Web新着チェックをスキップ(${state.bookTitle}): ${e.message}")
+                }
+            }
+            return totals
+        }
 
         /** 新着話通知の tag を組む単一の正本。通知の発行（showNotification）と取り下げ
          *  （NovelReaderApplication.cancelNewEpisodeNotification）で必ず同じ文字列にするため関数化する。

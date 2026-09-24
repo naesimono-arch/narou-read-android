@@ -24,19 +24,70 @@ import com.novelreader.ui.theme.skins.SkinD
 // ============================================================
 enum class ReadingTheme { LIGHT, SEPIA, DARK }
 
+/**
+ * 読書クロームの「面」の α（正本モック `reading-D.html` の `.topbar`/`.bottombar` ＝ `rgba(var(--bar-rgb),.92)`）。
+ *
+ * なぜ1つの名前に集約するか: 2026-09-04 裁定（比較モック `candidates/reading-bars-translucency-candidates.html`
+ * 案B）で上下バーの面が 3ピル（復帰ヒント／続きに戻る）と同値になり、「**クロームの面は一律 α.92**」という
+ * 規則が1本になった。数を2箇所に散らすと、片方だけ動いたときに規則が黙って割れる。
+ *
+ * ⚠️ これは**面（指が触れる帯）専用**で、システム帯（ステータス／ナビ inset）へ掛けてはならない。
+ * 帯まで透かすと、ボタン行の下の無地部分から本文が覗く（2026-07-29 実機・上下バー非対称の真因）。
+ * 上下バーの塗りは [com.novelreader.ui.readingChromeBarSurface] が〈面＝半透明／帯＝不透明〉の2段で描く。
+ *
+ * ⚠️ バーへ実際にこの α が載るかはスキンごとの裁定＝[SkinTokens.readingBarSurfaceAlpha] が持つ（既定は不透明）。
+ * ピル側は復帰ヒント／続きに戻るの2枚が全スキン共通でこの値を使う。
+ * ⚠️ 「最上部へ」だけは 2026-09-04 裁定で [ChromeTopPillAlpha]（.78）＋枠＋影の別の器になった＝この値ではない。
+ * （2026-07-17 に「J では可読性優先で不透明」と倒していたが、その真因は**だぶり**でコントラスト不足では
+ * なかったことが 2026-09-04 の実測で判明し、枠と影で輪郭を立て直したうえで透過へ倒し直してある。）
+ */
+const val ChromeSurfaceAlpha = 0.92f
+
+/**
+ * 「最上部へ」ピルの面の α（正本モック `reading-backtotop-D.html` の `.toppill`）。
+ *
+ * なぜ [ChromeSurfaceAlpha]（.92）と**割れているのが正しいか**: 「クロームの面は一律 α.92」は**面**の規則で、
+ * バーは画面端に固定され輪郭を画面端とヘアラインが担う＝自前の枠を持てない。ピルは本文の上に浮く**小さな器**で
+ * 1px ヘアライン枠を自前で持てるので、輪郭を失わずにより深く透かせる。浮遊物はこの規則の外側にある。
+ *
+ * .78 の根拠（2026-09-04 裁定・比較モック `candidates/reading-toppill-translucency-candidates.html` 案D）＝
+ * ADR 0014-D「意味を運ぶ小テキストは 4.5:1」を**全テーマで割らない最も透けた値**（明 D/K 5.02:1／暗 J 6.16:1）。
+ * 境界は α.74（明 4.57:1）で **α.73 から割れる**。
+ * ⚠️ **限界は暗色でなく明色側が先に来る**——ピル字 `topBarIcon` #4A4F58 が中間色のため。2026-07-17 に
+ * 「暗色スキンが危ない」と読んで不透明へ倒したのは**別現象**（背後の章末印が透けて字とだぶった）で、
+ * コントラストの下限ではなかった（2026-09-04 に実測で判明）。
+ *
+ * ⚠️ **この α は「本文が読めるようになる」値ではない**。ピルを透かして見える本文の残存は 1.87:1＝素の 12% で、
+ * 限界の .70 でも 1.90:1 にしかならない。実機で見てまだ隠れると感じたら、次は α ではなく
+ * 〈器を小さくする／出現を絞る／位置を寄せる〉の別軸へ進む（＝「透過で解決した」とは言えない）。
+ *
+ * ⚠️ 他2ピル（復帰ヒント／続きに戻る）は [ChromeSurfaceAlpha] のまま＝この裁定は「最上部へ」1個だけに効く。
+ * 3枚の**器**を揃えるかは依然として未裁定。ただし前提条件だった「復帰ヒントの色が AA 未達」は 2026-09-07 に
+ * 裁定済み（意味を運ぶ＝infoText へ／ADR 0014-D 適用裁定「復帰ヒント」）＝保留の理由はもう色ではなく、
+ * 「ピルの**字**色を素地基準のトークンから採っている」という3枚共通の構造欠陥（同 ADR に記録）の方に移った。
+ */
+const val ChromeTopPillAlpha = 0.78f
+
 data class ReadingColors(
     val background: Color,        // 本文・目次の背景
     val text: Color,              // 本文文字
     val textSecondary: Color,     // 装飾的補助テキスト（見出し添え・プレースホルダ等・意味を運ばない）
-    // 意味を運ぶ補助テキスト（エラー本文・空状態の説明など）。textSecondary を alpha で沈めると AA を割る
-    // ため、素地上 4.5:1 を満たす専用暗化シェード（Material の InfoText と同値・ADR 0014-D）を使う。
+    // 意味を運ぶ補助テキスト（エラー本文・空状態の説明・**没入クローム復帰ヒント**など）。textSecondary を
+    // alpha で沈めると AA を割るため、素地上 4.5:1 を満たす専用暗化シェード（Material の InfoText と同値・
+    // ADR 0014-D）を使う。
+    // ⚠️ 復帰ヒントだけは地が素地でなく [navBackground]×[ChromeSurfaceAlpha] のピル面＝スキンによっては
+    //    素地と別の面になる（P は全テーマ共通のプラ面）。この値は素地基準の較正なので、そこに残差がある
+    //    ことを承知で使っている（2026-09-07 裁定・数値と追跡先は ADR 0014 の適用裁定「復帰ヒント」）。
     val infoText: Color,
     // プレースホルダ・無効ボタン文字などの「例示/不活性」テキスト（意味を運ばない＝WCAG 概ね対象外）。
     // textSecondary.copy(alpha=0.6) の二重帳簿を避け、その合成結果を素地上で焼き込んだ役割別シェード
     // （Design/10§9「alpha でなく専用シェード」＝コード衛生）。
     val placeholder: Color,
-    // 下部ナビバー・ピル地。バー本体は不透明で使う（上部バーとの対称・モック .bottombar は不透明
-    // var(--bar)。2026-07-29 に旧 0.95f 透過を廃止）。ヒント系の非操作ピルのみ使用側で半透明化する。
+    // 下部ナビバー・ピル地。バー本体の面は [SkinTokens.readingBarSurfaceAlpha] ぶんだけ透かす
+    //（D/K は 2026-09-04 裁定・J は 2026-09-07 裁定でいずれも [ChromeSurfaceAlpha]＝.92／C・M・P は不透明のまま）。
+    // ⚠️ どのスキンでも**システム帯（ナビ inset）は不透明**＝2段塗り。帯へ α を掛けると本文が覗く
+    //（2026-07-29 実機・上下バー非対称の真因＝旧 containerColor .copy(alpha=0.95f)）。
+    // ヒント系の非操作ピルは従来どおり使用側で [ChromeSurfaceAlpha] を掛ける。
     val navBackground: Color,
     val topBarBackground: Color,  // 読書画面トップバー
     val topBarTitle: Color,       // トップバーのタイトル文字
@@ -84,18 +135,24 @@ fun rememberReadingColors(theme: ReadingTheme): ReadingColors {
 // なぜ CompositionLocal か: ヘアラインは「役割」でなく「正本モックの家系」で値が分かれる
 // （発見系 --line #ECEAE4 ＝ outlineVariant／本棚系 --hl/--track #E4E2DB）ため、
 // colorScheme とは別口でテーマ追従させる（ReadingColors と同じ流儀・ADR 0014）。
-// unreadLabel: 未読は意味を運ぶ文字＝4.5:1 最低線（ADR 0014-D）。ダークは既存 SecondaryDark を継続。
+// semanticMicroText: 意味を運ぶ微小文字＝4.5:1 最低線（ADR 0014-D）。ダークは既存 SecondaryDark を継続。
 // infoText: 発見系の情報メタ（順位番号・連載状態・読了目安・最終更新・結果サブタイトル・未選択タブ）用。
 //   OnSurfaceVariant（装飾的補助）は 4.5:1 未達のため情報用途だけを役割別トークンへ分離（同 ADR 0014-D 裁定）。
 // ============================================================
 data class ShelfColors(
     val hairline: Color,     // 目録区切り線・進捗トラック・スケルトン線（--hl/--track）
-    val unreadLabel: Color,  // 「未読」ラベル文字
+    // 青磁位置（D では #9CB3A8）の「意味を運ぶ文字」を AA(4.5:1) まで濃くした色。役割は青磁で意味を
+    // 名指す微小文字**全般**＝未読/「なろう・未取込」ラベル・ジャンルタグ・キーワードチップ・
+    // 結果件数・「条件を変更」。2026-08-21 に適用漏れ8箇所を回収した。
+    // ⚠️ 旧名 unreadLabel（初出の用途＝未読ラベル由来）から 2026-08-26 に改名。用途を名前が狭く
+    //    見せることで適用漏れが起きた反省を、名前側で閉じたもの＝役割名で呼ぶ。
+    // ⚠️ 装飾（ドット・縦ルール・チップ枠線・破線フレーム）は WCAG 対象外なので secondary のまま。
+    val semanticMicroText: Color,
     val infoText: Color,     // 情報を運ぶ補助テキスト（発見系メタ）
 )
 
 val LocalShelfColors = staticCompositionLocalOf {
-    ShelfColors(hairline = ShelfHairlineLight, unreadLabel = UnreadSeiji, infoText = InfoTextLight)
+    ShelfColors(hairline = ShelfHairlineLight, semanticMicroText = UnreadSeiji, infoText = InfoTextLight)
 }
 
 /**

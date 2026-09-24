@@ -29,7 +29,10 @@ object PrefKeys {
     /** 読書テーマ（String=ReadingTheme 名）。キー不在＝システムのライト/ダークへ追従。 */
     const val READING_THEME = "reading_theme"
 
-    /** UIスキン（String=Skin 名）。キー不在＝D（既定装い）。 */
+    /** UIスキン（String=Skin 名）。キー不在＝**明快K**（`skinFromName(null)` → `Skin.MEIKAI_K`）。
+     *  ⚠️ 2026-08-26 まで「キー不在＝D」と書いてあったが、既定が K へ移った時にこの KDoc だけ
+     *  取り残されていた（エミュ検分で「装いが D でなく K で起動する」と気づいて発覚）。
+     *  なお `Features.skinSwitchingEnabled` が false のときは保存値によらず K を返す（ADR 0027）。 */
     const val APP_SKIN = "app_skin"
 
     /** 高負荷スカイ試作トグル（Boolean・debug 限定＝ADR 0023）。 */
@@ -38,8 +41,30 @@ object PrefKeys {
     /** 栞アニメ高負荷トグル（Boolean・debug 限定＝ADR 0023 の明快K展開・2026-08-06 裁定。星図 SKY_HIGH_LOAD_M と同並び）。 */
     const val SHIORI_HIGH_LOAD_K = "shiori_high_load_k"
 
+    /**
+     * 栞先端 tip の固定（Int・debug 限定の観察器＝ShioriDebugTip・2026-08-25）。
+     * キー不在／範囲外＝固定しない。release は読んでも捨てられる（値の解決が BuildConfig.DEBUG ガード下）。
+     */
+    const val SHIORI_DEBUG_TIP_INDEX = "shiori_debug_tip_index"
+
     /** 新着話通知のオプトイン（Boolean・既定 false＝公理13）。 */
     const val NEW_EPISODE_NOTIFY_ENABLED = "new_episode_notify_enabled"
+
+    /**
+     * 読書記録の引き継ぎ＝Auto Backup のオプトイン（Boolean・**既定 false＝OFF**。
+     * 読み書きは [com.novelreader.backup.BackupOptIn] のみを通す）。
+     *
+     * ⚠️ このキーだけは**置き場所が本質**: 値を読むのは
+     * [com.novelreader.backup.NovelReaderBackupAgent]＝バックアップ中の **restricted mode** で走るため、
+     * `Application` サブクラスも ContentProvider も生きていない。素の `Context` API だけで読める
+     * SharedPreferences が唯一の安全な置き場で、Room / DataStore は使えない（DataStore は suspend、
+     * Room はまさにバックアップ対象のファイルを開くことになる）。移設するなら agent 側の制約から検討し直すこと。
+     *
+     * 自己言及の整理: このキーを収める `app_prefs.xml` 自身もバックアップ対象なので、ON のまま取った
+     * バックアップを復元すると新端末も ON で始まる（利用者の意思がそのまま渡る＝意図どおり）。
+     * OFF のときはバックアップ自体が空なので復元される値も無い＝新端末は既定の OFF から始まる。
+     */
+    const val BACKUP_OPT_IN = "backup_opt_in"
 
     // ── app_prefs: 読書画面（NativeReadingScreen）──
 
@@ -55,8 +80,57 @@ object PrefKeys {
     /** 縦書きモード（Boolean）。 */
     const val READING_VERTICAL = "reading_vertical"
 
-    /** 没入モードのヒント表示済みフラグ（Boolean・初回のみ表示）。 */
+    /**
+     * 没入モードのヒント表示済みフラグ（Boolean・初回のみ表示）。
+     *
+     * ⚠️ キー名は変えない（正本モック `tutorial-onboarding-K.html` §8「旧フラグの扱い」）。
+     * 2026-08-25 に**意味だけが増えた**＝「ピルを出し切った」に加えて
+     * 「教示の組B がピルの役目を肩代わりした」でも立つ（[com.novelreader.ui.intro.IntroController]）。
+     */
     const val IMMERSIVE_HINT_SHOWN = "immersive_hint_shown"
+
+    /**
+     * 「最上部へ」ピルのラベルを一度でも見せ切ったか（Boolean・初回のみ語を出す）。
+     *
+     * 2026-09-05 裁定（比較モック `candidates/reading-toppill-occlusion-candidates.html` 案S4）で
+     * ピルは**アイコンのみ・視覚の器 32dp**へ縮んだ。記号だけで通じるための条件のうち
+     * 「一度は語で見せてある」を満たすのがこのフラグ＝**通算初回だけラベル付きで出す**。
+     * ⚠️ 焼くのは「ピルが出きって、そのあと画面から消えた」時点（[com.novelreader.ui.ChapterScreenContent]）。
+     * 表示中に焼くと pref の反転がそのまま画面に出て、読者の目の前で語が消え器が縮む。
+     */
+    const val TOP_PILL_LABEL_SHOWN = "top_pill_label_shown"
+
+    // ── app_prefs: 教示「はじめに」（ui/intro・2026-08-21 裁定／正本モック tutorial-onboarding-K.html §8）──
+    // 4 本とも Boolean・未消費＝false。消費は「その組の最後のカードまで到達したうえで閉じた／次の組へ
+    // 進んだ時点」の 1 規則で統一する（途中で閉じた回は焼かない＝次の機会にまた出る）。
+
+    /** 組A「このアプリのこと」を出し切ったか（出す条件＝未消費 かつ 本棚が空）。 */
+    const val INTRO_ABOUT_SHOWN = "intro_about_shown"
+
+    /** 組B「読みかた」を出し切ったか（出す条件＝未消費 かつ 本文が描かれてから）。 */
+    const val INTRO_READING_SHOWN = "intro_reading_shown"
+
+    /** 組C「さがしかた」を出し切ったか（出す条件＝未消費 かつ 検索画面が描かれてから）。 */
+    const val INTRO_SEARCH_SHOWN = "intro_search_shown"
+
+    /**
+     * 組D「つくって、本棚に入れる」を出し切ったか（出す条件＝未消費 かつ 取り込み画面が目次を初描画してから）。
+     *
+     * 2026-09-04 に §2 の判定が「置かない → 置く」へ反転して増えた 4 本目（規則1b＝見えていても
+     * それが何を決めているか推測できない＝取り込み画面のボタンはすべてなろうのもの）。
+     */
+    const val INTRO_IMPORT_SHOWN = "intro_import_shown"
+
+    // ── app_prefs: なろうの面の注意喚起（ADR 0042・ui/NarouExternalPageNoticeDialog.kt）──
+
+    /**
+     * 「ここからは小説家になろうのページです」の注意喚起を今後出さないか（Boolean・既定 false＝出す）。
+     *
+     * 立つのは**「次回から表示しない」を選んだうえで閉じた時だけ**。チェックせずに閉じた回は焼かない
+     * ＝読み落とした人にもう一度届く余地を残す（同型の先例＝[BATTERY_DIALOG_DISMISSED]）。
+     * ⚠️ キー文字列は不変（冒頭の【重要】参照）。
+     */
+    const val NAROU_EXTERNAL_NOTICE_SUPPRESSED = "narou_external_notice_suppressed"
 
     // ── app_prefs: 本棚（BookshelfScreen / skins 配下）──
     // 使用側の直書きは 2026-07-27 の純構造リファクタで全数この定数参照へ張替済み。

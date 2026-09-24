@@ -8,14 +8,78 @@ description: 実機検証の入口。adb接続(WSL)・APK投入・androidTest・
 実機 = PGEM10（Android 16 / ColorOS）。**事実の正本は `task_diary.md`（#N は固定ID）と
 memory `workflow-autonomous-device-verification`**。このスキルは操作手順の入口に徹する。
 
-## 0. 実機を触る前に — まず「何台繋がっているか」
+**エミュレータ（AVD）は `/emulator-verify` が正本**＝前提が根本的に違う（root が効く・壊してよい・
+台数と機種を増やせる）。⚠️ **低スペック端末・別解像度・切り欠き・破壊フローは実機では見えない**
+（本機はハイエンドで速い側の1点しか代表しない）＝そちらへ回す。
+
+## 0. 実機を触る前に — まずユーザーへ一声、次に「何台繋がっているか」
+
+### 0-0. 着手前に一度手を止めて確認を取る（2026-07-12 ユーザー指示）
+
+**`adb`・`adb-bridge`・実機インストール・実機目視が絡む段に入る前に、一度作業を止めてユーザーに確認する**
+（「実機テストをする際は一度手を止めて聞いてね」）。実機はユーザーの手元デバイスで、使用中の可能性・
+接続準備・目視協力が要るため、無断で始めると衝突する（§0-b の「接続中でも端末側に何も表示されない」も参照）。
+- **JVM テスト（`testDebugUnitTest`・Robolectric・Roborazzi）は従来どおり自律実行してよい**＝この関門は実機だけ。
+- 2026-07-17 の「常時接続・どんどん使って」は**そのセッション限りの特別措置**と明言されたもの＝恒久ルールはこちら。
 
 ### 0-a. 1台だけのとき（通常）— `adb-bridge` を一発
+
+⚠️ **先に §0-a2 を見る**——ワイヤレスデバッグ経由なら **USB を一度も挿さずに繋がる**（2026-09-04 実測）。
+`adb-bridge` が要るのは tcpip 5555 を使う場合で、5555 は端末 reboot で閉じ、**再発行に USB が要る**。
 
 WSL2 は USB を直接認識しない。**まず `adb-bridge`** を実行する（PATH 済・冪等:
 未接続なら Windows `adb.exe` 経由で tcpip 化→wlan0 IP へ connect、接続済みなら確認のみ）。
 以後は素の `adb …`（`~/.local/bin/adb` ラッパー＝Windows の承認済み鍵を vendor key 提示・
 鍵ローテーション自動追従）で操作する。
+
+### 0-a2. ワイヤレスデバッグ＋Tailscale — USB もペアリングコードも要らずに繋がる（2026-09-04 実測）
+
+**これを既定の経路にする**（§0-a の `adb-bridge`＝USB 一度が要る tcpip 5555 とは別系統）。所要 1 分:
+
+1. 端末: 設定 → 開発者向けオプション → **ワイヤレスデバッグを ON**（「ペア設定コード…」のダイアログは**開かなくてよい**）
+2. **ON の前後でポート走査し、新しく現れたポートを取る**（下記スクリプト）
+3. `adb connect <IP>:<新しく現れたポート>` → `device` になる
+
+⚠️ **6桁コードは出てこないし要らない**——ペアリングは過去に済んでいて端末が証明書を覚えている
+（一次証拠＝`self-ai-tool` の便で `100.106.77.20:37863` が `device` になり `install -r` まで通った記録）。
+**接続用ポートは ON のたびに変わる**（実測 37863／42655）＝ハードコード不可。ここだけが毎回の手間。
+
+⚠️⚠️ **最大の罠＝「開いているポート＝adb」ではない**。ColorOS は `10150 10152 10162 16219 46888` を**常時**開けている。
+2026-09-04 に **46888 を接続用と誤認**して叩き、返ってきた `offline` を「未ペアリング」と読み違えて
+**「6桁コードが要る」と誤結論**した（コードも USB も不要だったのに人へ手間を求めた）。
+**`offline` は未ペアリングだけでなく「adb でないポートに繋いだ」でも出る**＝症状から原因を決めないこと。
+**判別は「ON の前後の差分」だけが確実**。⚠️ `adb mdns services` は WSL 側・Windows 側とも**空**で当てにならない（同日実測）。
+
+```bash
+# ポート走査（30000-50000 で足りる。ON 前後で2回走らせて差分を取る）
+python3 - <<'EOF'
+import socket
+from concurrent.futures import ThreadPoolExecutor
+H = '192.168.1.210'   # LAN IP（DHCP で変わる）でも 100.106.77.20（Tailscale・固定）でも可
+def probe(p):
+    s = socket.socket(); s.settimeout(0.6)
+    try: return p if s.connect_ex((H, p)) == 0 else None
+    finally: s.close()
+with ThreadPoolExecutor(max_workers=400) as ex:
+    print([p for p in ex.map(probe, range(30000, 50000)) if p])
+EOF
+adb connect 192.168.1.210:<差分ポート>   # → device product:PGEM10 になれば成立
+```
+
+**Tailscale（開通済み）が足すもの**——実機 `oppo-find-x6-pro` の **`100.106.77.20` は DHCP と無関係に固定**
+（§0-b 末尾「IP はハードコードしない」は wlan0 IP の注意で、100.x はその限りでない）。
+⚠️ **WSL に tailscale クライアントは無いのに WSL の素の Bash から直接届く**（Windows 側 Tailscale の経路に WSL2 が乗っている）。
+**同一 LAN にいなくても届く**（direct が張れなければ DERP 中継へ自動で落ちる）。
+
+```bash
+"/mnt/c/Program Files/Tailscale/tailscale.exe" status                  # 実機が online か
+"/mnt/c/Program Files/Tailscale/tailscale.exe" ping oppo-find-x6-pro   # 経路（direct か DERP 中継か）
+```
+
+- **adb 以外の経路＝Taildrop**: `tailscale file cp <apk> oppo-find-x6-pro:`（Windows 側 exe から）。
+  ⚠️ **`install -r` の代替にはならない**（受信後のインストールは端末側の手動タップ）＝位置づけは
+  「**adb が全滅したときに APK を届ける逃げ道**」。⚠️ コマンドの存在のみ確認・**実送信は未実測**。
+- **素の IP 疎通**: 実機で待ち受けているポートへ WSL から直接届く＝HTTP 等の確認に adb を介さなくてよい。
 
 ### 0-b. ⚠️ 2台繋がっているときは `adb-bridge` を打ってはいけない（2026-07-31 実証）
 
@@ -69,11 +133,32 @@ adb.exe devices -l    # Windows 側（USB の端末が出る）
   自動 uninstall し、**蔵書DB等の実データが消える**（task_diary #36。実際に消えた実績あり）。
   やむを得ず使う場合は `-Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true` を必ず付ける。
 
+### 1-b. release（R8）APK を蔵書DB無傷で実機回帰する
+
+R8 収縮起因のクラッシュは debug/JVM テストでは出ない＝実機で release を回さないと検証にならない。
+本プロジェクトの release buildType には **signingConfig が無い**（benchmark variant だけが debug 署名を継承）
+＝`assembleRelease` の成果物は未署名でそのままは入らない。**debug.keystore で署名すれば debug 版の上へ
+`install -r` できる**＝署名一致で **DB を保持したまま `debuggable false` の実 R8** を投入できる:
+
+```bash
+apksigner sign --ks ~/.android/debug.keystore --ks-key-alias androiddebugkey \
+  --ks-pass pass:android --key-pass pass:android app-release-unsigned.apk
+```
+
+投入後は `pkgFlags` から `DEBUGGABLE` が消えていることで陽性確認する。debug への復帰も
+`assembleDebug`→`install -r`（release=debug=同一署名）。build.gradle に一時 signingConfig を足す必要はない。
+**`install -r` は署名不一致でも「失敗するだけ」で uninstall はしない＝DB消失は明示 `adb uninstall` のときだけ**。
+⚠️ 鍵は現在 **SHA-256 一致**（2026-08-25 のユーザー名移行で一時 Windows 側が作り直されたが同日解消済み＝経緯は
+`docs/knowledge/windows-username-change-splits-project-slug.md`）。ただし移行のたびに再発しうるので
+**コピー手順を踏む前の照合は省かない**——照合手順は memory `wsl-debug-keystore-share-for-install`。
+
 ## 2. androidTest の実行（uninstall 回避手順）
 
 ```bash
-# ビルド＆投入（Bash ツールでは gw が使えない → /build スキルの「Bashツール素起動」節を参照）
-gw --init-script /home/qingj/ext-build/novel-reader-init.gradle installDebug installDebugAndroidTest
+# ビルド＆投入（起動は必ず gwlock.sh 経由＝init スクリプトもツリー単位ロックも内包。/build スキル参照）
+# ⚠️ 旧記述は「gw は使えない」と書いた直後に gw を並べており、参照先の節名も実在しなかった（2026-09-05 訂正）。
+#    gwlock.sh を使えない状況の逃げ道は /build スキル「素の起動列が要るとき」節。
+bash tools/gwlock.sh installDebug installDebugAndroidTest
 # 実行は connectedAndroidTest ではなく am instrument 直叩き（アンインストールが起きない）
 adb shell am instrument -w -e class <テストFQCN> com.novelreader.test/androidx.test.runner.AndroidJUnitRunner
 ```
@@ -100,13 +185,57 @@ sqlite3 /tmp/…/db "SELECT …"
 | `screenrecord` が全パスで `Unable to open …: Permission denied`（/sdcard・/data/local/tmp とも。shell の touch は通るのに録画だけ失敗＝ColorOS 側の遮断と推定・未確定）。`exec-out --output-format=h264 -` のホスト直ストリームも 0 バイトのままハング | 実質使用不能（2026-07-16 実測）。動画での視覚検証は諦めてユーザー目視に回す（アニメ・ちらつき系は PushNotification→目視OK の通常フロー） |
 | バッテリー最適化除外の画面遷移が誤動作 | #5（`ACTION_APPLICATION_DETAILS_SETTINGS` を使う） |
 | Macrobenchmark / UiAutomation シェル実行がコマンド境界で無限停止（perfetto 起動等・CPU 凍結・SELinux で kill 不能な残骸） | `docs/knowledge/coloros-uiautomation-shell-pipe-eof-hang.md`＝2秒周期 SIGQUIT「除細動ループ」で完走させる。事前に perfetto/trace_processor 残骸ゼロ確認・kill 不能残骸は端末再起動で掃除。`pm grant` 遮断は `install -r -g` で回避 |
+| **新規**パッケージの `adb install` が失敗でなく**無応答**（`push` は 2.7MB/s で正常に終わるのに `pm install` が180秒タイムアウト。`verifier_verify_adb_installs=0` でも止まる） | `docs/knowledge/coloros-blocks-adb-install-of-benchmark-apk.md`＝OEM インストーラ（`InstallGuideActivity`→`PackageParsingV2Activity`）が**画面確認**で待っている。AOSP の検証設定では抜けられず、端末がロック中だと adb から承認もできない＝**人間の2手**（①ロック解除＋画面点灯維持〔開発者向け→充電中は画面を点けたまま〕②確認ダイアログを承認）が要る。⚠️ **既存パッケージの更新（`install -r`）は影響を受けない**＝詰まるのはベンチ APK の初回投入など |
 | 通知が表示されない | #2（ContentIntent 必須） |
+
+## 4-b. マクロベンチ — 「測る面」はシードで全部固定する（端末に残った値で測らない）
+
+計測面を決める prefs は**全書籍共通の単一値**で、前回の走行やユーザーの操作が残った状態がそのまま効く。
+固定しないと**同じベンチが別の面を測る**（数字が前回と比較できなくなる）。
+`clearAndSeedLibrary` に渡す `gridMode`（本棚の list/grid）・`verticalMode`（読書の書字方向）は
+**既定値と同じでも明示して送る**＝「面の指定」だと読めるようにする。
+
+⚠️ **着地判定に `By.text` 系を使ってはいけない面がある**——本文段落はルビの読み置換のため
+`text` を捨てて `contentDescription` だけを持つ（縦書き・横書きの**両方**）。
+2026-08-19 の tab-swipe 全5走行 iter000 fail の真因がこれで、fail 文言は無関係な原因を指していた。
+機序と「効くセレクタ / 効かないセレクタ」の表＝
+`docs/knowledge/body-paragraphs-have-no-text-node-only-contentdescription.md`。
 
 ## 5. シェル・パスの罠
 
 - **Git Bash（Windows 側）**は `/sdcard` 等の device パスを MSYS が変換して push/pull/dump を壊す
   （#25）。PowerShell ツールか `MSYS2_ARG_CONV_EXCL` 前置きで回避。WSL の Bash ツール＋
   Linux adb ラッパーなら非該当。
+
+## 5-b. 画面の回転 — 「この端末は回せない」は誤り（2026-08-16 実測）
+
+`user_rotation` を書いても効かないのは**自動回転が ON の間だけ**（自動回転 OFF のときしか参照されない）。
+先に自動回転を切れば回る。旧記述「本機は `user_rotation` を無視し ROTATION_0 固定」は、
+自動回転 ON のまま試した結果を端末の制約と誤読していたもの。
+
+```bash
+adb shell settings get system accelerometer_rotation   # ★開始時の値を控える（通常 1）
+adb shell settings put system accelerometer_rotation 0
+adb shell wm user-rotation lock 1                      # 1=横（ROTATION_90）/ 0=縦
+adb shell dumpsys window displays | grep -oE "mDisplayRotation=ROTATION_[0-9]+" | head -1
+# 終了時は必ず戻す（ユーザーが日常使いする端末）
+adb shell wm user-rotation free && adb shell settings put system accelerometer_rotation 1
+```
+
+これで**回転を挟まないと踏めない検証**（Activity 再生成の復帰経路＝Back の登録・1冊復旧の一括化・横向き意匠の実測）が回る。
+
+**横向きは切り欠き（display cutout）とセットで見る**。画面端 UI が帯へ潜り込む破綻は
+`WindowInsets.displayCutout` を模擬しない Robolectric・golden の**両方を素通りする**＝緑は無事の証拠にならない
+（機序＝`docs/knowledge/display-cutout-band-invisible-to-jvm-tests.md`）。判定は座標で:
+
+```bash
+python3 tools/cutout_probe.py setup -s <serial>          # 切り欠きを立てて横向き固定（--seascape で右側）
+python3 tools/cutout_probe.py check "本棚" -s <serial>    # 面を出すたびに（食い込みがあれば exit 1）
+python3 tools/cutout_probe.py restore -s <serial>        # ★必ず戻す
+```
+
+巡回すべき面は `python3 tools/cutout_probe.py checklist`。⚠️ **AVD は overlay を全部切っても切り欠きを持つ**
+ことがある（端末プロファイル overlay 由来。実測 136px）＝「無効＝帯なし」と決めつけない。
 
 ## 6. テキスト入力は ADB Keyboard（フリック座標タップ禁止）
 
@@ -147,5 +276,22 @@ Claude が adb を自律駆動する（install / logcat / input / screencap / DB
   座標タップがボタンに当たらず全試行が空振りしている。
 - **読書位置・進捗など「状態を変えうる」操作フェーズの前に、実機 DB 3ファイルのバックアップを取るのを標準とする**
   （§3 の手順で pull。上の実害はこれで救われた）。
-CP（コミット）1つ分の検証を終えるごとに一旦停止し、ユーザーへ目視ダブルチェックを依頼してから
-次へ進む（memory `workflow-autonomous-device-verification` / `workflow-notify-each-step-visual-check`）。
+### 委譲するときの禁忌: 破壊フローを実蔵書で踏ませない（2026-07-12 実害）
+
+**削除 / wipe / `pm clear` / factory reset 等の破壊フローは、実蔵書の本で実行させない**——テスト用シード本
+（`spike-*` 等の捨て本）を対象に名指しするか、その項目は人間目視送りにする。
+2026-07-12、「削除→snackbar Undo（放置＝確定も確認）」を実蔵書の501章の本で検証させたところ、
+**サブエージェントの screencap 解析待ちが snackbar のタイムアウト（`SnackbarDuration.Long`≈10秒）を超過して
+実削除が確定**＝蔵書1冊（DB行＋HTML実体）を消した。アプリの削除機構は正常で、**委譲設計の落ち度**。
+- **Why**: 自律エージェントは思考・解析で数秒〜数十秒止まる。「一定時間放置＝確定」型の破壊UI
+  （snackbar Undo・自動 dismiss）を人間の速度前提で踏むと Undo が間に合わず不可逆操作が確定する。
+  人間の目視関門があれば防げるが、background 委譲では関門が効かない。
+- **Undo 系は「Undo を押して復帰する」正経路だけを検証**し、「放置＝確定」経路は踏ませない。
+- `bmgr` の wipe+restore は非破壊部分（backupnow＋transport 確認）に限定し、復元検証は人間同意付きで。
+
+### 人間の関門（CP ごと）
+
+CP（コミット）1つ分の検証を終えるごとに一旦停止し、**`PushNotification` でユーザーを呼んで実機での目視
+ダブルチェックを待ってから**次のステップやコミットへ進む（memory `workflow-autonomous-device-verification`）。
+ユーザーは描画系の最終判定を自分の目で行いたい＝`testDebugUnitTest` は描画バグを捕捉できないため。
+勝手に次へ進むと確認機会を奪うことになる。スクショは目視で判断できなかった時の最終手段。

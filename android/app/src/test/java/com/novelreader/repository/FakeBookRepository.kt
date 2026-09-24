@@ -118,12 +118,19 @@ class FakeBookRepository : BookRepository {
     }
 
     override suspend fun addPendingJob(uri: String, displayName: String) {
-        pendingJobs[uri] = PendingJobEntity(uri, displayName, pendingJobs.size.toLong())
+        // 本番 PendingJobStore.add と同じく再開回数を引き継ぐ（引き継がないと再起動ループの
+        // 止め金が毎回 0 に戻る＝fake で本番と違う挙動になり、防御の退行を見逃す）。
+        val carried = pendingJobs[uri]?.attempts ?: 0
+        pendingJobs[uri] = PendingJobEntity(uri, displayName, pendingJobs.size.toLong(), carried)
     }
 
     override suspend fun getPendingJobs(): List<PendingJobEntity> = pendingJobs.values.toList()
 
     override suspend fun removePendingJob(uri: String) { pendingJobs.remove(uri) }
+
+    override suspend fun markResumeAttempt(uri: String) {
+        pendingJobs[uri]?.let { pendingJobs[uri] = it.copy(attempts = it.attempts + 1) }
+    }
 
     override suspend fun clearPendingJobs() { pendingJobs.clear() }
 
@@ -144,13 +151,27 @@ class FakeBookRepository : BookRepository {
         return orphans.size
     }
 
+    /**
+     * 取込元PDFの削除が**失敗する**取込元 URI（テストが事前に登録する）。
+     *
+     * なぜ Fake に持たせるか: 本番の失敗要因（権限失効 = `SecurityException`・既に移動/削除済み =
+     * `FileNotFoundException`・削除非対応プロバイダ = `UnsupportedOperationException`・戻り値 false）は
+     * [DefaultBookRepository] 側の `runCatching` が**すべて同じ結末 [SourceDeleteOutcome.Failed] へ畳む**ため、
+     * Repository の外から見える粒度は「その URI で失敗したか」しかない。Fake が模すべきもそこまでで、
+     * 実権限を持てない JVM テストで「権限失効」を作れる唯一の継ぎ目でもある
+     * （＝実機で権限が切れる機会を待たずに失敗経路を通せる）。
+     */
+    val failingSourceUris: MutableSet<String> = mutableSetOf()
+
     override suspend fun deleteBook(book: BookEntity, deleteSource: Boolean): SourceDeleteOutcome {
         booksState.value = booksState.value.filterNot { it.id == book.id }
         progressState.value = progressState.value.filterNot { it.bookId == book.id }
         // Fake は実ファイル/権限を持たない＝取込元削除は実行不能。結末だけ模す（sourceUri の有無と要求で分岐）。
         return when {
             book.sourceUri == null -> SourceDeleteOutcome.NoSource
+            // 削除を要求されていなければ試行自体が起きない＝失効していても NotRequested（本番と同じ順序）。
             !deleteSource -> SourceDeleteOutcome.NotRequested
+            book.sourceUri in failingSourceUris -> SourceDeleteOutcome.Failed
             else -> SourceDeleteOutcome.Deleted
         }
     }

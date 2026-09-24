@@ -1,23 +1,48 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  ランチャーアイコン前景＝ストアアイコン案A「栞書影」の翻訳（2026-08-25）。
+  正本＝docs/design-candidates/store/store-icon-candidates.html #ic-a／書き出し済み PNG＝docs/store/assets/icon-512.png。
+
+  座標は 512 キャンバスの案A を s=72/512=0.140625 で縮め、18dp オフセットして中央 72dp
+  （＝どのマスクでも必ず残る域）へ収めたもの＝カタログの「48px・円マスク」プレビューと同じ見え方になる。
+  ⚠️ 案A の紙面の影（feDropShadow）は VectorDrawable で表現できないため落としている。
+  ⚠️ 縦罫3本は 48px で消える装飾（カタログ明記）。消えても主役の栞棒＋結び玉は残る。
+-->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- 本のアイコン（シンプルな長方形＋ページ線） -->
+
+    <!-- 版面（和紙 #FBFAF8・角丸 r=0.98） -->
     <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M30,20 L78,20 L78,88 L30,88 Z" />
+        android:fillColor="#FBFAF8"
+        android:pathData="M36.98,30.09 L71.02,30.09 A0.98,0.98 0 0 1 72,31.07 L72,77.07 A0.98,0.98 0 0 1 71.02,78.05 L36.98,78.05 A0.98,0.98 0 0 1 36,77.07 L36,31.07 A0.98,0.98 0 0 1 36.98,30.09 Z" />
+
+    <!-- 版面の縦罫（墨 13%・48px では消える装飾テクスチャ） -->
     <path
-        android:fillColor="#1565C0"
-        android:pathData="M38,34 L70,34 L70,37 L38,37 Z" />
+        android:pathData="M60.19,34.59 L60.19,73.55"
+        android:strokeColor="#1C1F26"
+        android:strokeAlpha="0.13"
+        android:strokeWidth="0.5625" />
     <path
-        android:fillColor="#1565C0"
-        android:pathData="M38,44 L70,44 L70,47 L38,47 Z" />
+        android:pathData="M63.84,34.59 L63.84,73.55"
+        android:strokeColor="#1C1F26"
+        android:strokeAlpha="0.13"
+        android:strokeWidth="0.5625" />
     <path
-        android:fillColor="#1565C0"
-        android:pathData="M38,54 L70,54 L70,57 L38,57 Z" />
+        android:pathData="M67.5,34.59 L67.5,73.55"
+        android:strokeColor="#1C1F26"
+        android:strokeAlpha="0.13"
+        android:strokeWidth="0.5625" />
+
+    <!-- 栞棒（朱 #A1573F） -->
     <path
-        android:fillColor="#1565C0"
-        android:pathData="M38,64 L58,64 L58,67 L38,67 Z" />
+        android:fillColor="#A1573F"
+        android:pathData="M45.28,30.09 L49.08,30.09 L49.08,52.17 L45.28,52.17 Z" />
+
+    <!-- 先端の結び玉（同じ朱・r=2.95） -->
+    <path
+        android:fillColor="#A1573F"
+        android:pathData="M44.23,54.98 a2.95,2.95 0 1,0 5.9,0 a2.95,2.95 0 1,0 -5.9,0 Z" />
 </vector>

@@ -44,10 +44,25 @@ jobs:
       - name: Design token check
         run: python3 tools/check_design_tokens.py
 
+      # scrape 目次の章数を、パーサ実装を通さずに fixture の HTML から数え直して
+      # *GoldenTest.kt が主張する期待値と突き合わせる（暁66・カクヨム593）。
+      # なぜ CI ジョブで、単体テストに入れないのか:
+      # ①独立性が結線の目的そのもの。突合の相手方は *GoldenTest.kt に書かれた**リテラル**であって
+      #   「66」という値ではない。JVM テスト側へ期待値を書き写すと、実装が壊れたときに
+      #   golden の 66 を 65 へ直す退行が新テストも一緒に素通りする（両方直せば緑）＝第二の目が消える。
+      #   ソース文面を読む検査は、テスト実行系の外に置いてこそ系譜の外側に居られる。
+      # ②失敗の読み: 落ちれば「暁が 66 でなく 65 章になった」と1行で出る。単体テスト群に混ぜると
+      #   何百件の中の1 failure になり、実装の赤か fixture の赤かが分からなくなる。
+      # ③頻度: push/PR ごと＝実装変更でも fixture 差し替えでも必ず走る（Gradle の UP-TO-DATE で
+      #   飛ばされることもない。verifyRoborazziDebug の「既知の限界」と同じ罠を踏まない）。
+      # 走行は純 bash（grep/sort/wc）で数十 ms＝Java セットアップより前に置いて fail-fast を保つ。
+      - name: TOC 章数の実装非依存突合（暁66・カクヨム593）
+        run: bash tools/count_toc_fixture_chapters.sh
+
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17' # AGP 8.6.1 / Gradle 8.9 に合わせたローカル環境（Temurin 17）と同一系列
+          java-version: '17' # AGP の要求 JDK に追随（AGP の版の正本＝android/settings.gradle）。ローカルの Temurin 17 と同一系列
 
       # Gradle のビルドキャッシュ・wrapper キャッシュを跨ぎ実行で共有
       - uses: gradle/actions/setup-gradle@v4
@@ -82,7 +97,7 @@ jobs:
       #
       # なぜ testDebugUnitTest ではなく verifyRoborazziDebug を回すのか:
       # verify は testDebugUnitTest 本体を roborazzi.test.verify=true 付きで実行する形なので、
-      # 単体テスト全件（実測 1072 件）と golden 比較（48 枚）が**同じ1パス**で終わる。
+      # 単体テスト全件と golden 比較の全枚数が**同じ1パス**で終わる（件数・枚数は増えるので書かない＝タスク出力で確認）。
       # 2ステップに分けると system property が変わって test タスクが丸ごと2回走り、時間がほぼ倍になる。
       # golden 不一致は captureRoboImage が AssertionError を投げてテストを落とす＝ビルドが赤になる
       # （golden 1枚を差し替えた陽性確認で BUILD FAILED を実測済み）。
@@ -95,6 +110,37 @@ jobs:
       - name: Unit tests + screenshot golden verify
         working-directory: android
         run: ./gradlew :app:verifyRoborazziDebug
+
+      # golden の fontScale 2.0 破綻を画素から走査する（純 Python・標準ライブラリのみ）。
+      # なぜ verify と別に要るか: verify は「撮った1枚 → 同名 golden」の一致しか見ないため、
+      # **初回記録の時点で壊れていた絵**は永久に正として固定される。実際 2026-08-06 の監査で
+      # 104枚中20枚が破綻を焼き付けており、CI は全期間ずっと緑だった。
+      #
+      # 2026-08-17 にブロッキングへ昇格（continue-on-error: true を外した）。
+      # 経緯（なぜ最初から落とさなかったか）: 導入した 2026-08-06 時点で (c) が1件赤く、これは目次の
+      # 「ここから再開」チップが**非加重子として実寸を先取り**して章題を1行1文字へ潰す実破綻だった
+      # （K/M/J。M/J は話数ラベル `.ep` の 52dp 固定でラベル自体も3行に割れており、こちらは (c) の
+      # 行内孤立条件に掛からず無検知だった）。是正が意匠変更を伴いモック裁定待ちだったため、
+      # 二段構えの第1段＝可視化だけを先に置いて赤を溜めない形にした。
+      # 解消: 2026-08-07 の「目次の現在地バーが fontScale 2.0 で章題を1行1文字に潰し進捗も読めない」の
+      # 修正便で K/M/J/D/P の5経路とも是正され（チップのアイコン化＋話数ラベル幅を
+      # 桁数追従へ＝ui/skins/TocEpLabelWidth.kt。52dp は固定幅ではなく下限になった）、走査3本とも赤0になった。
+      # レイアウト値の回帰は test/.../TocResumeAffordanceLayoutTest.kt が別途固定している。
+      # 昇格の条件は導入時から「赤0になったら外す」と決めてあった＝ktlint が 2026-08-05 に辿ったのと同じ経路。
+      # ⚠️ 3本は1つの run にぶら下がるが、既定シェルが `bash -e` なので**最初に落ちた1本で止まる**。
+      # 手元で全件の残数を数えるときは3本を個別に叩くこと（ktlint の --continue と同じ落とし穴）。
+      # 走査(c) の判定器そのものの回帰（感度＝本物を赤にする／特異度＝産物を緑にする）。
+      # なぜ走査より先に置くか: 偽陽性を消すたびに述語が足される検査なので、緩めすぎて
+      # 「常に緑を返すだけの部品」に化けても走査本体は緑のままで気づけない。走査の結果を
+      # 信じる前に、判定器が是正済みの本物（履歴から凍結した golden）を今も赤にできることを見る。
+      - name: golden 走査(c) 判定器の回帰テスト
+        run: python3 tools/test_check_golden_label_split.py
+
+      - name: golden の 2.0 破綻走査（ブロッキング）
+        run: |
+          python3 tools/check_golden_rule_loss.py android/app/src/test/screenshots
+          python3 tools/check_golden_bottom_clip.py android/app/src/test/screenshots
+          python3 tools/check_golden_label_split.py android/app/src/test/screenshots
 
       # androidTest の「ビルドだけ」をゲートへ（実行は端末必須＝冒頭コメント）。
       # なぜ必要か: 既定ゲートの testDebugUnitTest は androidTest ソースをコンパイルしないため、

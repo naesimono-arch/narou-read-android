@@ -1,7 +1,7 @@
 # 0025. versionCode/versionName 採番規約（内部→オープン→製品トラック運用）
 
 - 状態: **Accepted（2026-07-29 ユーザー裁定＝案A採用・テストトラック suffix なし）**
-- 関連: `android/app/build.gradle`（現在値 `versionCode 1` / `versionName "1.0"`）・`handover.md`「Google Play 公開準備」[運用] 項・完全フロー資料 §3/§6（`/mnt/c/Users/qingj/Desktop/project/アプリ公開戦略/`）
+- 関連: `android/app/build.gradle`（現在値 `versionCode 1` / `versionName "1.0"`）・`handover.md`「Google Play 公開準備」[運用] 項・完全フロー資料 §3/§6（`/mnt/c/Users/naesimono/Desktop/project/アプリ公開戦略/`）
 
 ## 背景（要求と制約）
 

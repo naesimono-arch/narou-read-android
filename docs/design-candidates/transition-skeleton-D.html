@@ -1,10 +1,10 @@
-<!-- @dsCard group="UI-n / 遷移スケルトン（D詰め）" name="D. 遷移中の軽量表示 — 本棚→目次/本文 push（案A 構造骨／案B 面のみ／案C 後着フェード）" -->
+<!-- @dsCard group="UI-n / 遷移スケルトン（D詰め）" name="D. 遷移中の軽量表示 — 本棚→目次/本文 push（採用＝案A 構造骨／本文の粒度は横 案3・縦 V2）" -->
 <!DOCTYPE html>
 <html lang="ja">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>UI-n D 遷移スケルトン — 本棚→目次/本文 push</title>
+<title>UI-n D 遷移スケルトン — 本棚→目次/本文 push（横 案3・縦 V2）</title>
 <style>
   /*==harness==*/
   /* 遷移ジャム対策（本棚→目次/本文 push の初回コンポーズ 70〜120ms がスライド窓 250ms に同居する問題）:
@@ -13,7 +13,22 @@
      tween 既定イージング FastOutSlowIn ≈ cubic-bezier(.4,0,.2,1)）。骨の語彙は実装済みの先例
      BookshelfSkeleton（P2）を写経: 棒=高さ11px・角丸2px・塗り2値（塊=surfaceVariant/線=ShelfHairline）。
      3テーマのうち代表してライトを提示（セピア/ダークは骨の2値を各テーマの blk-bg/hairline 対応値へ差し替え）。
-     戻り（pop）は対象外＝既測コンテンツで安価（P2 と同じ理由で enter のみ守る）。 */
+     戻り（pop）は対象外＝既測コンテンツで安価（P2 と同じ理由で enter のみ守る）。
+
+     ── 裁定の履歴 ──────────────────────────────────────────────
+     2026-07-29: 型は【案A 構造プレースホルダ】を採用（案B 面だけ／案C 後着フェードは不採用＝下の各紙面に理由）。
+                 同日「縦書き専用骨は作らない（骨は横書き汎形1種）」も裁定した。
+     2026-08-26: 本文骨の【粒度】を裁定し、上の縦書き裁定を覆した（ADR 0040）。
+                 ・横書き＝案3「段落の呼吸まで」（章題2行・段落行数のばらし・段落末の余り・短い会話行）
+                 ・縦書き＝案V2「段落の切れ目まで」（縦書き専用骨を新設＝先例ゼロで借りずに決めた）
+                 ・骨のクリアランスを描く（下の .clr 節）＝実装の骨は実本文の contentPadding を持たず
+                   章見出しの骨がトップバーの裏に隠れていた。旧版のこの紙面は上下バーを flex の兄弟として
+                   描いていたためズレが見えず、モックが実装の欠落を隠していた。
+                 ・骨の濃さ（コントラスト）は【保留＝現行値のまま】。他社13本の逆解析から一度は
+                   「CR 1.27〜1.44 の帯へ寄せる」と裁定したが、精査でその帯が〈骨↔背景／base↔highlight／
+                   lerp 両端〉の混成＝比較不能と判明したため撤回した（ADR 0040・骨色は1ビットも触らない）。
+                 ・shimmer は入れない（ADR 0014 §C「静謐」＝自動ループ禁止と衝突。骨は1ピクセルも動かない）。
+     ──────────────────────────────────────────────────────── */
   :root{
     /* toc-D / reading-D(.t-light) / bookshelf-D の写経（直書き発明禁止） */
     --base:#FBFAF8;--ink:#1C1F26;--soft:#7C808B;--line:#ECEAE4;
@@ -47,6 +62,8 @@
     background:#F4F3EE;color:#2A2C28;cursor:pointer}
   .wrap .note{font-size:11.5px;color:#5A5C57;line-height:1.75;width:100%}
   .wrap .note b{color:#2A2C28}
+  .wrap .keep{color:#2E5A3A}
+  .wrap .drop{color:#8A4A38}
   .phone{width:372px;height:780px;background:var(--base);border-radius:40px;overflow:hidden;position:relative;
     box-shadow:0 20px 50px rgba(0,0,0,.28)}
   /*==/harness==*/
@@ -157,6 +174,71 @@
   .sk-topbar{height:52px;flex-shrink:0;display:flex;align-items:center;gap:12px;padding:0 20px;
     border-bottom:1px solid var(--line)}
   .flat{flex:1}
+
+  /* ================= 2026-08-26 裁定ぶん（採用案の紙面はここから下の模型で描く）=================
+     ---- クローム＝オーバーレイ模型 ----
+     実装では上下バーは本文の【上に浮く】（Scaffold の contentWindowInsets=0・バーはオーバーレイ描画）。
+     版面（骨・実本文）は画面の最上端から始まり、バーを避けるクリアランスは【版面が自分で持つ】。
+     旧模型（.sb/.topbar を flex の兄弟に置く）はバーがレイアウトを食う絵だったので、骨がクリアランスを
+     持たなくても揃って見えた＝実装の欠落（章見出しの骨がバーの裏に隠れる）をモックが隠していた。
+     ステータスバー域は edge-to-edge＝地を塗らず版面が透ける（実装と同じ）。 */
+  .chrome{position:absolute;inset:0;z-index:3;display:flex;flex-direction:column;pointer-events:none}
+  .chrome .topbar{background:var(--base)}
+  .chrome .bottombar{position:static;margin-top:auto;flex-shrink:0}
+  /* z-index:0 を層へ明示して stacking context を作る＝層の中の z-index（骨1・クローム3）が層をまたいで
+     競合しないようにする。無いと〈骨層のクローム〉が実層を突き抜けて上に出る。 */
+  .layer.ovl{display:block;z-index:0;overflow:hidden}
+
+  /* ---- クリアランス（.clr）＝実装 ChapterContent の contentPadding の写経 ----
+     上＝statusBars インセット ＋ Insets.ReadingBodyTopExtra(64dp)／
+     下＝navigationBars インセット ＋ Insets.ReadingBodyBottomExtra(80dp)。
+     このモックの座標系では 上 86px（sb 34 + topbar 52）／下 72px（bottombar 60 + 呼吸 12）。
+     骨と実本文の【両方】に同じ値を掛ける＝差し替えで章見出しが縦に1pxも跳ばない、が成立の根拠。 */
+  .sk-reader.clr,.reader.clr{position:absolute;inset:0;flex:none;padding:86px 24px 72px;overflow:hidden}
+  /* 章題は2行に折り返る前提（案3）＝題の骨も2本。2本目の上間隔だけ 8px（1本目は 12px）。 */
+  .sk-ch .t2{margin-top:8px}
+  /* 段落骨は .sk-p でくくって「段落の塊」を作る（行間は 29px＝行送り40−骨11・段落間も行送り1つぶん）。 */
+
+  /* ---- 縦書きの骨（案V2）----
+     列送り40px（本文16.5px×2.4）＝骨11px＋間隔29px。右→左（先頭列が右端）。
+     版面は実装 VerticalChapterContent の contentPadding と同じ:
+       top/bottom＝システムバーのインセットのみ。**上下バーのクリアランス（64/80dp）は足さない**——
+       LazyRow では交差軸＝全列の列高から恒久的に差し引かれ、横画面（視野高 360dp）で列高が
+       約4割まで潰れる（2026-07-17 実機実測）。列はバーの下を素通りする。
+       左右＝S24（読み進め方向の余白）／各列の上下＝ユーザー設定の本文余白（既定15dp≒20px）。 */
+  .vsk{position:absolute;top:34px;left:0;right:0;bottom:0;z-index:1;overflow:hidden;padding:20px 24px;
+    display:flex;flex-direction:row-reverse;align-items:stretch;gap:29px}
+  .vcol{position:relative;flex:0 0 11px;width:11px;border-radius:2px;background:var(--skel-block)}
+  /* 段落頭の列＝1em(16.5px)ぶん上端が下がる（縦書きの字下げ）。 */
+  .vcol.head{margin-top:16.5px}
+  /* 章見出しの骨: 右から〈話数72px・題208px・題2列目150px・藍の縦ルール48×2px〉を縦中央に。
+     実装 VerticalChapterHeader の Row(LTR)=[ルール, S16, 題, S8, 話数] の鏡（読み順は右→左）。
+     margin-left:-13px は外側 gap29 と実装の padding(horizontal=S16) を合わせるモック側の差分＝実装対象外。 */
+  .vch{flex:0 0 auto;display:flex;flex-direction:row-reverse;align-items:center;gap:8px;
+    padding-right:16px;margin-left:-13px}
+  .vch .vb{width:11px;border-radius:2px;background:var(--skel-line)}
+  .vch .num{height:72px}
+  .vch .t{height:208px}
+  .vch .rl{width:2px;height:48px;border-radius:1px;background:var(--skel-line);margin-right:8px}
+
+  /* ---- 縦書きの実内容（reading-vertical-scroll-D 写経・ライト）---- */
+  .vreader{position:absolute;top:34px;left:0;right:0;bottom:0;z-index:1;overflow:hidden;padding:20px 24px;
+    writing-mode:vertical-rl;-webkit-writing-mode:vertical-rl;font-family:var(--mincho)}
+  .vreader .chap-h{text-align:center;margin:0 16px}
+  .vreader .chap-h .num{font-family:var(--gothic);font-size:11px;color:var(--ai);letter-spacing:.3em}
+  .vreader .chap-h .t{font-size:18px;color:var(--ink);margin-block-start:8px;line-height:1.7;font-weight:600}
+  .vreader .chap-h .rule{inline-size:48px;block-size:2px;background:var(--rule);
+    margin-inline:auto;margin-block-start:16px;opacity:.85}
+  .vreader p{font-size:16.5px;line-height:2.4;color:var(--ink);text-indent:1em;margin:0}
+  .vreader ruby rt{font-size:.5em;color:var(--ruby);font-weight:400;letter-spacing:.04em}
+  .vreader .blank{block-size:1.4em}
+  .vreader .block{border:1px solid var(--blk-bd);background:var(--blk-bg);padding:16px 12px;margin:0 4px;
+    border-radius:2px}
+  .vreader .block .lbl{font-family:var(--gothic);font-size:11px;color:var(--ai);font-weight:700;
+    margin-block-end:8px;letter-spacing:.1em}
+  .vreader .block p{font-size:14.5px;line-height:2.1;text-indent:1em;margin:0}
+  /* 縦書き中はトップバーに章題を出さない（2026-07-29 裁定＝列の上端が題字の下へ潜るため）。戻り矢印だけ。 */
+  .chrome.vt .topbar{padding:0 16px}
 </style>
 </head>
 <body>
@@ -178,8 +260,8 @@
   <div class="stage">
 
     <!-- 案A: 構造プレースホルダ型（目次） -->
-    <div class="wrap"><span class="mode">案A 構造プレースホルダ型</span>
-      <div class="phone demo swap" role="img" aria-label="案A 目次 構造骨">
+    <div class="wrap"><span class="mode">案A 構造プレースホルダ型 ＝採用</span>
+      <div class="phone demo swap" role="img" aria-label="採用: 目次の構造骨">
         <div class="under">
           <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
           <div class="bs-top"><span class="t">本棚</span></div>
@@ -241,8 +323,8 @@
     </div>
 
     <!-- 案B: 面だけ型（目次） -->
-    <div class="wrap"><span class="mode">案B 面だけ型</span>
-      <div class="phone demo swap" role="img" aria-label="案B 目次 面のみ">
+    <div class="wrap"><span class="mode">案B 面だけ型 ＝不採用</span>
+      <div class="phone demo swap" role="img" aria-label="案B（不採用）目次 面のみ">
         <div class="under">
           <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
           <div class="bs-top"><span class="t">本棚</span></div>
@@ -291,8 +373,8 @@
     </div>
 
     <!-- 案C: フェード合成型（目次） -->
-    <div class="wrap"><span class="mode">案C 後着フェード型（骨なし）</span>
-      <div class="phone demo fade" role="img" aria-label="案C 目次 後着フェード">
+    <div class="wrap"><span class="mode">案C 後着フェード型（骨なし）＝不採用</span>
+      <div class="phone demo fade" role="img" aria-label="案C（不採用）目次 後着フェード">
         <div class="under">
           <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
           <div class="bs-top"><span class="t">本棚</span></div>
@@ -346,9 +428,9 @@
   <div class="rowhead">本棚 → 本文（読書）</div>
   <div class="stage">
 
-    <!-- 案A: 構造プレースホルダ型（本文） -->
-    <div class="wrap"><span class="mode">案A 構造プレースホルダ型</span>
-      <div class="phone demo swap" role="img" aria-label="案A 本文 構造骨">
+    <!-- 案A: 構造プレースホルダ型（本文・横書き）＝採用。粒度は 2026-08-26 裁定の案3「段落の呼吸まで」 -->
+    <div class="wrap"><span class="mode">案A 構造プレースホルダ型 ＝採用（横 案3）</span>
+      <div class="phone demo swap" role="img" aria-label="採用: 本文の構造骨（横書き・案3 段落の呼吸まで）">
         <div class="under">
           <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
           <div class="bs-top"><span class="t">本棚</span></div>
@@ -360,30 +442,57 @@
           </div>
         </div>
         <div class="mover">
-          <!-- 骨層: クローム（上下バー）は実描画＝軽量。本文だけ段落バーの骨（P2 と同じ分担） -->
-          <div class="layer skel">
-            <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
-            <div class="topbar">
-              <span class="ib"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></span>
-              <div class="ct">第百二十七話　雨上がりの城門にて、彼女は静かに剣を置いた</div>
-            </div>
-            <div class="sk-reader">
-              <!-- 章見出しの骨（話数ラベル・題・藍ルールの場所取り） -->
-              <div class="sk-ch"><span class="bone num"></span><span class="bone t"></span><span class="rl"></span></div>
-              <!-- 段落の骨: 本文の行リズム（約40px）に載せ、段落頭は1em字下げ -->
+          <!-- 骨層: クローム（上下バー）は実描画のオーバーレイ＝軽量。本文だけ段落バーの骨（P2 と同じ分担）。
+               版面（.clr）は骨が【自分で】クリアランスを持つ＝実本文の contentPadding と同値。 -->
+          <div class="layer skel ovl">
+            <div class="sk-reader clr">
+              <!-- 章見出しの骨: 話数72px・題は2行折り返し前提で 288px+126px の2本・藍ルール48×2px -->
+              <div class="sk-ch">
+                <span class="bone num"></span>
+                <span class="bone t" style="width:288px"></span>
+                <span class="bone t t2" style="width:126px"></span>
+                <span class="rl"></span>
+              </div>
+              <!-- 段落の骨（案3）: ①段落の行数を1〜4行でばらす ②段落末の余りを毎回ちがう長さに
+                   ③会話の短い1行段落を混ぜる ④面の下端まで埋める（続きがあるのは実本文と同じ）。
+                   前書き・ルビ・区切りは出さない＝章ごとに有無が変わる＝内容非依存の汎形に留める（案4 不採用の核）。 -->
               <div class="sk-p">
-                <div class="bone blk ln head" style="width:88%"></div>
+                <div class="bone blk ln head" style="width:92%"></div>
                 <div class="bone blk ln" style="width:100%"></div>
                 <div class="bone blk ln" style="width:100%"></div>
-                <div class="bone blk ln tail"></div>
+                <div class="bone blk ln" style="width:38%"></div>
               </div>
               <div class="sk-p">
-                <div class="bone blk ln head" style="width:64%"></div>
+                <div class="bone blk ln head" style="width:52%"></div>
+              </div>
+              <div class="sk-p">
+                <div class="bone blk ln head" style="width:96%"></div>
+                <div class="bone blk ln" style="width:100%"></div>
+                <div class="bone blk ln" style="width:64%"></div>
+              </div>
+              <div class="sk-p">
+                <div class="bone blk ln head" style="width:88%"></div>
+                <div class="bone blk ln" style="width:44%"></div>
+              </div>
+              <div class="sk-p">
+                <div class="bone blk ln head" style="width:66%"></div>
               </div>
               <div class="sk-p">
                 <div class="bone blk ln head" style="width:94%"></div>
                 <div class="bone blk ln" style="width:100%"></div>
-                <div class="bone blk ln" style="width:58%"></div>
+                <div class="bone blk ln" style="width:100%"></div>
+                <div class="bone blk ln" style="width:78%"></div>
+              </div>
+              <div class="sk-p">
+                <div class="bone blk ln head" style="width:90%"></div>
+                <div class="bone blk ln" style="width:100%"></div>
+              </div>
+            </div>
+            <div class="chrome">
+              <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+              <div class="topbar">
+                <span class="ib"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></span>
+                <div class="ct">第百二十七話　雨上がりの城門にて、彼女は静かに剣を置いた</div>
               </div>
               <div class="bottombar">
                 <button><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg><span class="bl">前章</span></button>
@@ -393,18 +502,20 @@
               </div>
             </div>
           </div>
-          <!-- 実層（reading-D ライト写経） -->
-          <div class="layer real">
-            <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
-            <div class="topbar">
-              <span class="ib"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></span>
-              <div class="ct">第百二十七話　雨上がりの城門にて、彼女は静かに剣を置いた</div>
-            </div>
-            <div class="reader">
+          <!-- 実層（reading-D ライト写経）。骨と同じ .clr＝差し替えで章見出しが縦に跳ばない。 -->
+          <div class="layer real ovl">
+            <div class="reader clr">
               <div class="chap-h"><div class="num">第 百二十七 話</div><div class="t">雨上がりの城門にて、彼女は静かに剣を置いた</div><div class="rule"></div></div>
               <div class="block"><div class="lbl">前書き</div><p>お読みいただきありがとうございます。今回は少し長めの戦闘回になりました。次話は<ruby>後日談<rt>ごじつだん</rt></ruby>を挟みます。</p></div>
               <p><ruby>辺境<rt>へんきょう</rt></ruby>の<ruby>城門<rt>じょうもん</rt></ruby>に<ruby>辿<rt>たど</rt></ruby>り<ruby>着<rt>つ</rt></ruby>いたのは、<ruby>長<rt>なが</rt></ruby>い<ruby>雨<rt>あめ</rt></ruby>がようやく<ruby>上<rt>あ</rt></ruby>がった<ruby>頃<rt>ころ</rt></ruby>だった。</p>
               <p>「——ここまで、よく<ruby>付<rt>つ</rt></ruby>いてきてくれた」</p>
+            </div>
+            <div class="chrome">
+              <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+              <div class="topbar">
+                <span class="ib"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></span>
+                <div class="ct">第百二十七話　雨上がりの城門にて、彼女は静かに剣を置いた</div>
+              </div>
               <div class="bottombar">
                 <button><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg><span class="bl">前章</span></button>
                 <button><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/><circle cx="4" cy="6" r="1" fill="currentColor" stroke="none"/><circle cx="4" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="4" cy="18" r="1" fill="currentColor" stroke="none"/></svg><span class="bl">目次</span></button>
@@ -417,13 +528,16 @@
       </div>
       <button class="rp" onclick="replay(this)">▶ 再生</button>
       <p class="note"><b>狙い: 「本のページが用意されつつある」感を骨で予告。</b>
-        章見出し（話数・題・藍ルール）と段落バーを本文の行リズム（約40px）へ載せる。
-        前書きの有無は章ごと可変のため骨に出さない（汎形）。差し替え＝settle+2f（+33ms・対案+0ms）。</p>
+        章見出し（話数・2行の題・藍ルール）と段落バーを本文の行リズム（約40px）へ載せ、
+        <b>段落の長短・段落末の余り・短い会話行</b>で「一様な棒列」でなく「段落の塊」に見せる（案3）。
+        前書き・ルビ・区切りの有無は章ごと可変のため骨に出さない（汎形＝案4 不採用）。
+        <b>クリアランスは骨が自分で持つ</b>（上 86px＝statusBar+64dp／下 72px＝navBar+80dp）。
+        差し替え＝settle+0ms（実装値。モック提案の +33ms は未採用）。</p>
     </div>
 
     <!-- 案B: 面だけ型（本文） -->
-    <div class="wrap"><span class="mode">案B 面だけ型</span>
-      <div class="phone demo swap" role="img" aria-label="案B 本文 面のみ">
+    <div class="wrap"><span class="mode">案B 面だけ型 ＝不採用</span>
+      <div class="phone demo swap" role="img" aria-label="案B（不採用）本文 面のみ">
         <div class="under">
           <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
           <div class="bs-top"><span class="t">本棚</span></div>
@@ -471,8 +585,8 @@
     </div>
 
     <!-- 案C: フェード合成型（本文） -->
-    <div class="wrap"><span class="mode">案C 後着フェード型（骨なし）</span>
-      <div class="phone demo fade" role="img" aria-label="案C 本文 後着フェード">
+    <div class="wrap"><span class="mode">案C 後着フェード型（骨なし）＝不採用</span>
+      <div class="phone demo fade" role="img" aria-label="案C（不採用）本文 後着フェード">
         <div class="under">
           <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
           <div class="bs-top"><span class="t">本棚</span></div>
@@ -529,9 +643,152 @@
 
   </div>
 
-  <p class="subcap">写経元: 目次=toc-D.html／本文=reading-D.html(.t-light)／骨=BookshelfSkeleton（P2・BookshelfScreen.kt）
+  <!-- ============================== 本文（縦書き） ============================== -->
+  <div class="rowhead">本棚 → 本文（縦書き・案V2 ＝採用）</div>
+  <p class="subcap" style="max-width:860px;text-align:left;margin-bottom:12px">
+    同じ遷移窓に、縦書き設定のときは<b>縦書き専用の骨</b>を出す（2026-08-26 裁定＝ADR 0040。
+    それまでは横書き汎形1種だけで、着地の瞬間に紙面が90度変わっていた）。
+    <b>縦書きでは上下バーのクリアランスを足さない</b>——列高（交差軸）から恒久的に引かれ、
+    横画面で列高が約4割まで潰れるため。列はバーの下を素通りする（実本文と同じ版面）。</p>
+  <div class="stage">
+
+    <div class="wrap"><span class="mode">案V2 段落の切れ目まで ＝採用</span>
+      <div class="phone demo swap" role="img" aria-label="採用: 本文の構造骨（縦書き・案V2 段落の切れ目まで）">
+        <div class="under">
+          <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+          <div class="bs-top"><span class="t">本棚</span></div>
+          <div class="bs-grid">
+            <div class="bs-card"><div class="cov"></div><div class="bone" style="width:88%"></div><div class="bone" style="width:56%"></div></div>
+            <div class="bs-card"><div class="cov"></div><div class="bone" style="width:74%"></div><div class="bone" style="width:62%"></div></div>
+            <div class="bs-card"><div class="cov"></div><div class="bone" style="width:82%"></div><div class="bone" style="width:48%"></div></div>
+            <div class="bs-card"><div class="cov"></div><div class="bone" style="width:68%"></div><div class="bone" style="width:58%"></div></div>
+          </div>
+        </div>
+        <div class="mover">
+          <!-- 骨層: 列は右→左。先頭列（右端）が章見出し＝実本文と組方向・列送りが一致する。 -->
+          <div class="layer skel ovl">
+            <div class="vsk">
+              <!-- 章見出しの骨: 右から〈話数72・題208・題2列目150・藍の縦ルール48×2〉 -->
+              <div class="vch"><span class="vb num"></span><span class="vb t"></span>
+                <span class="vb t" style="height:150px"></span><span class="rl"></span></div>
+              <!-- 段落の骨（案V2）: ①段落頭の列は上端が1em下がる（縦書きの字下げ）
+                   ②段落末の列は下端が余る（38/64/47%）③短い会話の1列段落（34%）を混ぜる。
+                   ルビ・前書き・区切りは出さない（横 案3 と同じ内容非依存の線引き＝案V3 不採用）。 -->
+              <div class="vcol head"></div>
+              <div class="vcol"></div>
+              <div class="vcol"></div>
+              <div class="vcol" style="height:38%;align-self:flex-start"></div>
+              <div class="vcol head" style="height:34%;align-self:flex-start"></div>
+              <div class="vcol head"></div>
+              <div class="vcol"></div>
+              <div class="vcol" style="height:64%;align-self:flex-start"></div>
+              <div class="vcol head"></div>
+              <div class="vcol" style="height:47%;align-self:flex-start"></div>
+            </div>
+            <div class="chrome vt">
+              <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+              <div class="topbar">
+                <span class="ib"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></span>
+              </div>
+              <div class="bottombar">
+                <button><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg><span class="bl">前章</span></button>
+                <button><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/><circle cx="4" cy="6" r="1" fill="currentColor" stroke="none"/><circle cx="4" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="4" cy="18" r="1" fill="currentColor" stroke="none"/></svg><span class="bl">目次</span></button>
+                <button class="set"><svg viewBox="0 0 24 24"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="9" cy="8" r="2.4" fill="var(--base)"/><circle cx="15" cy="16" r="2.4" fill="var(--base)"/></svg><span class="bl">表示設定</span></button>
+                <button><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg><span class="bl">次章</span></button>
+              </div>
+            </div>
+          </div>
+          <!-- 実層（reading-vertical-scroll-D 写経）。骨と同じ版面＝top はシステムバーぶんのみ。 -->
+          <div class="layer real ovl">
+            <div class="vreader">
+              <div class="chap-h">
+                <div class="num">第 百二十七 話</div>
+                <div class="t">雨上がりの城門にて、彼女は静かに剣を置いた</div>
+                <div class="rule"></div>
+              </div>
+              <div class="block"><div class="lbl">前書き</div>
+                <p>お読みいただきありがとうございます。今回は少し長めの道中回になりました。</p></div>
+              <p><ruby>辺境<rt>へんきょう</rt></ruby>の<ruby>城門<rt>じょうもん</rt></ruby>に<ruby>辿<rt>たど</rt></ruby>り<ruby>着<rt>つ</rt></ruby>いたのは、長い雨がようやく<ruby>上<rt>あ</rt></ruby>がった<ruby>頃<rt>ころ</rt></ruby>だった。</p>
+              <div class="blank"></div>
+              <p>「——ここまで、よく<ruby>付<rt>つ</rt></ruby>いてきてくれた」</p>
+              <p><ruby>石畳<rt>いしだたみ</rt></ruby>にはまだ水が<ruby>溜<rt>た</rt></ruby>まっていて、<ruby>灯<rt>あか</rt></ruby>りがそこに<ruby>滲<rt>にじ</rt></ruby>んでいる。</p>
+              <div class="blank"></div>
+              <p>その夜、宿の窓から見えた空は、まだ少しだけ<ruby>湿<rt>しめ</rt></ruby>っていた。</p>
+            </div>
+            <div class="chrome vt">
+              <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+              <div class="topbar">
+                <span class="ib"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></span>
+              </div>
+              <div class="bottombar">
+                <button><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg><span class="bl">前章</span></button>
+                <button><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/><circle cx="4" cy="6" r="1" fill="currentColor" stroke="none"/><circle cx="4" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="4" cy="18" r="1" fill="currentColor" stroke="none"/></svg><span class="bl">目次</span></button>
+                <button class="set"><svg viewBox="0 0 24 24"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="9" cy="8" r="2.4" fill="var(--base)"/><circle cx="15" cy="16" r="2.4" fill="var(--base)"/></svg><span class="bl">表示設定</span></button>
+                <button><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg><span class="bl">次章</span></button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <button class="rp" onclick="replay(this)">▶ 再生</button>
+      <p class="note"><b>狙い: 着地で紙面が90度回らないようにする。</b>
+        列送り・列高・左右余白（S24）・見出しの積み方（右から 話数→題→藍ルール）を実本文と揃えたうえで、
+        段落の切れ目（字下げ・列末の余り・短い会話列）を骨でも見せる。
+        <span class="keep">守る＝組方向の一致・内容非依存（どの章でもこの形）。</span>
+        <span class="drop">捨てる＝ルビ・前書き・区切り（案V3 の道具立ては内容依存で「骨が嘘をつく」）。</span>
+        <b>クリアランスは足さない</b>（横書きの 64/80dp を持ち込むと列高が約4割まで潰れる）。</p>
+    </div>
+
+    <div class="wrap"><span class="mode">（参考）横書き汎形をそのまま出した場合 ＝旧実装</span>
+      <div class="phone" role="img" aria-label="旧実装: 縦書き画面に横書きの骨が出る">
+        <div class="layer skel ovl">
+          <div class="sk-reader clr">
+            <div class="sk-ch"><span class="bone num"></span><span class="bone t"></span><span class="rl"></span></div>
+            <div class="sk-p">
+              <div class="bone blk ln head" style="width:88%"></div>
+              <div class="bone blk ln" style="width:100%"></div>
+              <div class="bone blk ln" style="width:100%"></div>
+              <div class="bone blk ln tail"></div>
+            </div>
+            <div class="sk-p"><div class="bone blk ln head" style="width:64%"></div></div>
+            <div class="sk-p">
+              <div class="bone blk ln head" style="width:94%"></div>
+              <div class="bone blk ln" style="width:100%"></div>
+              <div class="bone blk ln" style="width:58%"></div>
+            </div>
+          </div>
+            <div class="chrome vt">
+              <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+              <div class="topbar">
+                <span class="ib"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></span>
+              </div>
+              <div class="bottombar">
+                <button><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg><span class="bl">前章</span></button>
+                <button><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/><circle cx="4" cy="6" r="1" fill="currentColor" stroke="none"/><circle cx="4" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="4" cy="18" r="1" fill="currentColor" stroke="none"/></svg><span class="bl">目次</span></button>
+                <button class="set"><svg viewBox="0 0 24 24"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="9" cy="8" r="2.4" fill="var(--base)"/><circle cx="15" cy="16" r="2.4" fill="var(--base)"/></svg><span class="bl">表示設定</span></button>
+                <button><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg><span class="bl">次章</span></button>
+              </div>
+            </div>
+        </div>
+      </div>
+      <p class="note">比較用の再掲＝<b>2026-07-29 裁定「縦書き専用骨は作らない」の帰結</b>。棒は上から下へ積み、
+        着地すると紙面は右→左の列に変わる＝骨と実内容で組方向が90度違う。
+        （この紙面ではクリアランスだけ現行の是正後の値で描いている＝比べるのは<b>組方向</b>の一点。）</p>
+    </div>
+
+  </div>
+
+  <p class="subcap">写経元: 目次=toc-D.html／本文（横）=reading-D.html(.t-light)／本文（縦）=reading-vertical-scroll-D.html
+    ／骨=BookshelfSkeleton（P2・BookshelfScreen.kt）／版面=ChapterContent.kt・VerticalChapterContent.kt の contentPadding
     ／モーション=Motion.kt（Nav 250ms・フェード=Nav/2）。背景の本棚は簡略表現（裁定対象は入る側のみ）。
-    入る側の左端の影はデモ可読性の補助＝実装対象外。</p>
+    入る側の左端の影はデモ可読性の補助＝実装対象外。<br>
+    <b>骨の色は実装値そのまま</b>（段落骨 #F1F0EC・見出し骨/線 #E4E2DB を素地 #FBFAF8 の上に）＝
+    薄くて見えにくいのは実装どおりで、モックの手加減ではない。2026-08-26 に他社帯へ寄せる裁定を出したが
+    比較不能と判明して撤回済み＝<b>濃さは保留・現行値のまま</b>（ADR 0040）。<br>
+    <b>骨は1ピクセルも動かない</b>（shimmer・パルスを入れない＝ADR 0014 §C「静謐」）ので、
+    この静止画1枚が窓 0〜250ms の完全な絵になる。<br>
+    <b>どちらの向きも写していないもの</b>: 段落と段落のあいだの空行（実本文では 1.4〜1.5em の空きが入ることがある）。
+    骨は段落間も行送り/列送り1つぶんに留めている＝入れるかどうかは別に判断が要る。</p>
 
 <script>
   /* 再生＝play クラスの付け外しで CSS アニメを頭出し（reflow 強制で確実にリスタート） */

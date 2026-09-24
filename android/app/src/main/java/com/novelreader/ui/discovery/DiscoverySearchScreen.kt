@@ -1,8 +1,11 @@
 package com.novelreader.ui.discovery
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.keyframes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -16,6 +19,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -46,6 +50,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -53,13 +58,17 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.novelreader.ui.theme.FontActionLabel
 import com.novelreader.ui.theme.FontButtonLabel
@@ -71,7 +80,10 @@ import com.novelreader.ui.theme.FontScreenTitle
 import com.novelreader.ui.theme.FontSubTitle
 import com.novelreader.ui.theme.LocalShelfColors
 import com.novelreader.ui.theme.MinchoFamily
+import com.novelreader.ui.theme.MotionDurationRangeLockNudge
+import com.novelreader.ui.theme.MotionEasingRangeLockNudge
 import com.novelreader.ui.theme.Spacing
+import com.novelreader.ui.theme.rememberReduceMotion
 import com.novelreader.narou.SearchHistory
 import com.novelreader.narou.model.NarouCuratedKeywords
 import com.novelreader.domain.toggleWordToken
@@ -80,6 +92,8 @@ import com.novelreader.viewmodel.DiscoveryViewModel
 import com.novelreader.domain.SearchDraft
 import com.novelreader.domain.SearchRange
 import com.novelreader.domain.withRangeToggled
+import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
 
 
 /**
@@ -303,9 +317,43 @@ internal fun DiscoverySearchContent(
                 // なぜ FilterChip の leadingIcon を使わないか: チェックマークなどの余計な装飾を省き、
                 // モックの「枠と背景の反転のみで状態を示す静かなチップ」の意匠に合わせるため。
                 // F-H: 検索範囲は最低1つ必要（全解除＝なろうAPI仕様で全項目対象となり不透明化する。SearchDraft
-                // 側の withRangeToggled が最後の1つを保護する）。残り1つになったチップは onClick が無反応になり
-                // 「死んだアフォーダンス」になるため、その最後の1つは selected+disabled にして制約を「押せなさ」で示す。
+                // 側の withRangeToggled が最後の1つを保護する＝状態の決定はドメインが単独で持ち、ここでは二重に禁止しない）。
+                // 最後の1つを enabled=false にしない理由（案A・2026-08-07 ユーザー裁定。正本モック
+                // docs/design-candidates/skins/search-range-lock-A.html）: disabled の淡色化は
+                // disabledLabelColor が**選択中にも**効くため、選択を示す唯一の手掛かりだった「藍」がラベルから
+                // 消えて灰へ落ちる＝「選択から外れた」と読めてしまう（枠も 38% で未選択の枠と近い明度に着地）。
+                // 代わりに見た目は選択済みのまま据え置き、押下には「注記＋その横揺れ」で応える
+                // （押せる・応える・でも外れない）。
                 val selectedRangeCount = listOf(draft.inTitle, draft.inKeyword, draft.inWriter, draft.inStory).count { it }
+                // 揺れは動きなので reduce-motion 時は出さない（注記だけで理由は伝わる）。判定は theme/ReduceMotion.kt の単一情報源。
+                val reduceMotion = rememberReduceMotion()
+                val noteNudge = remember { Animatable(0f) }
+                val nudgeScope = rememberCoroutineScope()
+                val density = LocalDensity.current
+                val nudgeSwingPx = with(density) { RangeLockNudgeSwing.toPx() }
+                val nudgeSettlePx = with(density) { RangeLockNudgeSettle.toPx() }
+                val onRangeChipClick: (SearchRange, Boolean) -> Unit = { range, isSelected ->
+                    // 状態はドメインに委ねる（最後の1つなら withRangeToggled が同じ draft を返す＝結果として外れない）。
+                    onSetDraft(draft.withRangeToggled(range))
+                    if (isSelected && selectedRangeCount == 1 && !reduceMotion) {
+                        nudgeScope.launch {
+                            // 連打でも毎回頭から再生する（前回の残りを引き継ぐと揺れ幅が目減りする）。
+                            noteNudge.snapTo(0f)
+                            noteNudge.animateTo(
+                                targetValue = 0f,
+                                // モック `@keyframes nudge` の写経（0 / −3px / +3px / −2px / 0 を 0・25・55・80・100% で刻む）。
+                                animationSpec = keyframes {
+                                    durationMillis = MotionDurationRangeLockNudge
+                                    0f at 0 using MotionEasingRangeLockNudge
+                                    -nudgeSwingPx at MotionDurationRangeLockNudge * 25 / 100 using MotionEasingRangeLockNudge
+                                    nudgeSwingPx at MotionDurationRangeLockNudge * 55 / 100 using MotionEasingRangeLockNudge
+                                    -nudgeSettlePx at MotionDurationRangeLockNudge * 80 / 100 using MotionEasingRangeLockNudge
+                                    0f at MotionDurationRangeLockNudge
+                                },
+                            )
+                        }
+                    }
+                }
                 FlowRow(
                     horizontalArrangement = Arrangement.spacedBy(Spacing.S8),
                     verticalArrangement = Arrangement.spacedBy(Spacing.S8),
@@ -314,36 +362,40 @@ internal fun DiscoverySearchContent(
                     FilterChipItem(
                         selected = draft.inTitle,
                         label = "タイトル",
-                        enabled = !(draft.inTitle && selectedRangeCount == 1),
-                        onClick = { onSetDraft(draft.withRangeToggled(SearchRange.TITLE)) }
+                        onClick = { onRangeChipClick(SearchRange.TITLE, draft.inTitle) },
+                        modifier = rangeLockSemantics(draft.inTitle && selectedRangeCount == 1),
                     )
                     FilterChipItem(
                         selected = draft.inKeyword,
                         label = "キーワード",
-                        enabled = !(draft.inKeyword && selectedRangeCount == 1),
-                        onClick = { onSetDraft(draft.withRangeToggled(SearchRange.KEYWORD)) }
+                        onClick = { onRangeChipClick(SearchRange.KEYWORD, draft.inKeyword) },
+                        modifier = rangeLockSemantics(draft.inKeyword && selectedRangeCount == 1),
                     )
                     FilterChipItem(
                         selected = draft.inWriter,
                         label = "作者名",
-                        enabled = !(draft.inWriter && selectedRangeCount == 1),
-                        onClick = { onSetDraft(draft.withRangeToggled(SearchRange.WRITER)) }
+                        onClick = { onRangeChipClick(SearchRange.WRITER, draft.inWriter) },
+                        modifier = rangeLockSemantics(draft.inWriter && selectedRangeCount == 1),
                     )
                     FilterChipItem(
                         selected = draft.inStory,
                         label = "あらすじ",
-                        enabled = !(draft.inStory && selectedRangeCount == 1),
-                        onClick = { onSetDraft(draft.withRangeToggled(SearchRange.STORY)) }
+                        onClick = { onRangeChipClick(SearchRange.STORY, draft.inStory) },
+                        modifier = rangeLockSemantics(draft.inStory && selectedRangeCount == 1),
                     )
                 }
-                // なぜチップを押せないのかを明示する注記（disabled の理由提示）。
+                // なぜ最後の1つが外れないのかを明示する注記。押下に応えて横へ揺れる先でもある
+                // （チップ自身を揺らさないのはモック準拠＝理由が書いてある場所に目を向けさせるため）。
                 if (selectedRangeCount == 1) {
                     Text(
                         text = "検索範囲は1つ以上必要です",
                         fontSize = FontMicroLabel,
-                        // なぜ InfoText か: disabled の理由提示＝意味を運ぶ文字（ADR 0014-D・alpha 沈め禁止）。
+                        // なぜ InfoText か: 制約の理由提示＝意味を運ぶ文字（ADR 0014-D・alpha 沈め禁止）。
                         color = LocalShelfColors.current.infoText,
-                        modifier = Modifier.padding(top = Spacing.S8)
+                        modifier = Modifier
+                            // offset をラムダ形にするのはアニメ値の読みを layout フェーズまで遅らせるため（再コンポーズを起こさない）。
+                            .offset { IntOffset(noteNudge.value.roundToInt(), 0) }
+                            .padding(top = Spacing.S8)
                     )
                 }
 
@@ -603,20 +655,60 @@ private fun SelectedKeywordsBar(
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = "選択中のキーワード ${tokens.size}件",
-                    fontSize = FontMicroLabel,
-                    letterSpacing = 1.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.weight(1f)
-                )
+                // 見出しの器（正本 discovery-search-D.html の `<span class="sel-bar-ttl">` に対応）。
+                // なぜ weight(1f) をやめて weight(1f, fill = false) ＋ SpaceBetween にしたか: 正本の
+                // `.sel-bar-ttl` は伸長指定を持たない（flex 既定＝`0 1 auto`＝伸びないが縮む）。
+                // fill = true（＝`flex:1 1 0`）は正本に無い加筆で、見出しが常に残り幅いっぱいの器を
+                // 得るため fontScale 2.0 で見出しが2行へ折れ、縦センターの「すべて解除」が2行の谷間へ
+                // 落ちてどちらの行にも属さなく見えていた（折返しは行箱でなく幅で決まる）。
+                // fill = false で器を内容幅へ戻し、右端定位置は行の余りを配る SpaceBetween が担う
+                // （＝正本 `.sel-bar-head` の `justify-content: space-between` の翻訳）。
+                // なぜ semantics でまとめるか: 見出しを Text 2本へ割った分だけ TalkBack の停留先が増えるのを
+                // 防ぎ、分割前と同じ「選択中のキーワード ◯件」という1ノードの読み上げに戻すため。
+                Row(
+                    modifier = Modifier
+                        .weight(1f, fill = false)
+                        .semantics(mergeDescendants = true) {},
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // 見出しは「選択中のキーワード」と「◯件」へ割る（裁定＝案 A'）。前半だけを
+                    // 縮退＋末尾省略の対象にし、件数には weight を持たせない＝Row は weight 無しの子を先に
+                    // 固有幅で測るので、件数はどんな fontScale でも削られない。見出しを一括で省略する案 A だと
+                    // fontScale 2.0 で「◯件」が消える＝大きい文字を要求している人ほど情報が削られるため。
+                    Text(
+                        text = "選択中のキーワード",
+                        fontSize = FontMicroLabel,
+                        letterSpacing = 1.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false)
+                    )
+                    // 区切りの半角空白は件数側に持たせる：分割前の1本の文字列と字送りを同じに保つため
+                    // （letterSpacing は文字ごとに加算されるので、分割しても総幅は変わらない）。
+                    Text(
+                        text = " ${tokens.size}件",
+                        fontSize = FontMicroLabel,
+                        letterSpacing = 1.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1
+                    )
+                }
                 // すべて解除（一括リセット）。テキストボタンで primary。
                 TextButton(onClick = onClearAll) {
                     Text(
                         text = "すべて解除",
                         fontSize = FontChipLarge,
+                        // なぜ lineHeight を明示するか: 既定の LocalTextStyle（＝bodyLarge）は lineHeight=28.sp を
+                        // 持つため fontSize を落としても行箱が 28sp のまま残り、TextButton の器（既定 minHeight）が
+                        // その外周をなぞって選択バーの見出し行だけ背高になる。
+                        // 比は正本モック discovery-search-D.html の `.sel-bar-clear`（11.5px・line-height 未指定
+                        // ＝normal）から。ゴシック（--gothic）の normal は実測 1.6。em で持つ理由は行箱の比を
+                        // フォントトークン・fontScale の変化に追従させるため。
+                        lineHeight = 1.6.em,
                         color = MaterialTheme.colorScheme.primary,
                         fontWeight = FontWeight.Medium,
                     )
@@ -663,6 +755,12 @@ private fun SelectedKeywordChip(
         Text(
             text = label,
             fontSize = FontChipLarge,
+            // なぜ lineHeight を明示するか: 既定の LocalTextStyle（＝bodyLarge）は lineHeight=28.sp を持つため、
+            // fontSize を落としても行箱が 28sp のまま残り、外側の border＋padding（ピル）がその外周を
+            // なぞって縦に膨らむ（本棚K のフィルタチップと同根）。
+            // 比は正本モック discovery-search-D.html の `.sel-chip`（11.5px・line-height 未指定＝normal）から。
+            // ゴシック（--gothic）の normal は実測 1.6。em で持つ理由は上の「すべて解除」に同じ。
+            lineHeight = 1.6.em,
             color = MaterialTheme.colorScheme.primary
         )
         Icon(
@@ -701,41 +799,70 @@ private fun HistoryChip(
             )
             .padding(start = Spacing.S8, end = if (onDelete != null) Spacing.S8 else Spacing.S12),
     ) {
-        Icon(
-            imageVector = Icons.Filled.PushPin,
-            contentDescription = if (pinned) "ピン留めを解除" else "ピン留めする",
-            // 未ピン時: 線トークン outlineVariant の流用は素地比約1.1:1でほぼ不可視だった
-            // →同画面のアイコン慣行かつモックのピンSVG色（--ink-soft）と同値の onSurfaceVariant へ。
-            tint = if (pinned) MaterialTheme.colorScheme.primary
-            else MaterialTheme.colorScheme.onSurfaceVariant,
+        // A11y: 旧実装は clickable→padding(vertical)→size(13.dp) の順で横方向に1dpも足されず、
+        // ヒット域が幅13dpしかなかった＝ピンを7dpずれて押すと真横の語ヒット域に落ちて検索が実行される誤爆。
+        // 見た目の13dpアイコンは据え置き、外側の透明Boxを clickable＋最小48dpにして判定だけ拡げる
+        //（外側Box分離＝NcodeLinkSheet・NovelDetailScreen キーワードチップと同型）。
+        Box(
+            contentAlignment = Alignment.Center,
             modifier = Modifier
                 .clickable(onClick = onPinClick)
-                .padding(vertical = Spacing.S8)
-                .size(13.dp),
-        )
-        Text(
-            text = word,
-            fontSize = FontCaption,
-            color = MaterialTheme.colorScheme.onSurface,
-            // 長文履歴が weight 無しだと行全幅を占有し末尾の×を幅0へ押し出してタップ不能になるため、
-            // テキスト側を weight で縮退させて×の幅を先に確保する（fill=false で短語チップは従来幅のまま）。
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
+                .sizeIn(minWidth = 48.dp, minHeight = 48.dp),
+        ) {
+            Icon(
+                imageVector = Icons.Filled.PushPin,
+                contentDescription = if (pinned) "ピン留めを解除" else "ピン留めする",
+                // 未ピン時: 線トークン outlineVariant の流用は素地比約1.1:1でほぼ不可視だった
+                // →同画面のアイコン慣行かつモックのピンSVG色（--ink-soft）と同値の onSurfaceVariant へ。
+                tint = if (pinned) MaterialTheme.colorScheme.primary
+                else MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(13.dp),
+            )
+        }
+        // A11y: 語も自前で最小48dpの実寸を持つ（ピン・×と同じ外側Box分離の型）。
+        // 真因: Compose は実寸が最小タップ標的(48dp)未満のノードの当たり判定を**左右へ均等に拡張**する
+        //（SemanticsNode.touchBoundsInRoot）。語が短いと text+padding が48dp未満になり、拡張ぶんが
+        // 真隣のピン・×の**実寸領域の下へ潜り込む**。ヒットテストは実寸に入るノードを拡張だけのノードより
+        // 優先するので、潜り込んだ帯は全部ピン／×の勝ちになる＝語の有効標的は実寸のまま48dp未満に留まり、
+        // かつ語を狙った指が取り消し導線の無い削除(×)へ着弾する。実測（fontScale 2.0・1文字語・
+        // w360dp）: 語の実寸 39dp → 拡張 48dp で左右へ各 4dp 食い込み（＝実機ダンプの「×が16px食い込む」
+        // 「ピンの当たり幅44dp」の両方がこの1つの機序で説明できる）。
+        // 是正は「重なりを消す」＝語に48dpの実寸を与えて拡張自体を発生させないこと（z順や当たり判定の
+        // 小細工ではない）。語が長ければ従来どおり内容幅のままなので、通常の版面は変わらない。
+        Box(
+            contentAlignment = Alignment.Center,
             modifier = Modifier
+                // 長文履歴が weight 無しだと行全幅を占有し末尾の×を幅0へ押し出してタップ不能になるため、
+                // テキスト側を weight で縮退させて×の幅を先に確保する（fill=false で短語チップは従来幅のまま）。
                 .weight(1f, fill = false)
                 .clickable(onClick = onWordClick)
-                .padding(horizontal = Spacing.S8, vertical = Spacing.S8),
-        )
+                .sizeIn(minWidth = 48.dp, minHeight = 48.dp),
+        ) {
+            Text(
+                text = word,
+                fontSize = FontCaption,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(horizontal = Spacing.S8, vertical = Spacing.S8),
+            )
+        }
         if (onDelete != null) {
-            Icon(
-                imageVector = Icons.Filled.Close,
-                contentDescription = "履歴から削除",
-                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+            // A11y: ピン側と同じ機序（ヒット域が幅13dp）。×は誤爆すると履歴が消えて取り消し導線が無い＝
+            // 語を狙った指が×に落ちる事故を判定幅の確保そのもので防ぐ（外側Box分離・見た目13dpは据え置き）。
+            Box(
+                contentAlignment = Alignment.Center,
                 modifier = Modifier
                     .clickable(onClick = onDelete)
-                    .padding(vertical = Spacing.S8)
-                    .size(13.dp),
-            )
+                    .sizeIn(minWidth = 48.dp, minHeight = 48.dp),
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Close,
+                    contentDescription = "履歴から削除",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                    modifier = Modifier.size(13.dp),
+                )
+            }
         }
     }
 }
@@ -801,6 +928,28 @@ fun CollapsibleCategoryHeader(
     }
 }
 
+// 検索範囲チップ「最後の1つ」を押したときに注記が横へ振れる幅。モック `@keyframes nudge` の
+// ±3px / 戻り −2px を dp へ写す（モックの px は 1px=1dp の縮尺で描かれている）。
+// なぜ Motion.kt へ置かないか: 同ファイルの規約どおりトークン化するのは duration/easing のスロットだけで、
+// 振幅は呼び出し側の意匠差（押下スケールの targetValue と同じ扱い）。
+private val RangeLockNudgeSwing = 3.dp
+private val RangeLockNudgeSettle = 2.dp
+
+/**
+ * 検索範囲チップの「最後の1つ」に付ける a11y 補填。
+ *
+ * 案A で enabled=false をやめた副作用として、TalkBack が読んでいた「無効」が消える＝**外せないことが
+ * 音声だけでは分からなくなる**（視覚では下の注記が担うが、それはチップの読み上げには乗らない）。
+ * そこで stateDescription で選択状態と制約を同時に言葉にし、a11y の後退を作らない。
+ * ロックされていないチップは FilterChip 既定の選択読み上げに委ねる（言い換えを増やさない）。
+ */
+private fun rangeLockSemantics(locked: Boolean): Modifier =
+    if (locked) {
+        Modifier.semantics { stateDescription = "選択中。検索範囲は1つ以上必要なため、これ以上外せません" }
+    } else {
+        Modifier
+    }
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FilterChipItem(
@@ -808,15 +957,21 @@ fun FilterChipItem(
     label: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    // enabled=false: 制約（最後の1つ・排他）を「押せなさ」で示す。選択済みなら「選択のまま淡く」
-    // 見せて「これが選ばれているが今は動かせない」を伝える（disabled 見た目でも選択の履歴を残す）。
+    // enabled=false: 制約（節まるごとの排他＝SearchConditionSheet の文字数⇄読了時間）を「押せなさ」で示す。
+    // 単独のチップを disabled にするのは避ける: disabledLabelColor は選択中にも効くため、
+    // 選択を示す藍が灰へ落ちて「選択から外れた」と読める（検索範囲の最後の1つはこれを理由に案A で廃止）。
     enabled: Boolean = true,
 ) {
     FilterChip(
         selected = selected,
         onClick = onClick,
         enabled = enabled,
-        label = { Text(label, fontSize = FontChipLarge) },
+        // なぜ lineHeight を明示するか: 既定の LocalTextStyle（＝bodyLarge）は lineHeight=28.sp を持つため、
+        // fontSize を落としても行箱が 28sp のまま残り、FilterChip の器がラベルの行箱に合わせて
+        // 既定高（32dp）を超えて膨らむ（fontScale 2.0 では行箱だけで 56dp）。
+        // 比は正本モック discovery-search-D.html の `.schip`／`.rchip`（ともに 11.5px・line-height 未指定
+        // ＝normal）から。ゴシック（--gothic）の normal は実測 1.6。em で持つ理由は上の2件に同じ。
+        label = { Text(label, fontSize = FontChipLarge, lineHeight = 1.6.em) },
         modifier = modifier,
         shape = RoundedCornerShape(2.dp),
         colors = FilterChipDefaults.filterChipColors(

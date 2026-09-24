@@ -57,6 +57,10 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -67,7 +71,10 @@ import com.novelreader.data.ProgressEntity
 import com.novelreader.data.WebNovelEntity
 import com.novelreader.discovery.model.WorkSummary
 import com.novelreader.ui.DeleteSourcePdfOption
+import com.novelreader.ui.DeleteTargetTitlesText
 import com.novelreader.ui.MissingContentDeleteWarningText
+import com.novelreader.ui.ReimportScanBanner
+import com.novelreader.ui.ReimportSweepBanner
 import com.novelreader.ui.newEpisodeCountFor
 import com.novelreader.ui.skins.ShelfActions
 import com.novelreader.ui.skins.ShelfChrome
@@ -92,15 +99,18 @@ import com.novelreader.ui.theme.ResumeSurfacePortal
 import com.novelreader.ui.theme.SoftPortal
 import com.novelreader.ui.theme.Spacing
 import com.novelreader.domain.ReadingStatus
+import com.novelreader.domain.ScanProgress
 import com.novelreader.domain.ShelfItem
 import com.novelreader.domain.chapterNumberOf
 import com.novelreader.domain.countMissingContentTargets
+import com.novelreader.domain.deleteConfirmBody
 import com.novelreader.domain.deleteConfirmLabel
 import com.novelreader.domain.filterShelfByStatus
 import com.novelreader.domain.mergeShelfItems
 import com.novelreader.domain.missingContentDeleteWarning
 import com.novelreader.domain.progressFractionFor
 import com.novelreader.domain.readingStatusFor
+import com.novelreader.domain.webNcodesInSelection
 import java.time.LocalTime
 import kotlin.math.roundToInt
 
@@ -229,6 +239,39 @@ internal fun BookshelfGridJ(
             ) {
                 PortalProcessingBanner(processingState, onCancelProcessing)
             }
+            // 本文欠落の一括検出バナー（案C）と PDF フォルダ走査バナー（案X）。従来この面は chrome の
+            // sweepBannerVisible/folderScan/onScanStop を受け取って捨てており、route 層で起動した走査に
+            // 進捗表示も停止手段も無かった（監査 2026-08-06 B1）。意匠はトークン経由でスキン色に染まる
+            // 共有部品をそのまま使う＝K 面と同型の最小配線（J 意匠版は未裁定）。
+            AnimatedVisibility(
+                visible = chrome.sweepBannerVisible,
+                enter = fadeIn(tween(MotionDurationReveal)),
+                exit = fadeOut(tween(MotionDurationDismiss)),
+            ) {
+                ReimportSweepBanner(
+                    missingCount = data.reimportPlans.size,
+                    onLater = chrome.onSweepLater,
+                    onReimport = chrome.onSweepConfirm,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            // 退場アニメの間 folderScan は既に null になっているため直前の非 null 値を保持して描く
+            //（保持箱をスナップショット状態にしない理由＝BookshelfScreen の同処理コメント参照）。
+            val lastScan = remember { arrayOfNulls<ScanProgress>(1) }
+            chrome.folderScan?.let { lastScan[0] = it }
+            AnimatedVisibility(
+                visible = chrome.folderScan != null,
+                enter = fadeIn(tween(MotionDurationReveal)),
+                exit = fadeOut(tween(MotionDurationDismiss)),
+            ) {
+                lastScan[0]?.let { progress ->
+                    ReimportScanBanner(
+                        progress = progress,
+                        onStop = chrome.onScanStop,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            }
 
             // ── g-scroll（見つける導線＋絞り込みチップ＋升目グリッド）──
             LazyVerticalGrid(
@@ -273,10 +316,16 @@ internal fun BookshelfGridJ(
                             novel = item.novel,
                             lastReadEpisode = item.lastReadEpisode,
                             timePhase = timePhase,
+                            // 複数選択削除（系3）: 選択キーは ShelfItem.Web.key="web:<ncode>"（蔵書は bare id）。
+                            // 従来ここが未配線で、選択モード中の Web セルタップが WebView 遷移に化けていた（監査 2026-08-06 B2）。
+                            selectionMode = selectionMode,
+                            selected = item.key in selectedIds,
                             onOpen = { onOpenWebNovel(item.novel) },
                             onResume = { onResumeWebNovel(item.novel, item.lastReadEpisode) },
                             onImport = { onImportWebNovel(item.novel) },
                             onRemove = { onRemoveWebNovel(item.novel) },
+                            onToggleSelect = { onToggleSelect(item.key) },
+                            onEnterSelection = { onEnterSelection(item.key) },
                         )
                     }
                 }
@@ -302,8 +351,17 @@ internal fun BookshelfGridJ(
                     count = selectedIds.size,
                     onCancel = onExitSelection,
                     onSelectAll = {
-                        // 全選択の対象は蔵書（Book）のみ＝Web未取込は選択削除の対象外（D/P と同一）。
-                        onSelectAll(shelfItems.filterIsInstance<ShelfItem.Book>().map { it.book.id })
+                        // 全選択に Web由来カードも含める（系3・D/K と同一）。選択キーは蔵書=bare book.id・
+                        // Web=ShelfItem.Web.key("web:<ncode>")。旧コメント「Web未取込は対象外（D/P と同一）」は
+                        // D が系3で Web 統合済みのため陳腐化していた（監査 2026-08-06 B2 で是正）。
+                        onSelectAll(
+                            shelfItems.map { item ->
+                                when (item) {
+                                    is ShelfItem.Book -> item.book.id
+                                    is ShelfItem.Web -> item.key
+                                }
+                            }
+                        )
                     },
                     onDelete = { showDeleteConfirm = true },
                 )
@@ -323,30 +381,42 @@ internal fun BookshelfGridJ(
     // 面の色は D 系モックの `.dlg{background:var(--base)}`（素地・分離はスクリムと影）を surfaceContainerHigh へ
     // 移植したものが効く（SkinContainerTiers.kt）＝OS 既定の紫面ではない。
     if (showDeleteConfirm) {
-        val targets = books.filter { it.id in selectedIds }
-        val deletableCount = targets.count { it.sourceUri != null }
+        val bookTargets = books.filter { it.id in selectedIds }
+        // Web由来（未取込）カードも選択削除の対象（系3・監査 2026-08-06 B2）。選択キー "web:<ncode>" を
+        // ncode へ分解し webNovels と突合する（D/K の削除確認と同型）。
+        val webNcodes = webNcodesInSelection(selectedIds).toSet()
+        val webTargets = webNovels.filter { it.ncode in webNcodes }
+        val deletableCount = bookTargets.count { it.sourceUri != null }
+        val total = bookTargets.size + webTargets.size
         // 欠落本を含む削除は「復元の最後の機会」を消す（機序＝domain/ReimportPlan.kt の該当節）。J は欠落バッジ自体が
         // 未翻訳（モック未裁定＝スキン後回し枠）だが、削除の破壊性はスキンに依存しないため警告は先に入れる。
+        // 冊数は蔵書分だけを数える（復元手段を失うのは books 行を持つ蔵書のみ＝K と同判断）。
         val lossWarning = missingContentDeleteWarning(
-            missingCount = countMissingContentTargets(targets.map { it.id }, data.reimportPlans),
-            bookCount = targets.size,
+            missingCount = countMissingContentTargets(bookTargets.map { it.id }, data.reimportPlans),
+            bookCount = bookTargets.size,
         )
         var alsoDeleteSource by remember { mutableStateOf(false) }
         NovelReaderAlertDialog(
             onDismissRequest = { showDeleteConfirm = false },
-            title = { Text("選択した${targets.size}冊を本棚から削除しますか？") },
+            // 蔵書とWebが混じり得るため中立の「件」で数える（D/K と同語）。
+            title = { Text("選択した${total}件を本棚から削除しますか？") },
             text = {
                 Column {
                     // 欠落本の警告は本文の先頭（後段の一般文より固有かつ重い）。欠落0冊なら描画そのものが無い。
                     MissingContentDeleteWarningText(lossWarning)
-                    Text("変換済みの本文データも削除されます。この操作は取り消せません。")
+                    // 削除対象の題名列挙（監査 A11・D と同じ共有部品＝先頭5件＋ほかN件。理由は部品側コメント参照）。
+                    DeleteTargetTitlesText(bookTargets.map { it.title } + webTargets.map { it.title })
+                    // 選択内訳（蔵書数・Web数）で本文を出し分け（系3）＝Web に「本文データも削除」の虚偽を出さない。
+                    Text(deleteConfirmBody(bookTargets.size, webTargets.size))
                     DeleteSourcePdfOption(deletableCount, alsoDeleteSource) { alsoDeleteSource = it }
                 }
             },
             confirmButton = {
                 TextButton(onClick = {
                     showDeleteConfirm = false
-                    onDeleteBooks(targets, alsoDeleteSource)
+                    // 蔵書は本文データごと削除／Web は本棚から外す（既存 removeWebNovel を一括適用）。空側は呼ばない。
+                    if (bookTargets.isNotEmpty()) onDeleteBooks(bookTargets, alsoDeleteSource)
+                    webTargets.forEach { onRemoveWebNovel(it) }
                     onExitSelection()
                 }) { Text(deleteConfirmLabel(lossWarning != null)) }
             },
@@ -371,50 +441,63 @@ private fun GridTopBar(
     onToggleDeck: () -> Unit,
     onFabClick: () -> Unit,
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(start = Spacing.S16, end = Spacing.S16, top = Spacing.S4, bottom = Spacing.S12), // .g-top padding 6px 16px 12px
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(Spacing.S4), // .g-top gap 6px
-    ) {
-        // 本棚題字＋薄く冊数（モック .head .ttl＝h1＋.count・K形の明示冊数）。Row に weight(1f) を持たせ右のアイコン群を押し出す。
-        Row(modifier = Modifier.weight(1f)) {
-            Text(
-                "本棚",
-                fontFamily = MinchoFamily,
-                fontSize = 24.sp,             // .g-top h1 24px
-                fontWeight = FontWeight.Medium,
-                letterSpacing = 0.12.em,
-                color = InkPortal,
-                modifier = Modifier.alignByBaseline(),
-            )
-            Spacer(Modifier.width(Spacing.S8))
-            // .count 12px soft（題字とベースラインを揃え、控えめに添える）。
-            Text(
-                "${count}冊",
-                fontSize = 12.sp,             // .head .count 12px
-                letterSpacing = 0.08.em,
-                color = SoftPortal,
-                modifier = Modifier.alignByBaseline(),
-            )
-        }
-        // デッキ表示へ戻る（一覧⇄デッキトグル）。開いた本＝没入デッキの語＝MenuBook で「読む面へ戻る」を表す。
-        PortalIconButton(onClick = onToggleDeck) {
-            Icon(Icons.AutoMirrored.Filled.MenuBook, contentDescription = "デッキ表示に切替", tint = InkPortal, modifier = Modifier.size(19.dp))
-        }
-        // メニュー⋮。テーマ・新着通知は設定タブ（SettingsScreenK）へ移行済みのため撤去（系2）。非設定項目の「PDFを追加」のみ残す。
-        Box {
-            var menuOpen by remember { mutableStateOf(false) }
+    // ⋮ の開閉状態は g-top の行より外側に持つ＝メニュー本体を行の外（下のアンカー）へ出すため。
+    var menuOpen by remember { mutableStateOf(false) }
+    Box(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = Spacing.S16, end = Spacing.S16, top = Spacing.S4, bottom = Spacing.S12), // .g-top padding 6px 16px 12px
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(Spacing.S4), // .g-top gap 6px
+        ) {
+            // 本棚題字＋薄く冊数（モック .head .ttl＝h1＋.count・K形の明示冊数）。Row に weight(1f) を持たせ右のアイコン群を押し出す。
+            Row(modifier = Modifier.weight(1f)) {
+                Text(
+                    "本棚",
+                    fontFamily = MinchoFamily,
+                    fontSize = 24.sp,             // .g-top h1 24px
+                    fontWeight = FontWeight.Medium,
+                    letterSpacing = 0.12.em,
+                    color = InkPortal,
+                    modifier = Modifier.alignByBaseline(),
+                )
+                Spacer(Modifier.width(Spacing.S8))
+                // .count 12px soft（題字とベースラインを揃え、控えめに添える）。
+                Text(
+                    "${count}冊",
+                    fontSize = 12.sp,             // .head .count 12px
+                    letterSpacing = 0.08.em,
+                    color = SoftPortal,
+                    modifier = Modifier.alignByBaseline(),
+                )
+            }
+            // デッキ表示へ戻る（一覧⇄デッキトグル）。開いた本＝没入デッキの語＝MenuBook で「読む面へ戻る」を表す。
+            PortalIconButton(onClick = onToggleDeck) {
+                Icon(Icons.AutoMirrored.Filled.MenuBook, contentDescription = "デッキ表示に切替", tint = InkPortal, modifier = Modifier.size(19.dp))
+            }
+            // メニュー⋮。テーマ・新着通知は設定タブ（SettingsScreenK）へ移行済みのため撤去（系2）。非設定項目の「PDFを追加」のみ残す。
             PortalIconButton(onClick = { menuOpen = true }) {
                 Icon(Icons.Filled.MoreVert, contentDescription = "メニュー", tint = InkPortal, modifier = Modifier.size(19.dp))
             }
-            DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                DropdownMenuItem(
-                    text = { Text("PDFを追加") },
-                    onClick = { menuOpen = false; onFabClick() },
-                    leadingIcon = { Icon(Icons.Filled.Add, contentDescription = null) },
-                )
+        }
+        // なぜ ⋮ ボタンを包む Box ではなく「g-top の行の外」をメニューのアンカーにするか:
+        // DropdownMenu は直近の親レイアウトの下端に上端を合わせて開く。⋮ を包む Box を親にすると
+        // アンカー下端＝アイコンの下端（＝行の下余白 S12 の内側）で、ヘッダ全体の下端より上に来るため、
+        // メニューはヘッダの途中に開き、その差ぶんの帯が背後の地のまま外に残って覗く
+        //（M で 2026-08-17 実機再現。docs/knowledge/dropdown-anchor-aligned-to-header-first-line.md）。
+        // offset で押し下げるのは端末・インセット・フォントスケール毎に合わせ直す当て推量になるので採らない。
+        // ここでは g-top と同じ左右余白の帯を敷き、その右下＝「⋮ の右端 × ヘッダ全体の下端」を
+        // 0 サイズのアンカーにする（横位置は従来どおり ⋮ の直下）。
+        Box(modifier = Modifier.matchParentSize().padding(horizontal = Spacing.S16)) {
+            Box(modifier = Modifier.align(Alignment.BottomEnd)) {
+                DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                    DropdownMenuItem(
+                        text = { Text("PDFを追加") },
+                        onClick = { menuOpen = false; onFabClick() },
+                        leadingIcon = { Icon(Icons.Filled.Add, contentDescription = null) },
+                    )
+                }
             }
         }
     }
@@ -454,6 +537,13 @@ private fun GridDoorCell(
     Column(
         modifier = Modifier
             .fillMaxWidth()
+            // 選択モード中の選択状態宣言（D の GridBookCard と同文・監査 A11。理由はそちらのコメント参照）。
+            .semantics {
+                if (selectionMode) {
+                    this.selected = selected
+                    this.stateDescription = if (selected) "選択中" else "未選択"
+                }
+            }
             .combinedClickable(
                 onClick = { if (selectionMode) onToggleSelect() else onOpen() },
                 onLongClick = { if (selectionMode) onToggleSelect() else onEnterSelection() },
@@ -535,7 +625,9 @@ private fun GridDoorCell(
 
 // ============================================================
 // Web由来（未取込）セル（.bk＝cover＋「なろう・未取込」。ncode ハッシュで色相を蔵書行と繋ぐ＝1作1色相の整合）
-// 主タップ＝進捗あれば続きから／無ければ目次。長押し＝⋮メニュー（目次/取込/外す）＝mock未定義を J 語彙で最小翻訳。
+// 主タップ＝進捗あれば続きから／無ければ目次。長押し＝選択モードへ（蔵書セル・D/K と同一の状態機械＝系3）。
+// ⋮メニュー（目次/取込/外す）はキャプション行右端の可視⋯へ（旧・長押し＝⋮は選択入口へ譲る。D の可視⋮／
+// M の行内⋯と同判断＝mock未定義を J 語彙で最小翻訳）。
 // ============================================================
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -543,10 +635,16 @@ private fun WebGridDoorCell(
     novel: WebNovelEntity,
     lastReadEpisode: Int,
     timePhase: PortalTimePhase,
+    // 複数選択削除（系3・監査 2026-08-06 B2）: 画面全体の選択状態機械（骨格所有）へ Web セルも参加する。
+    // 既定値は付けない＝配線忘れをコンパイルエラーへ格上げする流儀（束の設計と同じ）。
+    selectionMode: Boolean,
+    selected: Boolean,
     onOpen: () -> Unit,
     onResume: () -> Unit,
     onImport: () -> Unit,
     onRemove: () -> Unit,
+    onToggleSelect: () -> Unit,
+    onEnterSelection: () -> Unit,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     val hasProgress = lastReadEpisode > 0
@@ -557,9 +655,18 @@ private fun WebGridDoorCell(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                // 選択モード中の選択状態宣言（D の GridBookCard と同文・監査 A11。理由はそちらのコメント参照）。
+                .semantics {
+                    if (selectionMode) {
+                        this.selected = selected
+                        this.stateDescription = if (selected) "選択中" else "未選択"
+                    }
+                }
                 .combinedClickable(
-                    onClick = if (hasProgress) onResume else onOpen,
-                    onLongClick = { menuOpen = true },
+                    // 選択モード中はタップ/長押しとも選択トグル（共有 WebBookCard と同じ分岐＝選択作業を
+                    // WebView 遷移で中断させない）。通常時は進捗あれば主タップ=再開／未読は目次、長押しで選択モードへ。
+                    onClick = { if (selectionMode) onToggleSelect() else if (hasProgress) onResume() else onOpen() },
+                    onLongClick = { if (selectionMode) onToggleSelect() else onEnterSelection() },
                 ),
         ) {
             Box(
@@ -567,7 +674,9 @@ private fun WebGridDoorCell(
                     .fillMaxWidth()
                     .aspectRatio(3f / 4f)
                     .clip(RoundedCornerShape(10.dp))
-                    .drawCellAmbient(palette, timePhase, open = 0.62f),
+                    .drawCellAmbient(palette, timePhase, open = 0.62f)
+                    // 選択中は金縁で升を囲う（蔵書セル GridDoorCell と同じ最小翻訳＝選択の視覚言語を升で統一）。
+                    .then(if (selected) Modifier.border(2.dp, GoldPortal, RoundedCornerShape(10.dp)) else Modifier),
             ) {
                 Text(
                     text = novel.title.take(1),
@@ -587,20 +696,29 @@ private fun WebGridDoorCell(
                     maxLines = 3, overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.align(Alignment.BottomStart).padding(horizontal = Spacing.S12, vertical = Spacing.S8),
                 )
+                if (selectionMode) SelectionCheckJ(selected = selected, modifier = Modifier.align(Alignment.TopStart).padding(Spacing.S8))
             }
             // .unimp（なろう・未取込＝森緑）。進捗があれば続き話数も併記（D の WebGridBookCard 相当）。
-            if (hasProgress) {
+            // 右端の⋯＝目次/取込/外すの可視導線（長押しを選択入口へ譲った代替）。選択モード中は升上の
+            // 選択マークへ場を譲り隠す（D/K が選択中に⋮を隠すのと同じ判断）。
+            Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    "続き 第${lastReadEpisode}話",
-                    fontSize = 10.5.sp, color = GreenPortal,
-                    modifier = Modifier.padding(top = Spacing.S8),
-                )
-            } else {
-                Text(
-                    "なろう・未取込",
+                    text = if (hasProgress) "続き 第${lastReadEpisode}話" else "なろう・未取込",
                     fontSize = 10.5.sp, color = GreenPortal, // .unimp 10.5px --green
-                    modifier = Modifier.padding(top = Spacing.S8),
+                    modifier = Modifier.weight(1f).padding(top = Spacing.S8),
                 )
+                if (!selectionMode) {
+                    Text(
+                        "⋯",
+                        fontSize = 16.sp, color = SoftPortal,
+                        modifier = Modifier
+                            .padding(top = Spacing.S4)
+                            .clip(RoundedCornerShape(6.dp))
+                            .clickable { menuOpen = true }
+                            .padding(horizontal = Spacing.S8, vertical = Spacing.S4)
+                            .semantics { contentDescription = "未取込作品のメニュー" },
+                    )
+                }
             }
         }
         DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {

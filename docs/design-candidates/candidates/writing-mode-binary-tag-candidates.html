@@ -1,0 +1,425 @@
+<!-- @dsCard group="UI-n / 一時ドラフト（裁定用）" name="表示設定「本文の向き」を2択タグへ — 3案＋対照（2026-09-03）" -->
+<!--
+  ✅ 裁定済み（2026-09-04）＝**案B（分離2チップ）を採用・trailing 現在値はこの節だけ落とす**。正本
+     docs/design-candidates/settings-D.html の「本文の向き」節へ差し戻し済みで、同ファイル冒頭の
+     「不採用・案B 二択チップ化（2026-08-06 裁定）」は**消さずに覆した記録へ書き換えた**。近縁の
+     reading-settings-livepreview-D.html:179 も同時に直した（2ファイル1セット）。
+     ⚠️ **この頁はまだ消していない**——正本側の why コメントが本頁を名指しで参照しているため。
+     消すなら正本の参照文言も同じコミットで畳むこと。判断は監督に委ねる。
+  ── 以下は裁定前の記述（当時の判断材料として残す）──────────────────────────────
+  ⚠️ 一時ドラフト（複数案比較）＝正本ではない。裁定が付いたら**採用案だけ**を正本
+     docs/design-candidates/settings-D.html（「本文の向き」節）へ差し戻し、同ファイル冒頭の
+     「不採用・案B 二択チップ化（2026-08-06 裁定）」の記述を**覆した記録に書き換える**。
+     近縁の docs/design-candidates/reading-settings-livepreview-D.html:179 も同じ節を持つので同時に直す。
+     （CLAUDE.md「一時ファイルは抽出→集約→削除まで1セット」／visual-language「複数案比較のみ一時ドラフト」）
+
+  ── 動機（handover.md「[意匠] 小口3件 ③新規提起」2026-09-03）────────────────────────
+  「『縦書き｜横書き』の2択タグ」。理由＝**現状のトグルがオンオフに見えてしまう**。
+  機序: 節に置かれたチップが「縦書き」1個だけで、横書き中＝枠だけ／縦書き中＝藍塗り。
+  **同じ1個の部品の塗りの有無**でしか状態が区別されない＝「縦書きという機能のオン／オフ」に見える。
+  実際には〈横書き〉と〈縦書き〉という**対等な2値の選択**で、片方が「オフ」なわけではない。
+
+  ── 下敷きにした正本（新意匠を発明しない。色・寸法は逐語複製）──────────────────────
+  シート全体・チップ・スライダー・trailing 現在値 = docs/design-candidates/settings-D.html
+  同じ節を持つ近縁モック                          = docs/design-candidates/reading-settings-livepreview-D.html:179
+  --ai-tint（藍10%＝静かな選択の既存トークン）    = docs/design-candidates/skins/bookshelf-K.html:99,221
+
+  ── 実装の現在値（2026-09-03 実測）────────────────────────────────────────────
+  ・制御形  ReadingSettingsSheet.kt:213  単独の FilterChip（押すたび縦書き/横書きが入れ替わる）
+  ・保存値  PrefKeys.kt READING_VERTICAL = "reading_vertical"（app_prefs・全書籍共通の単一 Boolean）
+  ・既定    false ＝ **横書き**
+  ・節の形  節ラベル「本文の向き」＋ trailing 現在値（横書き/縦書き）＝ 2026-08-06 案C 裁定
+  ・参照は2箇所だけ  NativeReadingScreen.kt:402（読み）／同 onVerticalModeChange（書き）
+
+  ── 覆す対象＝2026-08-06 の裁定（settings-D.html:97-101 が正本）──────────────────
+  当時、案B「二択チップ化」は**不採用**になっている。理由は2つ:
+    ① 実装の制御形の変更（単独 FilterChip → 排他2択）
+    ② 横書き＝既定を「わざわざ選ぶもの」に見せてしまう
+  代わりに案C（節ラベル trailing に現在値を常時出す・説明レス）が採られた。
+  ⚠️ 今回の提起は、その案C を**入れてもなお**「オンオフに見える」という実使用の報せ＝
+     ①②を承知のうえで再考する求め。判断材料として2点:
+    ・②は**直上のテーマ節が先例を作って自ら弱めている**——「システムに従う」も既定でありながら
+      チップの1つとして並んでおり（2026-08-05 逆同期・2026-08-06 に案C とともに承認）、
+      「既定をチップで見せると"わざわざ選ぶもの"に見える」なら同じ咎はテーマ節にも当たるはず。
+    ・①は M3 の FilterChip 2本＋単一選択で済み、保存値（単一 Boolean）は**変えなくてよい**
+      （2つのチップが同じ1つの Boolean の true/false を指す）。
+
+  ── 各案の意図（振っているのは「2値をどう見せるか」だけ。語・並び順・節の位置は現行のまま）────
+  対照R「現行」    : 単独チップ「縦書き」＋ trailing 現在値。塗りの有無だけで状態を語る＝提起の当のもの。
+  案A「連結セグメント」: 〔横書き｜縦書き〕を**1つの器**に連結し、選択側を藍で塗る。
+                     「2つのボタン」ではなく「1つのスイッチの2つの位置」に見える＝2択の signal が最も強い。
+  案B「分離2チップ」  : 〔横書き〕〔縦書き〕を**直上のテーマ節と同じ .chip / .chip.on の語彙**で2本並べる。
+                     新しい見た目を1つも作らない。
+  案C「連結セグメント＋既定側は淡藍」: 案A の器のまま、**既定（横書き）が選ばれているときだけ --ai-tint（藍10%）**で
+                     示し、非既定（縦書き）を選んだときだけ藍で塗る＝2026-08-06 の理由②へ真正面から答える形。
+  ※3案とも trailing 現在値は**落とす**（タグ自身が現在値を語るので二重）。残す亜種は下段の差分表を参照。
+
+  ── 推奨案とその理由 ──────────────────────────────────────────────────
+  **案B（分離2チップ）**。①**直上のテーマ節と同語彙**＝シートの中で選択の見せ方が1つに揃う（案A/C の
+  連結セグメントはこのアプリのどこにも無い新しい器で、K のタブは per-item の指標ピルであって連結器ではない）。
+  ②「オンオフに見える」の機序は**チップが1個しか無いこと**なので、2個並べて常にどちらかが塗られていれば解ける
+  ——連結器まで要らない。③実装は FilterChip 2本＋単一選択で、保存値は単一 Boolean のまま。
+  ④2026-08-06 の理由② はテーマ節の「システムに従う」という自らの先例で既に弱い。
+  ⚠️ 実機で見てなお「2つの独立したボタン」に見えるなら**案A へ上げる**のが退き方
+  （モックは構図の裁定・実機は実データ衝突の検出＝visual-language モック恒久ルール5）。
+-->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>本文の向きを2択タグへ — 3案＋対照</title>
+<style>
+  /*==harness==*/
+  :root{
+    --bg:#FBFAF8;--ink:#1C1F26;--soft:#7C808B;--line:#ECEAE4;
+    --ai:#1C3D5A;--ai-tint:rgba(28,61,90,.10);--seiji:#9CB3A8;
+    --info:#5C606D;
+    --mincho:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
+    --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#E4E3DD;display:flex;flex-direction:column;align-items:center;min-height:100vh;
+    padding:26px;font-family:var(--gothic)}
+  .ttl{font-family:var(--mincho);font-size:19px;color:#1C1F26;letter-spacing:.06em;margin-bottom:8px}
+  .cap{color:#5A5C57;font-size:13px;margin-bottom:6px;text-align:center;line-height:1.7;max-width:840px}
+  .cap b{color:#2A2C28}
+  .warn{color:#6A6C67;font-size:11.5px;margin-bottom:18px;text-align:center;line-height:1.7;max-width:840px}
+  .sec{width:100%;max-width:960px;margin:32px 0 12px;font-size:13px;letter-spacing:.14em;
+    color:#2A2C28;border-bottom:1px solid #C8C6BF;padding-bottom:6px}
+  table{border-collapse:collapse;margin:0 auto;font-size:11.5px;background:#FBFAF8}
+  th,td{border:1px solid #D9D7D0;padding:5px 10px;text-align:left;color:#3A3C38;vertical-align:top}
+  th{background:#F1F0EC;color:#1C1F26;font-weight:600}
+  td b{color:#1C1F26}
+  .notes{max-width:960px;display:flex;flex-direction:column;gap:14px}
+  .note{background:#FBFAF8;border:1px solid #D9D7D0;border-radius:4px;padding:14px 18px;
+    font-size:12px;line-height:1.85;color:#3A3C38}
+  .note h3{font-size:13px;color:#1C3D5A;margin-bottom:6px;letter-spacing:.06em}
+  .note code{font-family:ui-monospace,Consolas,monospace;font-size:11.5px;background:#F1F0EC;padding:0 3px}
+  .note b{color:#1C1F26}
+  /*==/harness==*/
+
+  /* ---- シートの部品（settings-D.html から逐語複製。値を1つも変えない）---- */
+  .lbl{font-family:var(--gothic);font-size:12px;color:var(--soft);letter-spacing:.06em;margin-bottom:12px}
+  .sheetsec{margin-bottom:24px}
+  .chips{display:flex;gap:12px;flex-wrap:wrap}
+  .chip{text-align:center;padding:12px 16px;border-radius:10px;font-family:var(--gothic);font-size:13.5px;
+    border:1px solid var(--line);color:var(--ink);background:transparent;cursor:pointer}
+  .chip.on{background:var(--ai);border-color:var(--ai);color:#fff;font-weight:600}
+  .slider{display:flex;align-items:center;gap:16px}
+  .end{font-family:var(--mincho);color:var(--ink);flex-shrink:0}
+  .end.g{font-family:var(--gothic);font-size:12px;color:var(--soft)}
+  .track{flex:1;height:2px;background:var(--line);position:relative;border-radius:2px}
+  .track .fill{position:absolute;left:0;top:0;height:2px;background:var(--ai);border-radius:2px}
+  .track .knob{position:absolute;top:50%;width:18px;height:18px;border-radius:50%;background:var(--ai);
+    transform:translate(-50%,-50%);box-shadow:0 2px 6px rgba(28,61,90,.4)}
+  .val{font-family:var(--gothic);font-size:12px;color:var(--info);margin-left:8px}
+  .row-lbl{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:12px}
+
+  /* ---- 案A/C の連結セグメント（このアプリに前例の無い器＝新規である事実を注記で明示する）----
+     寸法は .chip と同値（padding 12px 16px・font-size 13.5px）に揃え、差が「連結かどうか」だけになるようにする。 */
+  .seg{display:inline-flex;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+  .seg .sg{padding:12px 16px;border:none;background:transparent;font-family:var(--gothic);font-size:13.5px;
+    color:var(--ink);cursor:pointer;min-width:96px;text-align:center}
+  .seg .sg + .sg{border-left:1px solid var(--line)}
+  .seg .sg.on{background:var(--ai);color:#fff;font-weight:600}
+  /* 案C: 既定（横書き）が選ばれているときだけ淡藍。非既定（縦書き）を選んだときは通常どおり藍で塗る */
+  .seg .sg.on.quiet{background:var(--ai-tint);color:var(--ink);font-weight:600}
+
+  /* ---- 節だけを切り出した見くらべ帯（幅 372px＝正本 .phone と同値・左右 24px もシートと同値）---- */
+  .strip{width:372px;background:var(--bg);border:1px solid #D9D7D0;border-radius:8px;
+    padding:18px 24px 4px;box-shadow:0 4px 12px rgba(0,0,0,.10)}
+  .cases{display:flex;flex-direction:column;gap:22px;align-items:center;width:100%}
+  .case{background:#FBFAF8;border:1px solid #D9D7D0;border-radius:6px;padding:16px 18px;
+    display:flex;flex-direction:column;gap:12px;max-width:960px;width:100%}
+  .case .hd{font-size:13.5px;color:#1C1F26;letter-spacing:.04em}
+  .case .hd b{color:#1C3D5A}
+  .pair{display:flex;gap:26px;flex-wrap:wrap;justify-content:center}
+  .col{display:flex;flex-direction:column;align-items:center;gap:7px}
+  .col .mode{font-size:11px;letter-spacing:.12em;color:#6A6C67}
+  .case .sub{font-size:11.5px;line-height:1.8;color:#5A5C57}
+  .case .sub b{color:#1C1F26}
+  .case.reco{border-color:#1C3D5A;box-shadow:0 0 0 2px rgba(28,61,90,.12)}
+  .badge{display:inline-block;background:#1C3D5A;color:#fff;font-size:10.5px;letter-spacing:.1em;
+    border-radius:3px;padding:2px 8px;margin-right:8px}
+
+  /* ---- シート全体での見え（settings-D.html の .phone/.sheet を逐語複製）---- */
+  .phone{width:372px;height:780px;border-radius:40px;overflow:hidden;position:relative;
+    box-shadow:0 20px 50px rgba(0,0,0,.28);display:flex;flex-direction:column;
+    background:linear-gradient(180deg,#F6F4F0,#EDEBE6)}
+  .behind{position:absolute;inset:0;padding:60px 24px;font-family:var(--mincho);font-size:16px;
+    line-height:2.4;color:#C9C6BF;text-indent:1em;overflow:hidden}
+  .scrim{position:absolute;inset:0;background:rgba(20,23,28,.28)}
+  .sheet{position:absolute;left:0;right:0;bottom:0;background:var(--bg);border-radius:20px 20px 0 0;
+    padding:12px 24px 32px;box-shadow:0 -10px 30px rgba(0,0,0,.18)}
+  .grab{width:36px;height:4px;border-radius:2px;background:var(--line);margin:0 auto 16px}
+  .sheet h2{font-family:var(--mincho);font-size:17px;color:var(--ink);font-weight:600;letter-spacing:.08em;margin-bottom:4px}
+  .scope-note{font-family:var(--gothic);font-size:11px;color:var(--soft);letter-spacing:.04em;line-height:1.5;margin-bottom:24px}
+  .sheets{display:flex;gap:34px;flex-wrap:wrap;justify-content:center}
+  .sheetwrap{display:flex;flex-direction:column;align-items:center;gap:9px}
+  .sheetwrap .mode{font-size:12px;letter-spacing:.14em;color:#3A3C38}
+  .sheetwrap .mode b{color:#1C3D5A}
+</style>
+</head>
+<body>
+  <h1 class="ttl">表示設定「本文の向き」を2択タグへ — 3案＋対照</h1>
+  <p class="cap"><b>争点</b>: 現状はチップが「縦書き」1個だけで、状態は<b>その1個の塗りの有無</b>でしか区別されない
+  ＝「縦書きという機能のオン／オフ」に見える。実際は〈横書き〉〈縦書き〉という<b>対等な2値の選択</b>で、片方はオフではない。<br>
+  各案とも<b>語（横書き／縦書き）・並び順・節の位置・節ラベル「本文の向き」は現行のまま</b>で、
+  <b>2値の見せ方だけ</b>を変えてある。上段＝<b>横書き中（＝既定）</b>／下段＝<b>縦書き中</b>。</p>
+  <p class="warn">⚠️ 2026-08-06 に「二択チップ化」は一度<b>不採用</b>になっている（settings-D.html:97-101）。
+  理由は〈実装の制御形の変更〉と〈既定の横書きを"わざわざ選ぶもの"に見せる〉の2点。
+  今回はその裁定を<b>覆すかどうか</b>の再裁定＝上段の対照Rで「案C（trailing 現在値）を入れてもなお
+  オンオフに見える」ことを、下の3案と直接見くらべて判断する。</p>
+
+  <div class="sec">4案 × 2状態</div>
+  <div class="cases">
+
+    <!-- 対照R -->
+    <div class="case">
+      <div class="hd">対照R ／ <b>現行＝単独チップ「縦書き」＋ trailing 現在値</b>（2026-08-06 案C 裁定の形）</div>
+      <div class="pair">
+        <div class="col"><span class="mode">横書き中（既定）</span>
+          <div class="strip" role="img" aria-label="対照R 横書き中">
+            <div class="sheetsec">
+              <div class="row-lbl"><span class="lbl" style="margin:0">本文の向き</span><span class="val">横書き</span></div>
+              <div class="chips"><button class="chip">縦書き</button></div>
+            </div>
+          </div>
+        </div>
+        <div class="col"><span class="mode">縦書き中</span>
+          <div class="strip" role="img" aria-label="対照R 縦書き中">
+            <div class="sheetsec">
+              <div class="row-lbl"><span class="lbl" style="margin:0">本文の向き</span><span class="val">縦書き</span></div>
+              <div class="chips"><button class="chip on">縦書き</button></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="sub">2状態の差は<b>同じ1個のチップが塗られているか否か</b>だけ。「縦書き」という札が押し込まれている／いない
+        ＝スイッチのオン／オフの図式そのもの。trailing の現在値は<b>字で</b>状態を補うが、<b>形は補っていない</b>。</div>
+    </div>
+
+    <!-- 案A -->
+    <div class="case">
+      <div class="hd">案A ／ <b>連結セグメント</b>（1つの器の中の2つの位置）</div>
+      <div class="pair">
+        <div class="col"><span class="mode">横書き中（既定）</span>
+          <div class="strip" role="img" aria-label="案A 横書き中">
+            <div class="sheetsec">
+              <div class="lbl">本文の向き</div>
+              <div class="seg"><button class="sg on">横書き</button><button class="sg">縦書き</button></div>
+            </div>
+          </div>
+        </div>
+        <div class="col"><span class="mode">縦書き中</span>
+          <div class="strip" role="img" aria-label="案A 縦書き中">
+            <div class="sheetsec">
+              <div class="lbl">本文の向き</div>
+              <div class="seg"><button class="sg">横書き</button><button class="sg on">縦書き</button></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="sub">器が1つなので「2つのボタン」ではなく<b>1つのスイッチの2つの位置</b>に見える＝2択の signal が最も強い。
+        <b>緊張点</b>: 連結セグメントは<b>このアプリのどこにも無い器</b>（K のタブは per-item の指標ピルで連結器ではない）＝
+        新しい見た目を1つ増やす。原則「新意匠を発明しない」との緊張。</div>
+    </div>
+
+    <!-- 案B（推奨） -->
+    <div class="case reco">
+      <div class="hd"><span class="badge">推奨</span>案B ／ <b>分離2チップ</b>（直上のテーマ節と同じ .chip / .chip.on の語彙）</div>
+      <div class="pair">
+        <div class="col"><span class="mode">横書き中（既定）</span>
+          <div class="strip" role="img" aria-label="案B 横書き中">
+            <div class="sheetsec">
+              <div class="lbl">本文の向き</div>
+              <div class="chips"><button class="chip on">横書き</button><button class="chip">縦書き</button></div>
+            </div>
+          </div>
+        </div>
+        <div class="col"><span class="mode">縦書き中</span>
+          <div class="strip" role="img" aria-label="案B 縦書き中">
+            <div class="sheetsec">
+              <div class="lbl">本文の向き</div>
+              <div class="chips"><button class="chip">横書き</button><button class="chip on">縦書き</button></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="sub"><b>常にどちらか一方が藍で塗られている</b>＝「押されている／いない」ではなく「こちらを選んでいる」と読める。
+        見た目は直上のテーマ4択と完全に同じ語彙で、<b>新しい部品を1つも作らない</b>。
+        <b>緊張点</b>: 器が分かれているぶん、2択であることの signal は案A より一段弱い。</div>
+    </div>
+
+    <!-- 案C -->
+    <div class="case">
+      <div class="hd">案C ／ <b>連結セグメント＋既定側は淡藍</b>（--ai-tint 藍10%）</div>
+      <div class="pair">
+        <div class="col"><span class="mode">横書き中（既定＝淡藍）</span>
+          <div class="strip" role="img" aria-label="案C 横書き中">
+            <div class="sheetsec">
+              <div class="lbl">本文の向き</div>
+              <div class="seg"><button class="sg on quiet">横書き</button><button class="sg">縦書き</button></div>
+            </div>
+          </div>
+        </div>
+        <div class="col"><span class="mode">縦書き中（非既定＝藍）</span>
+          <div class="strip" role="img" aria-label="案C 縦書き中">
+            <div class="sheetsec">
+              <div class="lbl">本文の向き</div>
+              <div class="seg"><button class="sg">横書き</button><button class="sg on">縦書き</button></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="sub">2026-08-06 の不採用理由②〈既定を"わざわざ選ぶもの"に見せる〉へ真正面から答える形＝
+        既定のままなら<b>静かに居るだけ</b>、自分で選んだときだけ藍が立つ。--ai-tint は既存トークン（K タブの選択地）。
+        <b>緊張点</b>: 同じ「選択中」が2通りの濃さで描かれる＝<b>選択の強調が状態によって変わる</b>規則を新たに背負う
+        （テーマ節の「システムに従う」も既定だが、あちらは選択中なら通常どおり藍で塗られる＝規則が割れる）。</div>
+    </div>
+
+  </div>
+
+  <div class="sec">シート全体での見え（テーマ4択との語彙の噛み合わせを見る）</div>
+  <p class="warn">この節の判定は「本文の向きだけを見て良いか」ではなく、<b>直上のテーマ4択と並べたときに
+  シート内の選択の見せ方が何通りあるか</b>。案B なら1通り（チップ）、案A/C なら2通り（チップ＋連結器）。</p>
+  <div class="sheets">
+
+    <div class="sheetwrap"><span class="mode">対照R ／ 現行</span>
+      <div class="phone" role="img" aria-label="対照R 表示設定シート全体">
+        <div class="behind">辺境の城門に辿り着いたのは、長い雨がようやく上がった頃だった。濡れた石畳が夕陽を照り返し、橙の光が水たまりに滲んでいる。彼女はそう呟くと、腰の剣をそっと地に置いた。もう戦う理由はない、とでも言うように。</div>
+        <div class="scrim"></div>
+        <div class="sheet">
+          <div class="grab"></div>
+          <h2>表示設定</h2>
+          <p class="scope-note">配色や文字の設定は、すべての本に適用されます</p>
+          <div class="sheetsec">
+            <div class="lbl">テーマ</div>
+            <div class="chips">
+              <button class="chip">システムに従う</button>
+              <button class="chip on">ライト</button>
+              <button class="chip">セピア</button>
+              <button class="chip">ダーク</button>
+            </div>
+          </div>
+          <div class="sheetsec">
+            <div class="row-lbl"><span class="lbl" style="margin:0">本文の向き</span><span class="val">横書き</span></div>
+            <div class="chips"><button class="chip">縦書き</button></div>
+          </div>
+          <div class="sheetsec">
+            <div class="row-lbl"><span class="lbl" style="margin:0">文字サイズ</span><span class="val">18sp</span></div>
+            <div class="slider">
+              <span class="end" style="font-size:14px">あ</span>
+              <span class="track"><span class="fill" style="width:40%"></span><span class="knob" style="left:40%"></span></span>
+              <span class="end" style="font-size:24px">あ</span>
+            </div>
+          </div>
+          <div class="sheetsec">
+            <div class="row-lbl"><span class="lbl" style="margin:0">行間</span><span class="val">2.5</span></div>
+            <div class="slider">
+              <span class="end g">狭</span>
+              <span class="track"><span class="fill" style="width:40%"></span><span class="knob" style="left:40%"></span></span>
+              <span class="end g">広</span>
+            </div>
+          </div>
+          <div class="sheetsec">
+            <div class="row-lbl"><span class="lbl" style="margin:0">本文余白</span><span class="val">20dp</span></div>
+            <div class="slider">
+              <span class="end g">狭</span>
+              <span class="track"><span class="fill" style="width:33%"></span><span class="knob" style="left:33%"></span></span>
+              <span class="end g">広</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="sheetwrap"><span class="mode"><b>推奨 案B</b> ／ 分離2チップ</span>
+      <div class="phone" role="img" aria-label="案B 表示設定シート全体">
+        <div class="behind">辺境の城門に辿り着いたのは、長い雨がようやく上がった頃だった。濡れた石畳が夕陽を照り返し、橙の光が水たまりに滲んでいる。彼女はそう呟くと、腰の剣をそっと地に置いた。もう戦う理由はない、とでも言うように。</div>
+        <div class="scrim"></div>
+        <div class="sheet">
+          <div class="grab"></div>
+          <h2>表示設定</h2>
+          <p class="scope-note">配色や文字の設定は、すべての本に適用されます</p>
+          <div class="sheetsec">
+            <div class="lbl">テーマ</div>
+            <div class="chips">
+              <button class="chip">システムに従う</button>
+              <button class="chip on">ライト</button>
+              <button class="chip">セピア</button>
+              <button class="chip">ダーク</button>
+            </div>
+          </div>
+          <div class="sheetsec">
+            <div class="lbl">本文の向き</div>
+            <div class="chips"><button class="chip on">横書き</button><button class="chip">縦書き</button></div>
+          </div>
+          <div class="sheetsec">
+            <div class="row-lbl"><span class="lbl" style="margin:0">文字サイズ</span><span class="val">18sp</span></div>
+            <div class="slider">
+              <span class="end" style="font-size:14px">あ</span>
+              <span class="track"><span class="fill" style="width:40%"></span><span class="knob" style="left:40%"></span></span>
+              <span class="end" style="font-size:24px">あ</span>
+            </div>
+          </div>
+          <div class="sheetsec">
+            <div class="row-lbl"><span class="lbl" style="margin:0">行間</span><span class="val">2.5</span></div>
+            <div class="slider">
+              <span class="end g">狭</span>
+              <span class="track"><span class="fill" style="width:40%"></span><span class="knob" style="left:40%"></span></span>
+              <span class="end g">広</span>
+            </div>
+          </div>
+          <div class="sheetsec">
+            <div class="row-lbl"><span class="lbl" style="margin:0">本文余白</span><span class="val">20dp</span></div>
+            <div class="slider">
+              <span class="end g">狭</span>
+              <span class="track"><span class="fill" style="width:33%"></span><span class="knob" style="left:33%"></span></span>
+              <span class="end g">広</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="sec">案ごとの実装・記録への波及</div>
+  <table>
+    <tr><th>案</th><th>制御形（実装）</th><th>保存値</th><th>trailing 現在値</th><th>新しく作る見た目</th><th>シート内の選択語彙</th></tr>
+    <tr><td>対照R</td><td>単独 FilterChip</td><td>Boolean（不変）</td><td><b>残す</b>（状態を語る唯一の手段）</td><td>なし</td><td>1通り</td></tr>
+    <tr><td>案A</td><td>単一選択の2択（連結器）</td><td>Boolean（不変）</td><td>落とす</td><td><b>連結セグメント（新規）</b></td><td>2通り</td></tr>
+    <tr><td><b>案B（推奨）</b></td><td>FilterChip 2本＋単一選択</td><td>Boolean（不変）</td><td>落とす</td><td><b>なし</b></td><td><b>1通り</b></td></tr>
+    <tr><td>案C</td><td>単一選択の2択（連結器）</td><td>Boolean（不変）</td><td>落とす</td><td>連結セグメント（新規）＋既定専用の淡藍</td><td>2通り＋濃さ2段</td></tr>
+  </table>
+
+  <div class="sec">波及メモ</div>
+  <div class="notes">
+    <div class="note"><h3>trailing 現在値を落とすと 2026-08-06 案C 裁定を部分的に取り消すことになる</h3>
+      案C（節ラベル trailing に現在値）は「単独チップでは状態が読めない」ことへの手当てだった。
+      2択タグにすると<b>タグ自身が現在値を語る</b>ので二重になる。落とすのが素直だが、
+      <b>残す亜種</b>（本文の向き ……… 横書き ＋ 2択タグ）も選べる——その場合は
+      「文字サイズ 18sp」「本文余白 20dp」と同じ<b>trailing に現在値を出す節の並び</b>が揃う利点がある。
+      どちらにするかも同時に裁定してほしい（この頁の絵は<b>落とした形</b>）。
+    </div>
+    <div class="note"><h3>覆すなら記録を書き換える（消さない）</h3>
+      <code>settings-D.html:97-101</code> には「不採用・案B 二択チップ化（2026-08-06 裁定）」が理由つきで残っている。
+      採用に倒れたら<b>その記述を消さず</b>、「2026-09-03 に実使用の報せ〈オンオフに見える〉で覆した／
+      理由②はテーマ節の先例で弱いと判断」へ<b>書き換える</b>。消すと、次に誰かが同じ案を出したとき
+      「一度どう転んだか」が失われる（CLAUDE.md「採らなかった案は git log に記録されない」）。
+    </div>
+    <div class="note"><h3>語は増やさない</h3>
+      正本の語は <b>［本文の向き］</b>（表示設定シート）で、教示 <code>tutorial-onboarding-K.html</code> も
+      「［表示設定］＞［本文の向き］」と案内している。2択タグの札は<b>「横書き」「縦書き」だけ</b>にし、
+      「横書きにする」等の動詞形を作らない（<code>candidates/vertical-default-onboarding-candidates.html</code> が
+      「語が2つに割れる」として退けた失敗を繰り返さない）。
+    </div>
+    <div class="note"><h3>近縁モックも同時に直す</h3>
+      同じ節は <code>reading-settings-livepreview-D.html:179</code> にもある（案3 ライブプレビューの裁定済み正本）。
+      本件の裁定を <code>settings-D.html</code> だけへ書き戻すと<b>2つの正本が割れる</b>ので、逆同期は2ファイル1セット。
+    </div>
+  </div>
+</body>
+</html>

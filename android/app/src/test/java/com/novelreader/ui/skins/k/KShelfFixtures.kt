@@ -156,6 +156,19 @@ internal object KShelfFixtures {
         ),
     )
 
+    /**
+     * 蔵書はあるが、選んだ分類には1件も無い棚（＝「この分類の本はありません」の面）。
+     *
+     * なぜ [emptyData] と別に要るか: 空棚（蔵書0）と**見分けがつかない誤実装**を検出するため。
+     * 蔵書0では拡張FABを引っ込める（2026-08-20 裁定②）が、こちらは空棚ではない＝CTA を持たないので
+     * FAB を隠すと PDF 追加の導線が全部消える。未読1冊だけを置き、状態フィルタ「読了」を選ばせると
+     * `filterShelfByStatus` の結果が空になる（蔵書数は 1 のまま）。
+     */
+    fun unreadOnlyData(): ShelfData = mixedData().copy(
+        books = listOf(unreadBook),
+        webNovels = emptyList(),
+    )
+
     /** 空棚（初回起動で最初に見える顔＝CTA2つの空状態）。 */
     fun emptyData(): ShelfData = ShelfData(
         books = emptyList(),
@@ -170,8 +183,9 @@ internal object KShelfFixtures {
     )
 
     /**
-     * 額縁（フィルタチップ・バナー類）。[statusCounts] が 0 の分類はチップが淡く不活性になるため、
-     * 混在棚では3分類すべて 1 件、空棚では 0 件を渡して「活性チップ／不活性チップ」の両方を撮る。
+     * 額縁（フィルタチップ・バナー類）。[statusCounts] は 0 でもチップの見た目を変えない
+     *（0件の淡色化は 2026-08-07 裁定で廃止＝選択中に選択の藍まで消える誤読が真因）。
+     * 混在棚では3分類すべて 1 件、空棚では 0 件を渡す＝**0件でも淡くならない**ことを空棚 golden が張る。
      */
     fun chrome(statusCounts: Map<ReadingStatus, Int>): ShelfChrome = ShelfChrome(
         // 「すべて」選択＝フィルタ非適用の既定状態（藍塗りピルは先頭チップに出る）。

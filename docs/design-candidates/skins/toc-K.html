@@ -1,7 +1,8 @@
 <!-- @dsCard group="UI-n / スキンK候補（明快）" name="K. 目次 — 明快（現在地チップ＋既読/現在/未読を一目で）" -->
 <!--
   スキンK「明快」の目次（深い画面＝ボトムナビは出さない・没入優先。設計プラン確定事項2/3）。
-  核は「いま自分がどこか」を常時明示: ①ヘッダに「目次」＋作品名サブ ②直下に現在地チップ「いま読んでいる」
+  核は「いま自分がどこか」を常時明示: ①ヘッダに「目次」＋作品名サブ ②直下に現在地チップ「第N話」
+  （2026-08-07 裁定で前置き「いま読んでいる: 」を削り、空いた幅を同じ行の進捗へ戻した。語は aria-label に残す）
   ③各行の状態を語彙化（既読=題名を沈めて✓／現在=藍ルール＋地＋唯一の実アクション「ここから再開」／未読=通常）。
   一画面の強調は現在話の「ここから再開」チップ1つ（沈めて立てる）。
   色は D トークン土台（SkinK は SkinD へ委譲・ReadingColors LIGHT）。話数=ゴシック・題名=明朝（既存 Typography 踏襲）。単一画面・ライトのみ。
@@ -46,6 +47,7 @@
 
   /* 現在地バー: 左＝現在話チップ（藍10%地・藍字・タップで該当行へ）／右＝進捗 */
   .here{flex-shrink:0;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 18px}
+  /* 2026-08-07 裁定: チップの文字は「第N話」だけ。このバー自体が現在地バーなので前置き「いま読んでいる: 」は文脈で伝わる一方、チップは非伸縮子（flex-shrink:0 相当）として幅を先取りし、端末の最大文字サイズ＋4桁話数では進捗（.prog）の可視文字が0になっていた。削った語は aria-label/contentDescription が担う */
   .herechip{display:inline-flex;align-items:center;gap:6px;background:var(--ai-pill);color:var(--ai);
     font-size:12.5px;font-weight:700;border-radius:999px;padding:6px 14px;cursor:pointer}
   .prog{font-size:12px;color:var(--info);flex-shrink:0}
@@ -66,7 +68,9 @@
   /* 現在話: 藍の左ルール＋藍10%地＋題名は濃字。行末は唯一の実アクション（この画面の強調） */
   .row.cur{border-left-color:var(--ai);background:var(--ai-pill)}
   .row.cur .tt{color:var(--ink);font-weight:600}
-  .row.cur .resume{font-size:11px;font-weight:700;color:#fff;background:var(--ai);border-radius:999px;padding:5px 11px;white-space:nowrap}
+  /* 2026-08-07 裁定: 再開は**アイコンのみ**（丸24px）。文字入り pill は端末の最大文字サイズで幅156dp を先取りし、章題の取り分を潰していた。名前は aria-label/contentDescription が担う */
+  .row.cur .resume{display:inline-flex;align-items:center;justify-content:center;background:var(--ai);border-radius:999px;padding:4px}
+  .row.cur .resume svg{width:16px;height:16px;fill:#fff;stroke:none}
 </style>
 </head>
 <body>
@@ -82,7 +86,7 @@
     </div>
 
     <div class="here">
-      <span class="herechip">いま読んでいる: 第12話</span>
+      <span class="herechip" role="button" aria-label="いま読んでいる: 第12話">第12話</span>
       <span class="prog">全65話・読了率18%</span>
     </div>
 
@@ -98,7 +102,7 @@
       <div class="row read"><span class="ep">第9話</span><span class="tt">古い井戸と、忘れられた約束</span><span class="end"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></span></div>
       <div class="row read"><span class="ep">第10話</span><span class="tt">夜営の火、語られぬ過去のこと</span><span class="end"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></span></div>
       <div class="row read"><span class="ep">第11話</span><span class="tt">遠雷、辺境の空に鳴りわたる</span><span class="end"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></span></div>
-      <div class="row cur"><span class="ep">第12話</span><span class="tt">城門にて、彼女は静かに剣を置いた</span><span class="end"><span class="resume">ここから再開</span></span></div>
+      <div class="row cur"><span class="ep">第12話</span><span class="tt">城門にて、彼女は静かに剣を置いた</span><span class="end"><span class="resume" role="button" aria-label="ここから再開"><svg viewBox="0 0 24 24"><polygon points="6 4 20 12 6 20"/></svg></span></span></div>
       <div class="row"><span class="ep">第13話</span><span class="tt">領主の館へ、招かれざる客として</span><span class="end"></span></div>
       <div class="row"><span class="ep">第14話</span><span class="tt">薬草園の落成、ささやかな祝宴</span><span class="end"></span></div>
       <div class="row"><span class="ep">第15話</span><span class="tt">長い夜の終わりに交わした言葉</span><span class="end"></span></div>

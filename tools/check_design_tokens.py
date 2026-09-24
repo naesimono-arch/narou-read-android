@@ -79,12 +79,14 @@ def parse_reading_colors(kt_rel: str) -> dict[str, dict[str, str]]:
     """
     text = (THEME_DIR / kt_rel).read_text(encoding="utf-8")
     themes: dict[str, dict[str, str]] = {}
+    # なぜ自前の literal 正規表現をやめて [_named_args] を使うか（2026-09-07）: 旧実装は
+    # `Color(0xFFRRGGBB)` の**直値だけ**を拾い、`infoText = InfoTextLight` のように Color.kt の
+    # val 名で書かれたフィールドを黙って落としていた。同じ when ブロックをコントラスト検査側は
+    # [_named_args]（val 名も解決する）で読んでおり、1ファイルに解像度の違う抽出器が2つ在る状態だった。
+    # 実害＝モック側に対応変数を足した瞬間に「抽出できない」で NG になる（--info の追加で顕在化）。
+    tokens = parse_color_kt()
     for tm in re.finditer(r"ReadingTheme\.(LIGHT|SEPIA|DARK)\s*->\s*ReadingColors\((.*?)\n\s*\)", text, re.S):
-        fields = {
-            f.group(1): f.group(2).upper()
-            for f in re.finditer(r"(\w+)\s*=\s*Color\(0xFF([0-9A-Fa-f]{6})\)", tm.group(2))
-        }
-        themes[tm.group(1)] = fields
+        themes[tm.group(1)] = _named_args(tm.group(2), tokens)[0]
     return themes
 
 # ---- 期待表（保守対象。モック改版・トークン改名時はここを更新する） ---------------
@@ -140,6 +142,9 @@ READING_VARS = {
     "--bg": "background",
     "--ink": "text",
     "--soft": "textSecondary",
+    # 2026-09-07 新設。復帰ヒント `.hint` の字色が --soft（＝AA 免除枠）から意味色へ移った裁定に伴い
+    # モックへ --info を宣言した＝実装の役割トークン infoText と 1:1 で縛る（ADR 0014-D 適用裁定「復帰ヒント」）。
+    "--info": "infoText",
     "--ruby": "ruby",
     "--blk-bg": "blockBackground",
     "--blk-bd": "blockBorder",
@@ -316,18 +321,21 @@ GRACE_FILES: set[str] = set()
 #   - 表にある SKIP が消えたら INFO/NG（＝復活したので締め直す／表が drift した）
 # となり、SKIP の総数ではなく「SKIP の中身」がラチェットになる。
 #
-# 【現在の内訳】SKIP=10（別名グループ化で雑音 32 件＝別名の空振り 22・二重計上 10 を解消した後の実測値。
-# 照合できていた OK は 193 件のまま増減なし＝カバレッジを削って SKIP を減らしたのではない）。
+# 【現在の内訳】SKIP=9・OK=194（2026-08-21。別名グループ化で雑音 32 件＝別名の空振り 22・
+# 二重計上 10 を解消した時点は SKIP=10/OK=193 で、そこから discovery-detail-D が案2-c 裁定で
+# --seiji-ink を宣言し 1 件が SKIP→OK へ昇格した＝カバレッジを削って SKIP を減らしたのではない）。
 #   - モック追従待ち 3 件 = fusion-D / shiori-grid-D / shiori-consistency-D。未読・未取込ラベルが
 #     装飾色のままで濃青磁 UnreadSeiji へ追従しておらず、対応する CSS 変数自体が無い（要意匠裁定）。
-#   - 役割不在 7 件 = 発見系 5 画面・toc-D・settings-D。未読ラベルという役割がその画面に無い。
+#   - 役割不在 6 件 = 発見系 4 画面・toc-D・settings-D。未読ラベルという役割がその画面に無い。
 #   - 構造的に照合不能な変数（rgba 宣言・テーマ別 3 宣言が揃わない等）は SKIP ではなく
 #     READING_VARS_* の期待表から除外済み＝各表の why コメントが理由の正本（C の導出値・M の
 #     rgba --line・P の chrome 単一宣言・J の ambient）。
 # ベースライン更新手順: モック改版・期待表の増減で SKIP が意図的に変わったら、
 #   python3 tools/check_design_tokens.py を実行 → [SKIP] 一覧が全件意図どおりか目視 →
 #   EXPECTED_SKIPS を増減し、本定数を新しい実測値へ書き換える。
-SKIP_BASELINE = 10
+# 2026-08-21: 10 → 9。discovery-detail-D が案2-c 裁定で --seiji-ink を宣言し、「役割不在」の
+# SKIP から実照合へ昇格した（＝カバレッジが1件増えたぶんの減。SKIP を隠して減らしたのではない）。
+SKIP_BASELINE = 9
 
 # SKIP 1 件ごとの理由（鍵 = 上の [SKIP] ラベルと同一文字列。別名グループは "--a|--b" で表す）。
 # 「モックの意匠を機械が直すのは禁止」（CLAUDE.md /visual-language）なので、追従漏れは隠さず
@@ -345,8 +353,8 @@ EXPECTED_SKIPS: dict[str, str] = {
     "discovery/discovery-home-D.html --seiji-ink|--sj-ink": _SKIP_NO_UNREAD_ROLE,
     "discovery/discovery-search-D.html --seiji-ink|--sj-ink": _SKIP_NO_UNREAD_ROLE,
     "discovery/discovery-genre-D.html --seiji-ink|--sj-ink": _SKIP_NO_UNREAD_ROLE,
-    # 詳細画面の「未読」は説明キャプションの地の文だけで、状態ラベルとしては描かれない
-    "discovery/discovery-detail-D.html --seiji-ink|--sj-ink": _SKIP_NO_UNREAD_ROLE,
+    # discovery-detail-D.html は 2026-08-21 の案2-c 裁定で --seiji-ink を宣言した（ジャンル／
+    # キーワードのチップ文字＝意味を運ぶ文字）＝SKIP から実照合へ昇格したので本行は削除済み。
     "discovery/reading-continuation-D.html --seiji-ink|--sj-ink": _SKIP_NO_UNREAD_ROLE,
     "toc-D.html --seiji-ink|--sj-ink": _SKIP_NO_UNREAD_ROLE,
     "settings-D.html --seiji-ink|--sj-ink": _SKIP_NO_UNREAD_ROLE,
@@ -584,7 +592,7 @@ def parse_skin(kt_rel: str, tokens: dict[str, str], tiers: dict[str, str] | None
             reading[theme] = got
             unresolved += [f"{kt_rel}:reading({theme}).{n}" for n in un]
 
-    # --- ShelfColors: 位置引数 (hairline, unreadLabel, infoText)。単一 val 定義の場合も辿る ---
+    # --- ShelfColors: 位置引数 (hairline, semanticMicroText, infoText)。単一 val 定義の場合も辿る ---
     shelf: dict[str, dict[str, str]] = {}
     body = _member_body(text, r"override fun shelf\([^)]*\)\s*:\s*ShelfColors\s*=\s*")
     if body is not None:
@@ -599,7 +607,7 @@ def parse_skin(kt_rel: str, tokens: dict[str, str], tiers: dict[str, str] | None
             else:
                 inner = _balanced(expr, cm.end() - 1)[0]
             args = [a.strip() for a in inner.split(",")]
-            fields = ("hairline", "unreadLabel", "infoText")
+            fields = ("hairline", "semanticMicroText", "infoText")
             vals = {}
             for f, a in zip(fields, args):
                 v = _resolve(a, tokens)
@@ -650,8 +658,8 @@ READING_OUT_OF_SCOPE = [
 # ShelfColors の意味色 × 同スキン同テーマの Material 面（棚地＝background・カード面＝surfaceVariant・
 # ダイアログ面＝surfaceContainerHigh）。
 SHELF_PAIRS = [
-    ("unreadLabel", "background", 4.5, "未読ラベル（棚地の上）"),
-    ("unreadLabel", "surfaceVariant", 4.5, "未読ラベル（カード面の上）"),
+    ("semanticMicroText", "background", 4.5, "意味を運ぶ微小文字（棚地の上）"),
+    ("semanticMicroText", "surfaceVariant", 4.5, "意味を運ぶ微小文字（カード面の上）"),
     ("infoText", "background", 4.5, "情報メタ（棚地の上）"),
     ("infoText", "surfaceVariant", 4.5, "情報メタ（カード面の上）"),
     # ダイアログ本文。対応の出所は theme/NovelReaderAlertDialog.kt の既定引数
@@ -742,11 +750,11 @@ CONTRAST_BASELINE: dict[str, str] = {
     "P/LIGHT/reading:accent⇄background": _P_ACCENT_TEXT,
     "P/SEPIA/reading:accent⇄blockBackground": _P_ACCENT_TEXT,
     "P/SEPIA/reading:accent⇄background": _P_ACCENT_TEXT,
-    "P/LIGHT/shelf:unreadLabel⇄surfaceVariant": _P_SHELF_ON_PANEL,
+    "P/LIGHT/shelf:semanticMicroText⇄surfaceVariant": _P_SHELF_ON_PANEL,
     "P/LIGHT/shelf:infoText⇄surfaceVariant": _P_SHELF_ON_PANEL,
-    "P/SEPIA/shelf:unreadLabel⇄surfaceVariant": _P_SHELF_ON_PANEL,
+    "P/SEPIA/shelf:semanticMicroText⇄surfaceVariant": _P_SHELF_ON_PANEL,
     "P/SEPIA/shelf:infoText⇄surfaceVariant": _P_SHELF_ON_PANEL,
-    "P/DARK/shelf:unreadLabel⇄surfaceVariant": _P_SHELF_ON_PANEL,
+    "P/DARK/shelf:semanticMicroText⇄surfaceVariant": _P_SHELF_ON_PANEL,
     "P/DARK/shelf:infoText⇄surfaceVariant": _P_SHELF_ON_PANEL,
     "P/DARK/reading:ruby⇄blockBackground": _P_RUBY_ON_BLOCK,
     "P/LIGHT/material:primary⇄surfaceContainerHigh": _P_DIALOG_ACTION,

@@ -1,6 +1,5 @@
 package com.novelreader.ui.skins.m
 
-import android.provider.Settings
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
@@ -69,7 +68,6 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontStyle
@@ -84,6 +82,8 @@ import com.novelreader.data.BookEntity
 import com.novelreader.data.ProgressEntity
 import com.novelreader.discovery.model.WorkSummary
 import com.novelreader.narou.model.Ncode
+import com.novelreader.ui.ReimportScanBanner
+import com.novelreader.ui.ReimportSweepBanner
 import com.novelreader.ui.newEpisodeCountFor
 import com.novelreader.ui.skins.ShelfActions
 import com.novelreader.ui.skins.ShelfChrome
@@ -110,8 +110,11 @@ import com.novelreader.ui.theme.StarGlowInnerSeizu
 import com.novelreader.ui.theme.StarGlowOuterSeizu
 import com.novelreader.ui.theme.StarSeizu
 import com.novelreader.ui.theme.TextSeizu
+import com.novelreader.ui.theme.rememberReduceMotion
+import com.novelreader.viewmodel.ProcessingSource
 import com.novelreader.viewmodel.ProcessingState
 import com.novelreader.domain.ReadingStatus
+import com.novelreader.domain.ScanProgress
 import com.novelreader.domain.chapterNumberOf
 import com.novelreader.domain.progressFractionFor
 import com.novelreader.domain.readingStatusFor
@@ -207,10 +210,8 @@ internal fun BookshelfSkyM(
     val onCancelProcessing = actions.onCancelProcessing
     // reduce-motion: アニメーター無効（開発者設定/省電力のスケール0）を尊重して脈動を静止させる
     //（ADR 0022 §3 の必須条件。モックの prefers-reduced-motion 分岐＝pulse 0.55 固定と同値）。
-    val context = LocalContext.current
-    val reduceMotion = remember {
-        Settings.Global.getFloat(context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f
-    }
+    // 判定は theme/ReduceMotion.kt の単一情報源（旧: ここで直読み＋キー無し remember＝設定変更が届かなかった・監査 C2）。
+    val reduceMotion = rememberReduceMotion()
     // 脈動位相（周期 8796ms ≒ モック sin(ts/1400) の 2π×1400）。draw 段でだけ読ませるため
     // ラムダで渡す（コンポーズ再実行をフレーム毎に走らせない＝deferred read）。
     // reduce 時は無限アニメ自体を作らない（静止値のみ＝モックの rAF 停止と同値・電池も浪費しない）。
@@ -307,6 +308,39 @@ internal fun BookshelfSkyM(
                 exit = fadeOut(tween(MotionDurationDismiss)),
             ) {
                 SkyProcessingBanner(processingState, onCancelProcessing)
+            }
+            // 本文欠落の一括検出バナー（案C）と PDF フォルダ走査バナー（案X）。従来この面は chrome の
+            // sweepBannerVisible/folderScan/onScanStop を受け取って捨てており、route 層で起動した走査に
+            // 進捗表示も停止手段も無かった（束の必須引数化は「受け取って捨てる」を止められない＝監査 2026-08-06 B1）。
+            // 意匠はトークン経由でスキン色に染まる共有部品をそのまま使う＝K 面と同型の最小配線（M 意匠版は未裁定）。
+            AnimatedVisibility(
+                visible = chrome.sweepBannerVisible,
+                enter = fadeIn(tween(MotionDurationReveal)),
+                exit = fadeOut(tween(MotionDurationDismiss)),
+            ) {
+                ReimportSweepBanner(
+                    missingCount = data.reimportPlans.size,
+                    onLater = chrome.onSweepLater,
+                    onReimport = chrome.onSweepConfirm,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            // 退場アニメの間 folderScan は既に null になっているため直前の非 null 値を保持して描く
+            //（保持箱をスナップショット状態にしない理由＝BookshelfScreen の同処理コメント参照）。
+            val lastScan = remember { arrayOfNulls<ScanProgress>(1) }
+            chrome.folderScan?.let { lastScan[0] = it }
+            AnimatedVisibility(
+                visible = chrome.folderScan != null,
+                enter = fadeIn(tween(MotionDurationReveal)),
+                exit = fadeOut(tween(MotionDurationDismiss)),
+            ) {
+                lastScan[0]?.let { progress ->
+                    ReimportScanBanner(
+                        progress = progress,
+                        onStop = chrome.onScanStop,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
             }
             SkyChips(selectedStatus, statusCounts, onSelectStatus)
 
@@ -405,44 +439,66 @@ private fun SkyPlate(
     highLoadSkyM: Boolean = false,
     onHighLoadSkyChange: (Boolean) -> Unit = {},
 ) {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.S16, vertical = Spacing.S4),
-        verticalAlignment = Alignment.Top,
-    ) {
-        Column(modifier = Modifier.weight(1f).padding(start = Spacing.S4, top = Spacing.S4)) {
-            Text(
-                "本棚",
-                fontFamily = MinchoFamily,
-                fontSize = 20.sp,              // .plate .name 20px
-                letterSpacing = 0.22.em,       // .22em
-                fontWeight = FontWeight.Medium,
-                color = TextSeizu,
-            )
-            // 銘の meta（モック .plate .meta＝「12冊 ・ 結んだ星座 8 / 12」）＝K形の明示冊数を先頭に添える。
-            Text(
-                "${libraryCount}冊 ・ 結ばれた星座 $boundCount / $totalCount",
-                fontSize = 10.sp,              // .plate .meta 10px
-                letterSpacing = 0.12.em,
-                color = DimSeizu,
-                modifier = Modifier.padding(top = Spacing.S4),
-            )
-        }
-        IconButton(onClick = onToggleList) {
-            Icon(Icons.AutoMirrored.Filled.List, contentDescription = "一覧表示に切替", tint = DimSeizu)
-        }
-        IconButton(onClick = onOpenWardrobe) {
-            // 装いの間だけ星光でほのめかす（モック .ib.wardrobe＝着せ替え入口はこの画面の「別の空」への扉）。
-            FourPointStar(color = StarSeizu, modifier = Modifier.size(19.dp))
-        }
-        Box {
-            var menuOpen by remember { mutableStateOf(false) }
-            IconButton(onClick = { menuOpen = true }) {
-                Icon(Icons.Filled.MoreVert, contentDescription = "メニュー", tint = DimSeizu)
+    // ⋮ の開閉状態は銘の行より外側に持つ＝メニュー本体を行の外（下のアンカー）へ出すため。
+    var menuOpen by remember { mutableStateOf(false) }
+    // なぜ入れ物（⋮ ボタン・DropdownMenu）と中身（開発節）を同じ1つの値で駆動するか:
+    // M の⋮に載る項目は高負荷スカイ節ただ1つで、以前は露出条件が節の内側にしか無かった。
+    // 入れ物側は中身の有無を知らないまま無条件に描かれ、release では**空のメニューだけが開いていた**。
+    // 条件を⋮側にも別途書く（＝2箇所に割る）と同じ食い違いを作り直すので、読み口は1つに保つ。
+    val menuHasContent = highLoadSkyMenuVisible
+    Box(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.S16, vertical = Spacing.S4),
+            verticalAlignment = Alignment.Top,
+        ) {
+            Column(modifier = Modifier.weight(1f).padding(start = Spacing.S4, top = Spacing.S4)) {
+                Text(
+                    "本棚",
+                    fontFamily = MinchoFamily,
+                    fontSize = 20.sp,              // .plate .name 20px
+                    letterSpacing = 0.22.em,       // .22em
+                    fontWeight = FontWeight.Medium,
+                    color = TextSeizu,
+                )
+                // 銘の meta（モック .plate .meta＝「12冊 ・ 結んだ星座 8 / 12」）＝K形の明示冊数を先頭に添える。
+                Text(
+                    "${libraryCount}冊 ・ 結ばれた星座 $boundCount / $totalCount",
+                    fontSize = 10.sp,              // .plate .meta 10px
+                    letterSpacing = 0.12.em,
+                    color = DimSeizu,
+                    modifier = Modifier.padding(top = Spacing.S4),
+                )
             }
-            DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                // 新着通知は設定タブ（SettingsScreenK）へ移行済みのため⋮から撤去（系2）。M は固定1変種でテーマ節も元々無い。
-                // 残すのは M 固有の非設定項目＝高負荷スカイ試作トグル（ADR 0023・debug かつ星図M のときだけ内部ゲートで出る）。
-                HighLoadSkyMenuSection(highLoadSkyM, onHighLoadSkyChange, onDismissMenu = { menuOpen = false })
+            IconButton(onClick = onToggleList) {
+                Icon(Icons.AutoMirrored.Filled.List, contentDescription = "一覧表示に切替", tint = DimSeizu)
+            }
+            IconButton(onClick = onOpenWardrobe) {
+                // 装いの間だけ星光でほのめかす（モック .ib.wardrobe＝着せ替え入口はこの画面の「別の空」への扉）。
+                FourPointStar(color = StarSeizu, modifier = Modifier.size(19.dp))
+            }
+            if (menuHasContent) {
+                IconButton(onClick = { menuOpen = true }) {
+                    Icon(Icons.Filled.MoreVert, contentDescription = "メニュー", tint = DimSeizu)
+                }
+            }
+        }
+        // なぜ ⋮ ボタンを包む Box ではなく「銘の行の外」をメニューのアンカーにするか:
+        // DropdownMenu は直近の親レイアウトの下端に上端を合わせて開く。⋮ を包む Box を親にすると、
+        // アイコンは Alignment.Top＝銘（題字＋副題の2行）の1行目ぶんの高さしか占めないので、
+        // メニューはヘッダの途中に開き、副題の字面上部が帯状にメニューの外へ残って覗いた
+        //（2026-08-17 実機再現。docs/knowledge/dropdown-anchor-aligned-to-header-first-line.md）。
+        // offset で押し下げるのは端末・インセット・フォントスケール毎に合わせ直す当て推量になるので採らない。
+        // ここでは銘の行と同じ左右余白の帯を敷き、その右下＝「⋮ の右端 × ヘッダ全体の下端」を
+        // 0 サイズのアンカーにする（横位置は従来どおり ⋮ の直下・縦は2行ぶんの下へ）。
+        if (menuHasContent) {
+            Box(modifier = Modifier.matchParentSize().padding(horizontal = Spacing.S16)) {
+                Box(modifier = Modifier.align(Alignment.BottomEnd)) {
+                    DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                        // 新着通知は設定タブ（SettingsScreenK）へ移行済みのため⋮から撤去（系2）。M は固定1変種でテーマ節も元々無い。
+                        // 残すのは M 固有の非設定項目＝高負荷スカイ試作トグル（ADR 0023）。露出条件は上の menuHasContent が唯一の判定。
+                        HighLoadSkyMenuSection(highLoadSkyM, onHighLoadSkyChange, onDismissMenu = { menuOpen = false })
+                    }
+                }
             }
         }
     }
@@ -499,7 +555,6 @@ internal fun SkyProcessingBanner(state: ProcessingState, onCancel: () -> Unit) {
                 color = TextSeizu,
                 maxLines = 1, overflow = TextOverflow.Ellipsis,
             )
-            val overall = ((state.stepIndex + state.stepLocalPercent) / state.stepTotal).coerceIn(0f, 1f)
             Text(
                 state.phase + if (state.queueTotal > 1) " · ${state.queueCurrent}/${state.queueTotal}件" else "",
                 fontSize = 9.5.sp,             // .banner .s 9.5px
@@ -507,19 +562,26 @@ internal fun SkyProcessingBanner(state: ProcessingState, onCancel: () -> Unit) {
                 maxLines = 1, overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.padding(top = Spacing.S4),
             )
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = Spacing.S8)
-                    .height(2.dp)
-                    .background(TrackAlpha, RoundedCornerShape(2.dp)),
-            ) {
+            // ステップ駆動の進捗バー（stepIndex/stepLocalPercent/stepTotal）は PDF 供給元専用の器。Web 取込は
+            // phase しか更新しない（章単位取得＝ステップ概念なし・0/0f/4 が全期間固定）ため、無条件に描くと
+            // 恒久 0% のバーになり処理停止と誤認させる（共有 ui/ProcessingBanner の 2026-07-29 裁定②と同機序＝
+            // 監査 2026-08-06 B3）。Web は phase 行「章 i/N 取得中」へ一本化しバーを出さない。
+            if (state.source == ProcessingSource.PDF) {
+                val overall = ((state.stepIndex + state.stepLocalPercent) / state.stepTotal).coerceIn(0f, 1f)
                 Box(
                     modifier = Modifier
-                        .fillMaxWidth(overall)
+                        .fillMaxWidth()
+                        .padding(top = Spacing.S8)
                         .height(2.dp)
-                        .background(StarSeizu, RoundedCornerShape(2.dp)),
-                )
+                        .background(TrackAlpha, RoundedCornerShape(2.dp)),
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth(overall)
+                            .height(2.dp)
+                            .background(StarSeizu, RoundedCornerShape(2.dp)),
+                    )
+                }
             }
         }
         // 停止（モック外の機能ボタン＝D バナーの onStop と機能同数を守る。星図では沈めた文字リンクで）。
@@ -645,8 +707,14 @@ private fun ConstellationCell(
     val idColor = idColorFor(book.id)
     val cellHeight = if (isHero) 200.dp else 150.dp
     // 銘の readout（モック .prog）。銘ブロックの幅を決めるため描画より前に確定させる（機序＝rememberConstBlockWidth）。
+    // 章数不明（chapterCountMap 欠落＝0）は数を描かない: 0 は「章数不明／本文実体なし」の意味しか持たず、
+    // 「全0話」は実在しない事実の捏造になる（DB だけ Auto Backup 復元された端末で全冊該当・監査 2026-08-06 B6。
+    // D 共通 BookProgressRow は totalChaps<=0＝fraction null の枝で「未読」語のみ＝数を出さない規則へ揃える）。
+    // else 枝の totalChaps<=0 は読了実績（reachedEnd→FINISHED）だけが到達する＝話数/％も不明ゆえ章位置だけ残す。
     val readout = when {
+        isUnread && totalChaps <= 0 -> "未読 · まだ星は結ばれていない"
         isUnread -> "未読 · 全${totalChaps}話　まだ星は結ばれていない"
+        totalChaps <= 0 -> "第${chapNum ?: 1}話"
         else -> "第${chapNum ?: 1}話 / 全${totalChaps}話 · ${((frac ?: 0f) * 100).toInt()}%"
     }
     val blockWidth = rememberConstBlockWidth(readout)

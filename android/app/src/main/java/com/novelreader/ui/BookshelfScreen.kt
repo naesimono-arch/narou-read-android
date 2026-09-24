@@ -44,9 +44,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -55,7 +59,10 @@ import com.novelreader.PrefKeys
 import com.novelreader.data.BookEntity
 import com.novelreader.data.ProgressEntity
 import com.novelreader.model.BookId
+import com.novelreader.ui.components.horizontalScrollEdgeFade
 import com.novelreader.ui.discovery.FilterChipItem
+import com.novelreader.ui.intro.IntroGroup
+import com.novelreader.ui.intro.LocalIntroController
 import com.novelreader.discovery.model.WorkSummary
 import com.novelreader.ui.theme.FontButtonLabel
 import com.novelreader.ui.theme.FontHomeTitle
@@ -91,6 +98,7 @@ import com.novelreader.domain.deleteConfirmLabel
 import com.novelreader.domain.filterShelfByStatus
 import com.novelreader.domain.mergeShelfItems
 import com.novelreader.domain.missingContentDeleteWarning
+import com.novelreader.domain.narouRedownloadNcode
 import com.novelreader.domain.readingStatusFor
 import com.novelreader.domain.reimportBreakdown
 import com.novelreader.domain.reimportStatusLabel
@@ -129,15 +137,24 @@ fun BookshelfScreen(
     //（M 銘クラスタの4条星・J デッキ面クローム）が ShelfActions 経由で使うため。onOpenDiscovery も同様
     //（発見は「さがす」タブへ分離済み・J デッキの発見扉だけが残置導線として使う）。
     onOpenWardrobe: () -> Unit = {},
-    // (b) Web由来カードの「縦書きPDFを取り込む」→ 取り込み画面（discovery/detail/{ncode}/import）への
-    // ナビゲーション。navController は MainActivity が握るためコールバックで委譲する。
-    onImportWebNovel: (ncode: String) -> Unit = {},
+    // なろう縦書きPDF取り込み画面（discovery/detail/{ncode}/import）へのナビゲーション。
+    // navController は MainActivity が握るためコールバックで委譲する。
+    // 呼び手は2つ＝(b) Web由来カードの「縦書きPDFを取り込む」／欠落本の再取込ダイアログの
+    // 「なろうで作り直す」（取込元PDFが端末に残っていない本の唯一の復旧導線＝ADR 0043 実装便で追加）。
+    // 継ぎ目を2本に増やさないのは、着地が同一ルートで、増やすと配線漏れの面が倍になるため。
+    onOpenNarouPdfImport: (ncode: String) -> Unit = {},
     // 機能②: Web カードの読書導線＝なろうをアプリ内 WebView で開く（ADR 0012）。startEpisode 0=目次(初回)／
     // >0=記録した話へ直接(続きから)。navController は MainActivity が握るためコールバックで委譲する。
     onReadWebNovel: (ncode: String, startEpisode: Int) -> Unit = { _, _ -> },
     // 遷移ジャンク対策（P2）: enter アニメ中だけ重いグリッドをスケルトンへ差替える指示。算出は
     // NavHost の transition を持つ MainActivity の責務（ここは素通し）。既定 false＝既存呼出し不変。
     deferHeavyContent: Boolean = false,
+    // タブ枠でこのページが前面か（2026-08-06 監査 B8。TabPagerHost は beyondViewportPageCount=1 で
+    // 隣ページも常駐コンポーズする＝「コンポーズされている≠見えている」）。選択モード BackHandler の
+    // enabled へ合流させ、他タブ表示中に隠れた本棚が Back を黙って食うのを防ぐ。値の算出は Pager を
+    // 持つ MainActivity の責務（tabPagerState.currentPage == KTab.BOOKSHELF.ordinal を渡す）。
+    // 既定 true は Pager 外の呼び出し・テストの互換（単独表示なら常に前面＝従来挙動）。
+    isFrontTab: Boolean = true,
 ) {
     // Loading と Empty を型で区別する（F-O）。Loading 中はスケルトンを出し、
     // DB から Content(空) が確定して初めて空状態を表示することで cold start の空フラッシュを防ぐ。
@@ -150,6 +167,11 @@ fun BookshelfScreen(
     // 続きありバッジの Web 蔵書側（key=bookId）。Worker が最後に観測したサイト総話数（U1 の基準値）。
     val webNewEpisodeTotals by viewModel.webNewEpisodeTotalMap.collectAsStateWithLifecycle()
     val processingState by viewModel.processingState.collectAsStateWithLifecycle()
+    // 実行中の Web 取込本数（監査 A2）。再取得ダイアログの確定ボタンを実行中は押させないために購読する。
+    // processingState で代用しない: あちらは PDF 優先の表示合成のため、PDF 変換と並走中は WEB の
+    // 実行中が表示から消え、ガードが素通りする（VM 側 activeWebImports の宣言コメント参照）。
+    val activeWebImports by viewModel.activeWebImports.collectAsStateWithLifecycle()
+    val webImportRunning = activeWebImports > 0
     // 複数PDF取込で「なろう形式でないPDF」が混在したときの確認プロンプト（null=非表示）。
     val importPrompt by viewModel.importPrompt.collectAsStateWithLifecycle()
     val overwritePrompt by viewModel.overwritePrompt.collectAsStateWithLifecycle()
@@ -162,12 +184,23 @@ fun BookshelfScreen(
     val pdfFolderTreeUri by viewModel.pdfFolderTreeUri.collectAsStateWithLifecycle()
     // 案B: 欠落カードのタップで開く復旧ダイアログの対象（null=非表示）。案C: 一括内訳ダイアログの開閉。
     // ダイアログは M3 AlertDialog（route 層所有）＝削除確認・取込プロンプトと同じ扱いで全スキンに被さる。
-    var reimportTarget by remember { mutableStateOf<BookEntity?>(null) }
-    var showSweepDialog by remember { mutableStateOf(false) }
+    // なぜ両方 rememberSaveable か（2026-08-17 実機で発見した実バグ）: MainActivity は configChanges を
+    // 一切宣言していない＝回転で Activity が再生成され、plain remember に置いた状態はそこで捨てられる。
+    // 実際に「復旧ダイアログを開いたまま横向きにするとダイアログが消える」が起きていた。対象を立て直す
+    // 書き込みは欠落カードのタップ1箇所だけなので、消えたら自力では戻らない（操作が丸ごと無かったことになる）。
+    // なぜ BookEntity でなく id(String) か: BookEntity は Parcelable でも Serializable でもなく Bundle へ
+    // 入らない。下の pendingScanBookId と同じく id だけを保存し、描画時に books から引き直す（同ファイル内
+    // に既にある型を踏襲＝Saver の新設より安全）。
+    var reimportTargetId by rememberSaveable { mutableStateOf<String?>(null) }
+    var showSweepDialog by rememberSaveable { mutableStateOf(false) }
     // フォルダ選択の結果を「この1冊の走査」へ回すか「一括復旧」へ回すかの行き先（案X）。
     // なぜ状態で持つか: ピッカーのコールバックは launch 時の文脈を受け取れないため、どちらの導線から
     // 開いたかをここで覚えておく（null=一括復旧）。
-    var pendingScanBook by remember { mutableStateOf<BookEntity?>(null) }
+    // なぜ rememberSaveable の id(String) か（2026-08-06 監査 A4）: ランチャー登録キーは Saveable＝
+    // 結果は Activity 再生成（SAF ピッカー表示中の回転・ダーク切替等）をまたいで必ず届くのに、行き先が
+    // plain remember だと再生成で null＝一括側へ化け、「1冊復旧」が全 AutoPdf/AutoWeb の一括再取込に
+    // すり替わる。BookEntity は Parcelable でないため id だけを保存し、結果受信時に books から引き直す。
+    var pendingScanBookId by rememberSaveable { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
@@ -185,14 +218,17 @@ fun BookshelfScreen(
     val pdfFolderPicker = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocumentTree()
     ) { treeUri ->
-        val target = pendingScanBook
-        pendingScanBook = null
+        val targetId = pendingScanBookId
+        pendingScanBookId = null
         if (treeUri == null) return@rememberLauncherForActivityResult
         viewModel.rememberPdfFolder(treeUri)
-        if (target != null) {
+        if (targetId != null) {
+            // id から現物を引き直す（再生成をまたぐと BookEntity の参照は保存できないため。上の宣言コメント参照）。
+            val target = (uiState as? BookshelfUiState.Content)?.books?.firstOrNull { it.id == targetId }
             // 場所を選んでいる間にその本が復旧を終えた等で走査対象から外れることがある。
             // 無反応で終わらせず理由を告げる（せっかくフォルダを選んだのに何も起きない、を作らない）。
-            if (!viewModel.scanFolderForBook(target, treeUri)) {
+            // 引き直し失敗（削除済み・一覧未確定）も同じ通知に合流＝「1冊のつもり」を黙って一括側へ落とさない（監査 A4）。
+            if (target == null || !viewModel.scanFolderForBook(target, treeUri)) {
                 viewModel.emitSnackbar("この本は再取込の対象ではなくなりました", transient = true)
             }
         } else {
@@ -204,7 +240,7 @@ fun BookshelfScreen(
     // 場所を記憶済みならその場で走査し、未記憶ならフォルダ選択を出す（＝2度目以降は選ばせない）。
     val scanForBook: (BookEntity) -> Unit = { book ->
         if (!viewModel.scanFolderForBook(book)) {
-            pendingScanBook = book
+            pendingScanBookId = book.id
             pdfFolderPicker.launch(null)
         }
     }
@@ -243,8 +279,13 @@ fun BookshelfScreen(
 
     // 通知権限 priming（notify Minor 2026-07-12）: システム権限ダイアログの前に理由説明を挟むためのフラグ。
     // 一度提示したら以後は出さない（notif_priming_shown で永続化）＝毎回のFABタップで問い直さない。
+    // notifPrimingShown は plain remember のままでよい: 初期値を SharedPreferences から読むため、
+    // Activity 再生成後も同じ永続値で立ち上がる（＝保存する必要がない）。
     var notifPrimingShown by remember { mutableStateOf(prefs.getBoolean(PrefKeys.NOTIF_PRIMING_SHOWN, false)) }
-    var showNotifPriming by remember { mutableStateOf(false) }
+    // 開閉フラグだけは rememberSaveable（2026-08-17 掃引・reimportTargetId と同じ真因）: 表示を立てる
+    // 書き込みは FAB タップ経路の1箇所だけなので、回転で落ちると説明を出さないままピッカーへも進まず、
+    // FAB を押し直すまで何も起きない行き止まりになる。
+    var showNotifPriming by rememberSaveable { mutableStateOf(false) }
     val markPrimingShown: () -> Unit = {
         notifPrimingShown = true
         prefs.edit().putBoolean(PrefKeys.NOTIF_PRIMING_SHOWN, true).apply()
@@ -293,6 +334,17 @@ fun BookshelfScreen(
         }
     }
 
+    // ────── 教示「はじめに」組A（初回の扉 2 枚）──────
+    // 出す条件は**起動回数ではなく「本棚が空」**（正本モック §8）。初回起動は権限ダイアログや復元と
+    // 重なりやすく、そこへ重ねると読まれずに閉じられて通算1回を焼く（ピルで踏んだのと同じ穴）。
+    // Loading（DB 初回発行前）を空と扱わないのは、cold start の一瞬で出してしまわないため。
+    val introController = LocalIntroController.current
+    val shelfLooksEmpty = (uiState as? BookshelfUiState.Content)
+        ?.let { it.books.isEmpty() && it.webNovels.isEmpty() } == true
+    LaunchedEffect(introController, shelfLooksEmpty) {
+        if (shelfLooksEmpty) introController?.requestAuto(IntroGroup.ABOUT)
+    }
+
     BookshelfContent(
         uiState = uiState,
         progressMap = progressMap,
@@ -308,7 +360,7 @@ fun BookshelfScreen(
                     // 本文欠落本のタップ＝読書画面（本文が無く空になる）でなく復旧ダイアログへ（案B）。
                     // route 層で差し替えるのは、バッジ未表出のスキン（M/P/J＝モック未裁定）でも
                     // タップ起点の復旧が全スキン共通に成立するため。
-                    reimportTarget = book
+                    reimportTargetId = book.id
                 } else scope.launch {
                     // 境界: book.id は Room 由来の String＝型付き API へ渡す直前に BookId へ包む。
                     val lastReadFile = viewModel.getLastRead(BookId(book.id)) ?: "index.html"
@@ -326,7 +378,7 @@ fun BookshelfScreen(
             onOpenWebNovel = { novel -> onReadWebNovel(novel.ncode, 0) },
             // 続きから読む＝記録した話(episode)へ WebView で直接着地する。
             onResumeWebNovel = { novel, episode -> onReadWebNovel(novel.ncode, episode) },
-            onImportWebNovel = { novel -> onImportWebNovel(novel.ncode) },
+            onImportWebNovel = { novel -> onOpenNarouPdfImport(novel.ncode) },
             onRemoveWebNovel = { viewModel.removeWebNovel(it.ncode) },
         ),
         theme = ThemeControl(
@@ -347,6 +399,7 @@ fun BookshelfScreen(
         onSweepConfirm = { showSweepDialog = true },
         folderScan = folderScan,
         onScanStop = { viewModel.cancelFolderScan() },
+        isFrontTab = isFrontTab,
     )
 
     // エラーは一度きりのイベントとして Channel から受信し Snackbar 表示する（VM イベント購読＝ルート層の責務）。
@@ -442,7 +495,18 @@ fun BookshelfScreen(
             title = { Text("バックグラウンド処理について") },
             text = {
                 Column {
-                    Text("ホーム画面に移動するとPDF変換が途中で止まる場合があります。\n\n【推奨設定】\n設定 → バッテリー → アプリごとの消費管理 → NovelReader → バックグラウンドアクティビティを許可\n\n「設定を開く」でバッテリー設定画面に移動します。")
+                    // 文言（2026-08-07 の棚卸し裁定・改行込み124字→78字）: 見出し「【推奨設定】」と前置き
+                    // （症状の説明）と末尾の「「設定を開く」で…」を落とし、目的1文＋設定パスだけにする。
+                    // 末尾文を消したのは重複だからだけでなく**誤りだから**でもある——確定ボタンが投げるのは
+                    // ACTION_APPLICATION_DETAILS_SETTINGS＝アプリ詳細であって「バッテリー設定画面」ではない
+                    // （OPPO で ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS が誤ルーティングされる回避＝task_diary #5）。
+                    // パスから「NovelReader →」を抜いたのは、アプリ詳細に着地した先で自アプリを選び直す手順が
+                    // 生じないため。残りの語（アプリごとの消費管理／バックグラウンドアクティビティを許可）は
+                    // ColorOS の実ラベルなので1字も変えない（変えると設定画面で見つけられなくなる。出典＝task_diary #4）。
+                    Text(
+                        "取り込みが途中で止まらないよう、電池の最適化から除外してください。\n" +
+                            "設定 → バッテリー → アプリごとの消費管理 → バックグラウンドアクティビティを許可"
+                    )
                     Spacer(Modifier.height(Spacing.S8))
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Checkbox(
@@ -537,13 +601,19 @@ fun BookshelfScreen(
     // ── 本文欠落→再取込ダイアログ（案B・正本 bookshelf-reimport-badge-D の4分岐）────────────────
     // 対象の plan が消えたら（背後で復旧が完走した等）ダイアログごと静かに消える＝古い操作を残さない。
     // 全分岐で「読書位置としおりは残る」を明記（C2・進捗 DB に触れない実装保証は BookDao.updateRestoredContent）。
+    // 保存した id から現物を引き直す（BookEntity は Bundle へ入らないため id だけを保持する＝宣言箇所の
+    // コメント参照）。引き直せない（削除済み・一覧未確定）ときは描画しない＝下の plan 消失時と同じ扱いで
+    // 古い操作を画面に残さない。VM は構成変更をまたいで生き残るため、回転直後も books は即座に揃う。
+    val reimportTarget = reimportTargetId?.let { targetId ->
+        (uiState as? BookshelfUiState.Content)?.books?.firstOrNull { it.id == targetId }
+    }
     reimportTarget?.let { book ->
         reimportPlans[book.id]?.let { plan ->
-            val dismiss = { reimportTarget = null }
+            val dismiss = { reimportTargetId = null }
             when (plan) {
                 is ReimportPlan.AutoPdf -> NovelReaderAlertDialog(
                     onDismissRequest = dismiss,
-                    title = { Text("『${book.title}』を元のPDFから再取込しますか？") },
+                    title = { ReimportDialogTitle(book.title, "元のPDFから再取込しますか？") },
                     text = {
                         Text("記録されている取込元 PDF からもう一度変換します。読書位置としおりは残ります。")
                     },
@@ -557,7 +627,7 @@ fun BookshelfScreen(
                 // ユーザーからは辿れないため（ReimportPlan.AutoCachePdf の KDoc）。構造・語彙は①と同型。
                 is ReimportPlan.AutoCachePdf -> NovelReaderAlertDialog(
                     onDismissRequest = dismiss,
-                    title = { Text("『${book.title}』を取込時のPDFから再取込しますか？") },
+                    title = { ReimportDialogTitle(book.title, "取込時のPDFから再取込しますか？") },
                     text = {
                         Text("取込時にアプリ内へ保存した PDF からもう一度変換します。読書位置としおりは残ります。")
                     },
@@ -569,49 +639,33 @@ fun BookshelfScreen(
                 // ②③（PDF 由来で取込元へ到達できない）は「内容の指紋を持つか」で導線が割れる（案X）。
                 // 分岐名（権限失効／記録なし）で割らないのは、人にとってはどちらも同じ操作になったため。
                 is ReimportPlan.PickPdfPermissionLost, is ReimportPlan.PickPdfNoRecord -> {
-                    if (plan.scanSha256 != null) {
+                    // ③のうち「なろう作品として紐付いていて、取込元PDF が端末に一度も存在しない」本
+                    // （なろう縦書きPDF取込＝DL 実体はアプリ cache のみ。uninstall→Auto Backup の復元後は
+                    //  権限も cache も戻らない）。ここを下の走査／ピッカーへ落とすと、ユーザーの手元に
+                    // 存在しないファイルを「探してください」と求める＝実行不能な提案になる（ADR 0043 実装便）。
+                    // なぜ走査・ピッカーを併記しないか: どちらもこの本には空振りが確定している一方、
+                    // なろう再取込は「sourceUri を記録できず ncode を後から手動紐付けした SAF 由来の本」でも
+                    // 成立する（作り直した PDF は指紋が変わっても題名＋著者で既存行へ復元される＝
+                    // PdfBookImporter ④）。1つで両方を賄えるので選択肢を増やさない。
+                    val narouNcode = plan.narouRedownloadNcode
+                    if (narouNcode != null) {
+                        // 実物を [ReimportNarouRedownloadDialog] へ切り出してあるのは、写しでなく本番の
+                        // Composable を Robolectric から描いて文言と導線を縛るため（ReimportScanDialog と同じ理由）。
+                        ReimportNarouRedownloadDialog(
+                            bookTitle = book.title,
+                            onRedownload = { onOpenNarouPdfImport(narouNcode); dismiss() },
+                            onDismiss = dismiss,
+                        )
+                    } else if (plan.scanSha256 != null) {
                         // 指紋あり＝フォルダを1回教えれば自動で見つかる（主経路）。
-                        val hint = (plan as? ReimportPlan.PickPdfPermissionLost)?.fileNameHint
-                        NovelReaderAlertDialog(
-                            onDismissRequest = dismiss,
-                            title = { Text("PDFのある場所から探しますか？") },
-                            text = {
-                                Column {
-                                    // 文言は短く（ユーザー裁定 2026-07-29「長すぎる」）。どの本かは背後のカードで
-                                    // 分かるため書名を繰り返さず、「何をすれば戻るか」と「失わないもの」だけを言う。
-                                    Text(
-                                        if (pdfFolderTreeUri != null) {
-                                            "教えていただいたフォルダを調べて復元します。読書位置としおりは残ります。"
-                                        } else {
-                                            "フォルダを教えていただければ、中身を照合して自動で見つけます。" +
-                                                "読書位置としおりは残ります。"
-                                        },
-                                    )
-                                    // 取込元の手がかり行は、ファイル名として妥当な文字列を復元できたときだけ出す。
-                                    // 実機の主要プロバイダ（MediaStore Documents）では復元できず null になる
-                                    // ＝内部 ID を「取込元の PDF」と称して見せない（sourceFileNameHint の KDoc）。
-                                    hint?.let {
-                                        Spacer(Modifier.height(Spacing.S12))
-                                        Text(
-                                            "取込元の PDF: $it",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        )
-                                    }
-                                }
-                            },
-                            confirmButton = {
-                                TextButton(onClick = { scanForBook(book); dismiss() }) { Text("場所から探す") }
-                            },
-                            dismissButton = {
-                                Row {
-                                    // 自分で選びたい人向けの副経路（従来のピッカー）は残す＝選択肢を奪わない。
-                                    TextButton(onClick = {
-                                        reimportPdfPicker.launch(arrayOf("application/pdf")); dismiss()
-                                    }) { Text("自分で選ぶ") }
-                                    TextButton(onClick = dismiss) { Text("やめる") }
-                                }
-                            },
+                        // 中身を [ReimportScanDialog] へ出してあるのは、ここが本棚で唯一の3ボタン縦積み
+                        // ＝版面の不変条件（3段に揃うこと）をテストから実物で検査できるようにするため。
+                        ReimportScanDialog(
+                            folderRemembered = pdfFolderTreeUri != null,
+                            fileNameHint = (plan as? ReimportPlan.PickPdfPermissionLost)?.fileNameHint,
+                            onScan = { scanForBook(book); dismiss() },
+                            onPick = { reimportPdfPicker.launch(arrayOf("application/pdf")); dismiss() },
+                            onDismiss = dismiss,
                         )
                     } else {
                         // 指紋なし（v11 前の旧取込）＝機械照合の材料が無い唯一の分岐。
@@ -636,12 +690,24 @@ fun BookshelfScreen(
                 }
                 is ReimportPlan.AutoWeb -> NovelReaderAlertDialog(
                     onDismissRequest = dismiss,
-                    title = { Text("『${book.title}』をWebから再取得しますか？") },
+                    title = { ReimportDialogTitle(book.title, "Webから再取得しますか？") },
                     text = {
-                        Text("作品ページからもう一度取得して復元します。読書位置としおりは残ります。")
+                        // 実行中は「なぜ押せないか」を本文で告げる（無効ボタンだけ置くと理由の無い行き止まりになる）。
+                        Text(
+                            if (webImportRunning) "いま別の取得が動いています。終わってからもう一度お試しください。"
+                            else "作品ページからもう一度取得して復元します。読書位置としおりは残ります。",
+                        )
                     },
                     confirmButton = {
-                        TextButton(onClick = { viewModel.importWebNovel(plan.sourceUrl); dismiss() }) { Text("再取得する") }
+                        // 実行中ガード（監査 A2）: 一括復旧の走行中に同じ本の再取得を重ねると、2ジョブが同一
+                        // outputDir を解決して片方の deleteRecursively が他方の生成途中を消す（本文欠落の torn 本）。
+                        // repository 側の in-flight ガードが最終防衛だが、押せてしまうと「押したのに失敗通知」に
+                        // なるため UI でも先に閉じる。判定を URL 単位にしない理由: Web 取込は逐次1本なので、
+                        // 走行中は必ずこの1本の完了待ち＝本数だけで正しく塞げる（VM が並列に走らせない設計）。
+                        TextButton(
+                            enabled = !webImportRunning,
+                            onClick = { viewModel.importWebNovel(plan.sourceUrl); dismiss() },
+                        ) { Text("再取得する") }
                     },
                     dismissButton = { TextButton(onClick = dismiss) { Text("やめる") } },
                 )
@@ -660,7 +726,7 @@ fun BookshelfScreen(
         val canScan = breakdown.scannable > 0
         // フォルダを選ばせる導線（未記憶で走査対象がある／「別の場所を選ぶ」）の共通アクション。
         val chooseFolder = {
-            pendingScanBook = null
+            pendingScanBookId = null
             pdfFolderPicker.launch(null)
             closeSweep()
         }
@@ -675,6 +741,12 @@ fun BookshelfScreen(
                     ReimportBreakdownRow(breakdown.autoCachePdf, true, "取込時にアプリ内へ保存したPDFから自動で再変換（なろうから取込）")
                     ReimportBreakdownRow(breakdown.autoWeb, true, "Webから自動で再取得（Web作品）")
                     ReimportBreakdownRow(breakdown.scannable, true, "PDFのある場所から自動で見つけて戻す")
+                    // なろう再取込群を unscannable と分けて出す（ADR 0043 実装便）: どちらも一括では戻らないが、
+                    // 原因（探す先が端末に無い／内容の記録が無い）も次の操作も違うため、同じ行に混ぜると嘘になる。
+                    ReimportBreakdownRow(
+                        breakdown.narouRedownload, false,
+                        "カードから「なろうで作り直す」（取込元PDFが端末に残っていません）",
+                    )
                     ReimportBreakdownRow(
                         breakdown.unscannable, false,
                         "1冊ずつPDFを選ぶ必要（内容の記録がない古い取込＝自動照合できません）",
@@ -690,8 +762,10 @@ fun BookshelfScreen(
                                 breakdown.autoTotal > 0 -> append("自動で戻せる ${breakdown.autoTotal}冊 を再取込します。")
                                 else -> append("この方法で戻せる本はありません。")
                             }
-                            if (breakdown.unscannable > 0) {
-                                append("残り ${breakdown.unscannable}冊 はカードから個別に。")
+                            // 一括で戻らない群は「指紋なし」と「なろう再取込」の合算で数える
+                            // （どちらもカードから1冊ずつ＝ユーザーの次の一手は同じ）。
+                            if (breakdown.individualTotal > 0) {
+                                append("残り ${breakdown.individualTotal}冊 はカードから個別に。")
                             }
                             append("読書位置としおりは残ります。")
                         },
@@ -776,7 +850,7 @@ fun BookshelfScreen(
             confirmButton = {
                 // 戻らなかった本が残るときだけ、次の一手（別の場所）を主ボタンに置く。
                 if (report.unmatchedCount > 0) {
-                    TextButton(onClick = { closeReport(); pendingScanBook = null; pdfFolderPicker.launch(null) }) {
+                    TextButton(onClick = { closeReport(); pendingScanBookId = null; pdfFolderPicker.launch(null) }) {
                         Text("別の場所を選ぶ")
                     }
                 } else {
@@ -788,6 +862,120 @@ fun BookshelfScreen(
             },
         )
     }
+}
+
+/**
+ * ②③（PDF 由来で取込元へ到達できない）× 指紋ありの再取込ダイアログ。正本モック＝
+ * `docs/design-candidates/bookshelf-reimport-badge-D.html` の分岐②（`.dlg-acts.stack`）。
+ *
+ * ## 操作を3つとも [confirmButton] へ縦1列で渡す理由（2026-08-20 実機裁定の翻訳）
+ * 実機（OPPO PGEM10）で「場所から探す」だけが1段目に乗り、「自分で選ぶ」「やめる」が2段目で揃う
+ * 〈1段＋2段〉の中途半端な割れ方をしていた。真因は **2ボタンを `dismissButton` の `Row` に詰めていた**こと
+ * ＝M3 の `AlertDialogFlowRow` からは幅544px の巨大要素1個に見え、確定（336px）と並べるとダイアログ
+ * 内寸1088px を超えて折り返す。折り返しに任せる限り、段構成は端末幅・fontScale・文言長で変わる
+ * （＝どう見えるかをモックが決められない）。
+ * そこで **1スロットに1つの [Column]** を渡し、`AlertDialogFlowRow` から見た子を1個にして折り返しを断つ。
+ * `dismissButton` は渡さない（既定 null）＝スロットが空なら FlowRow の子はこの列だけになる。
+ * 段順〈場所から探す→自分で選ぶ→やめる〉は M3 の縦積み規約（確定が最上段）で、実機で観測された
+ * 上下関係と同順＝押し間違いを誘う並びの入れ替えは伴わない。段間は M3 の `ButtonsCrossAxisSpacing`
+ * （12dp）に合わせた [Spacing.S12]。
+ * 版面の不変条件は `ReimportScanDialogStackTest` が fontScale 1.0/2.0 で機械検査する。
+ *
+ * @param folderRemembered 走査フォルダを記憶済みか（本文の文型が「調べて復元」／「教えていただければ」で割れる）
+ * @param fileNameHint 取込元 PDF のファイル名として妥当な文字列を復元できたときだけ非 null
+ */
+@Composable
+internal fun ReimportScanDialog(
+    folderRemembered: Boolean,
+    fileNameHint: String?,
+    onScan: () -> Unit,
+    onPick: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    NovelReaderAlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("PDFのある場所から探しますか？") },
+        text = {
+            Column {
+                // 文言は短く（ユーザー裁定 2026-07-29「長すぎる」）。どの本かは背後のカードで
+                // 分かるため書名を繰り返さず、「何をすれば戻るか」と「失わないもの」だけを言う。
+                Text(
+                    if (folderRemembered) {
+                        "教えていただいたフォルダを調べて復元します。読書位置としおりは残ります。"
+                    } else {
+                        "フォルダを教えていただければ、中身を照合して自動で見つけます。" +
+                            "読書位置としおりは残ります。"
+                    },
+                )
+                // 取込元の手がかり行は、ファイル名として妥当な文字列を復元できたときだけ出す。
+                // 実機の主要プロバイダ（MediaStore Documents）では復元できず null になる
+                // ＝内部 ID を「取込元の PDF」と称して見せない（sourceFileNameHint の KDoc）。
+                fileNameHint?.let {
+                    Spacer(Modifier.height(Spacing.S12))
+                    Text(
+                        "取込元の PDF: $it",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            // 3操作で1つの縦列（機序＝上の KDoc）。右揃えはモック `.dlg-acts.stack` の align-items:flex-end。
+            Column(
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(Spacing.S12),
+            ) {
+                TextButton(onClick = onScan) { Text("場所から探す") }
+                // 自分で選びたい人向けの副経路（従来のピッカー）は残す＝選択肢を奪わない。
+                TextButton(onClick = onPick) { Text("自分で選ぶ") }
+                TextButton(onClick = onDismiss) { Text("やめる") }
+            }
+        },
+    )
+}
+
+/**
+ * 再取込ダイアログ③'＝「なろうで作り直して取り込む」（正本モック
+ * `docs/design-candidates/bookshelf-reimport-badge-D.html` の分岐③'）。
+ *
+ * ## 何のための分岐か（実行不能な提案の解消・ADR 0043 実装便）
+ * なろう縦書きPDF取込の本は、取込元 PDF がアプリ cache にしか存在しない。uninstall→Auto Backup の
+ * 復元後は永続 URI 権限も cache 実体も戻らないため、この本は③へ落ちて「PDFのある場所から探す／
+ * 自分で選ぶ」を提案されていた——**ユーザーの手元に一度も存在しないファイルを探せと言う提案**で、
+ * どちらを押しても戻らない。実行できる手段は「なろうで縦書きPDF をもう一度作って取り込む」だけ
+ * （直 URL の機械 DL は CSRF＋ワンタイムトークンで不可・規約でも不可＝ADR 0011）。
+ *
+ * ## なぜ操作が2つ（走査・ピッカーを併記しない）か
+ * どちらもこの本には空振りが確定している。一方でなろう再取込は「書込権限を取れず sourceUri を
+ * 記録できないまま ncode を手動紐付けした SAF 由来の本」でも成立する（作り直した PDF は指紋が
+ * 変わっても題名＋著者で既存行へ復元される＝PdfBookImporter ④）。1操作で両方を賄えるため、
+ * ②の3段スタックのように選択肢を増やさない＝版面も①①'④と同じ2ボタンに揃う。
+ *
+ * @param bookTitle 見出しの題名節（行数上限つきで切る＝[ReimportDialogTitle]）
+ */
+@Composable
+internal fun ReimportNarouRedownloadDialog(
+    bookTitle: String,
+    onRedownload: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    NovelReaderAlertDialog(
+        onDismissRequest = onDismiss,
+        title = { ReimportDialogTitle(bookTitle, "なろうで作り直して再取込しますか？") },
+        text = {
+            // 文言は短く（ユーザー裁定 2026-07-29「長すぎる」）。ただし「なぜ探す提案が出ないのか」は
+            // 言う——黙って選択肢を減らすと、前に見た「場所から探す」が消えた理由が分からなくなる。
+            Text(
+                "取込元の PDF は端末に残っていないため、なろうで縦書きPDF を" +
+                    "もう一度作って取り込みます。読書位置としおりは残ります。",
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = onRedownload) { Text("なろうで作り直す") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("やめる") } },
+    )
 }
 
 /** 一括確認ダイアログの内訳1行（モック .roll .r）。count=0 の系統は描かない。auto=藍ドット／manual=中空ドット。 */
@@ -813,6 +1001,40 @@ private fun ReimportBreakdownRow(count: Int, auto: Boolean, label: String) {
         Text(label, style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
     }
 }
+
+/**
+ * 再取込ダイアログ群の見出し「『題名』を＋操作の問い」。題名だけを行数上限＋…で切る（2026-09-03 小口裁定②）。
+ *
+ * ## なぜ題名節と操作節を別の [Text] に割るか
+ * 正本モック `docs/design-candidates/bookshelf-reimport-badge-D.html` の h2 が
+ * `『題名』を<br>元のPDFから再取込しますか？` ＝**題名節と操作節を改行で割った形**を規定している。
+ * 実装は1本の文として繋いでいたため、なろう系の長題（実データで 50 字超が珍しくない）では見出しだけで
+ * 4〜5 行に伸び、本文とボタン行を押し下げてダイアログが崩れていた。
+ *
+ * 1本の [Text] に `maxLines` を掛ける解は採れない——切り落とされるのが末尾＝
+ * **「再取込しますか？」という操作そのもの**になり、何を訊かれているか分からないダイアログになる。
+ * 割っておけば、上限に掛かるのは常に題名節だけで、操作の問いは長さに関係なく必ず全文が残る。
+ *
+ * ## 上限 2 行の根拠（較正値）
+ * モックに数値の指定は無いため実装側で決めた値。ダイアログの縦は〈見出し＋本文3行＋ボタン行〉で
+ * 埋まっており、見出しに割ける余裕は操作節の 1 行を含めて 3 行ぶん＝題名節は 2 行。
+ * D の見出し（16.5px 相当）では 1 行およそ 16 字＝**32 字まで見える**ので、同シリーズの巻数違いを
+ * 取り違えない程度には題名を判別できる。
+ *
+ * ⚠️ 上限に掛かると `…` が閉じ括弧『』と助詞「を」ごと食う（Compose の省略は行末から切るため）。
+ * 括弧を残すには題名を測って自前で詰める必要があり、それは「省略の見え」を新しく設計することになる
+ * ＝モック裁定が要る。ここでは他画面（書名・章題）と同じ既定の省略に揃え、意匠の自己判断を避けた。
+ */
+@Composable
+private fun ReimportDialogTitle(title: String, question: String) {
+    Column {
+        Text("『$title』を", maxLines = ReimportTitleMaxLines, overflow = TextOverflow.Ellipsis)
+        Text(question)
+    }
+}
+
+/** [ReimportDialogTitle] の題名節の行数上限（根拠は同 KDoc の「較正値」節）。 */
+private const val ReimportTitleMaxLines = 2
 
 /**
  * 本棚の描画層（stateless / UI 分割の content）。BookshelfScreen からの純移動。
@@ -862,13 +1084,16 @@ internal fun BookshelfContent(
     // 案X: フォルダ走査の進捗（null=走査していない）と停止。既定は「走査していない」＝従来どおりの描画。
     folderScan: ScanProgress? = null,
     onScanStop: () -> Unit = {},
+    // このページがタブ枠の前面か（監査 B8）。選択モード BackHandler の enabled 条件に使う。
+    // 既定 true＝既存の呼び出し・Robolectric テスト（単独表示）は従来挙動のまま。
+    isFrontTab: Boolean = true,
 ) {
     val isLoading = uiState is BookshelfUiState.Loading
     val books = (uiState as? BookshelfUiState.Content)?.books ?: emptyList()
     val webNovels = (uiState as? BookshelfUiState.Content)?.webNovels ?: emptyList()
     // 機能②: Web カードの読書位置（ncode→最後に開いた話）。mergeShelfItems が各 Web カードへ載せる。
     val webReadingProgress = (uiState as? BookshelfUiState.Content)?.webReadingProgress ?: emptyMap()
-    // web 最終接触時刻（ncode→lastReadAt）。触った web カードを接触時刻で並べる（webRecencyKeyOf・2026-07-26 裁定変更）。
+    // web 最終接触時刻（ncode→lastReadAt）。触った web カードを接触時刻で並べる（recencyKeyOf・単一タイムライン）。
     val webLastReadAt = (uiState as? BookshelfUiState.Content)?.webLastReadAt ?: emptyMap()
 
     // 読書状態フィルタの選択（「すべて/よみかけ/未読/読了」＝モック .filters）。回転・再生成で選択が
@@ -884,7 +1109,10 @@ internal fun BookshelfContent(
     val selectedIds = rememberSaveable(
         saver = listSaver(save = { it.toList() }, restore = { it.toMutableStateList() }),
     ) { mutableStateListOf<String>() }
-    var showDeleteConfirm by remember { mutableStateOf(false) }
+    // 確認ダイアログの開閉も rememberSaveable（2026-08-17 掃引・reimportTargetId と同じ真因）: 選択
+    // （selectionMode/selectedIds）は既に Saveable なので、ここだけ plain remember だと回転で
+    // 「選択は残っているのに確認ダイアログだけ消える」半端な復元になる。
+    var showDeleteConfirm by rememberSaveable { mutableStateOf(false) }
     val exitSelection: () -> Unit = { selectionMode = false; selectedIds.clear() }
     val toggleSelect: (String) -> Unit = { id ->
         if (id in selectedIds) selectedIds.remove(id) else selectedIds.add(id)
@@ -895,11 +1123,34 @@ internal fun BookshelfContent(
         if (id !in selectedIds) selectedIds.add(id)
     }
     // システム戻るで選択モードを解除（右上×非依存の解除導線・変種B裁定）。選択モード中のみ消費する。
-    BackHandler(enabled = selectionMode) { exitSelection() }
+    // isFrontTab を合流させる理由（監査 B8）: タブ枠は隣ページを常駐コンポーズし（TabPagerHost の
+    // beyondViewportPageCount=1）、OnBackPressedDispatcher は後着優先＝ページ側のこのハンドラが
+    // 枠の「本棚へ戻る」に必ず勝つ。前面条件が無いと、選択モードのまま他タブへ移った後の Back を
+    // 隠れた本棚が1回黙って食う（画面は無変化・見えない選択だけが解除される）。
+    // ⚠️ 2026-08-14 の変更で「ページ側が枠に必ず勝つ」の根拠が**構造から条件へ後退**した:
+    //   旧: 枠のハンドラは tabs のコンポーズ時に必ず先着＝ページ側が後着で必ず勝つ（構造的に保証）。
+    //   新: 枠のハンドラは page 0 を離れた時点で追加される＝そのときページ側より**後着**になり得る。
+    //   現状は「枠＝currentPage != 0」と「ページ側＝isFrontTab(page 0)」が完全排他なので競合は起きないが、
+    //   タブ内ページに**前面条件なしの BackHandler** を新設すると枠に横取りされ得る（旧形では不可能だった）。
+    //   タブ内へ Back を足すときは必ず前面条件（isFrontTab 相当）を合流させること。
+    // なぜ enabled 引数でなく if でコンポーズ自体を切り替えるか（2026-08-14・タブ層 Back と同一の真因対処）:
+    //   旧形は selectionMode=false（無効）で生まれ、長押しで true へ**反転**する形だった。反転の瞬間、
+    //   Dispatcher に他の有効コールバックは1つも無い（枠の Back は page 0 では存在せず、NavController の
+    //   既定 pop も tabs 単独＝バックスタック1段では無効）＝この反転がそのまま hasEnabledCallbacks の
+    //   false→true になり、Predictive Back での「OS へ割込みを登録するか」がこの反転だけに懸かる。
+    //   同じ形だったタブ層 Back は実機（PGEM10 / ColorOS / Android 16）で割込みが届かなかった
+    //   （反転が OS 登録へ反映されないと推定・端末側の所在は未確定）。実機で届いている他の全ハンドラは
+    //   「必要になった時点で有効なコールバックを新規追加する」形＝追加時に登録が走る経路なので、それへ揃える。
+    //   放置した場合の実害: 選択モード中の Back が OS へ抜け、選択が解除されず**アプリが終了する**
+    //   （× 非依存の解除導線が消える＝変種B裁定の前提が壊れる）。全スキン共通・release 到達。
+    if (selectionMode && isFrontTab) {
+        BackHandler { exitSelection() }
+    }
 
     val visibleBooks = books
 
-    // 各読書状態の件数（ia Minor 2026-07-12・0件チップの dim 判定用）。可視の蔵書に加え Web作品も
+    // 各読書状態の件数（ia Minor 2026-07-12）。用途は 0件チップの扱い＝D/K は a11y の読み上げのみ
+    //（見た目の淡色化は 2026-08-07 裁定で廃止）・M/P は非選択チップの沈め・J は押下の可否。可視の蔵書に加え Web作品も
     // 合流して数える（全スキンが filterShelfByStatus に webReadingProgress を配線済み＝実フィルタが Web を
     // 含むため、チップ件数だけ蔵書のみだと件数と表示が食い違う）。判定は shelfStatusCounts 内で共有関数を使う。
     val statusCounts = remember(visibleBooks, webNovels, progressMap, chapterCountMap, webReadingProgress) {
@@ -946,7 +1197,25 @@ internal fun BookshelfContent(
     // 渡すシグネチャ自体が無い（コンパイル時制約）。null＝D/C はこの下の共通描画（D 構造へトークン写像）。
     // 各面は選択削除・Webカード操作・状態フィルタ・PDF追加・取込中バナー・スナックバー・空状態を全数
     // 引き継ぐ（本骨格所有の単一状態機械を共有渡し＝二重実装回避。上の BackHandler も 1 本のまま効く）。
-    when (val face = rememberShelfFace(highLoadSkyM, onHighLoadSkyChange, highLoadShioriK)) {
+    val face = rememberShelfFace(highLoadSkyM, onHighLoadSkyChange, highLoadShioriK)
+
+    // 遷移ジャンク対策（P2）をスキン面へも効かせる配線（2026-08-07）。
+    // 真因: 唯一の deferHeavyContent 読み口はこのルーターの**下流**（D/C 共通描画の中）にしかなく、
+    // M/P/J/K は上の face 分岐で return するため、既定スキン K では対策が一度も効いていなかった
+    //（引数は MainActivity から供給されていたので配線されているように見える＝沈黙死）。
+    // K の本棚は LazyVerticalGrid × ShioriCover（Canvas 描画の書影）で D グリッドと同クラスの初回 measure を
+    // 持ち、しかも release 既定＝実ユーザーが通る唯一の面のため、対策が要るのはむしろこちら。
+    // なぜルーターの上流で差し替えるか: 骨はスキン共通の1式にする裁定（2026-07-29）で、面ごとの版面状態
+    //（K の grid/list トグル等）は面の中にしか無いため。目次（NativeTableOfContentsScreen）が同じ理由で
+    // 同じ位置に骨を置いており、本棚だけがその裁定に追従していなかった。
+    // D/C（face==null）は下流の既存分岐のまま＝実チップ行を残し isGridView 一致の骨を出す従来の見え方を保つ
+    //（上流の汎形骨で置き換えると、版面が一致していた既存の体験がむしろ粗くなる）。
+    if (deferHeavyContent && face != null) {
+        ShelfTransitionSkeleton(modifier = Modifier.fillMaxSize())
+        return
+    }
+
+    when (face) {
         is ShelfFace.Immersive -> {
             face.content(shelfData, chrome, actions, theme, snackbarHostState)
             return
@@ -962,6 +1231,9 @@ internal fun BookshelfContent(
     val onOpenBook = actions.onOpenBook
     val onFabClick = actions.onFabClick
     // onOpenDiscovery/onOpenWardrobe の局所別名は撤去済み（2026-07-29 K形正本追従＝D 共通描画は発見・装い導線を持たない）。
+    // ⚠️ 例外1つ: 空棚だけは onOpenDiscovery を使う（ADR 0037 追記 2026-09-03＝蔵書ゼロの人から「これから探す」を
+    // 消すと初見が行き止まりになる）。別名を復活させず参照箇所で actions.onOpenDiscovery と書くのは、
+    // 「D 共通描画は発見導線を持たない」が蔵書ありの面では今も生きている規律だと読み手に見せるため。
     val onCancelProcessing = actions.onCancelProcessing
     val onOpenWebNovel = webActions.onOpenWebNovel
     val onResumeWebNovel = webActions.onResumeWebNovel
@@ -1002,6 +1274,13 @@ internal fun BookshelfContent(
         mergeShelfItems(filteredBooks, progressMap, filteredWeb, webReadingProgress, webLastReadAt)
     }
     val isProcessing = processingState.isProcessing
+
+    // 空棚（蔵書0冊）＝FAB を引っ込め EmptyBookshelf を描く条件。ADR 0037 追記（2026-09-03）で K から D へ伝播。
+    // ⚠️ FAB の出没条件と下の排他分岐で**同じ式を2箇所に書かない**ためにここへ hoist している（K の [isEmptyShelf]
+    // と同じ理由）。片方だけ直すと「CTA も FAB も無い」「両方出る」のどちらかへ静かに割れる。
+    // ⚠️ 「この分類の本はありません」（状態フィルタで0件・蔵書はある）は空棚ではない＝selectedStatus == null を
+    // 条件に含める。あちらは CTA を持たないので FAB を残さないと追加手段が消える。
+    val isEmptyShelf = shelfItems.isEmpty() && !isProcessing && selectedStatus == null && !isLoading
 
     val gridState = rememberLazyGridState()
     val listState = rememberLazyListState()
@@ -1153,7 +1432,18 @@ internal fun BookshelfContent(
         },
         floatingActionButton = {
             // 選択モード中は追加FABを隠し、下端の選択アクションバー（bottomBar）へ場を譲る（残8・案B）。
-            if (!selectionMode) {
+            // 空棚でも隠す（ADR 0037 追記 2026-09-03 で K から D へ伝播）＝押す対象を中央の CTA へ寄せる。
+            // なぜ淡入淡出（AnimatedVisibility）か: 条件（選択モード・空棚）は 0冊目の取込完了や長押しで
+            // **瞬間的に跳ねる**ため、尺ゼロだと FAB がパチンと現れ／消えて「何が起きたか」が読めない
+            //（2026-09-03 小口裁定①）。位置ずれを伴わない純フェードにするのは、FAB が動く先を持たない
+            // 右下固定の要素で、滑り込ませると「どこから来たのか」という嘘の空間語彙を足してしまうため。
+            // 尺はバナー入退場と同じスロットを借りる＝どちらも「要素の入退場」で類型が同じ（Design/08-C の
+            // enter>exit＝出現は気づかせ長め・退場は邪魔をせず短め。禁止則①の 350ms 上限内）。
+            AnimatedVisibility(
+                visible = !selectionMode && !isEmptyShelf,
+                enter = fadeIn(animationSpec = tween(MotionDurationReveal)),
+                exit = fadeOut(animationSpec = tween(MotionDurationDismiss)),
+            ) {
                 ExtendedFloatingActionButton(
                     text = { Text("PDFを追加") },
                     icon = { Icon(Icons.Filled.Add, contentDescription = null) },
@@ -1161,6 +1451,12 @@ internal fun BookshelfContent(
                     expanded = fabExpanded,
                     containerColor = MaterialTheme.colorScheme.primary,
                     contentColor = MaterialTheme.colorScheme.onPrimary,
+                    // 読み上げ名。M3 の ExtendedFloatingActionButton は text スロットを clearAndSetSemantics{} で
+                    // 包む（展開/縮退アニメで読み上げが揺れないため）＝ラベルが見えていても意味ノードは
+                    // Role=Button だけで無名になる。K 側は 2026-08-07 の実機 TalkBack 検分で同じ欠陥を
+                    // 塞いだが D は取り残されていた（＝この FAB は今まで TalkBack から名前を持たなかった）。
+                    // 名前は見える文字と同一にする（label-in-name＝音声操作で「PDFを追加」と言える）。
+                    modifier = Modifier.semantics { contentDescription = "PDFを追加" },
                 )
             }
         },
@@ -1218,14 +1514,21 @@ internal fun BookshelfContent(
                 // 初回DB発行前は表紙スケルトンを出す（F-O）。Content(空) が確定するまで空状態を出さない
                 // ことで cold start の空フラッシュ（Loading と Empty の混同）を防ぐ。
                 BookshelfSkeleton(isGridView = isGridView, modifier = Modifier.fillMaxSize())
-            } else if (shelfItems.isEmpty() && !isProcessing && selectedStatus == null) {
+            } else if (isEmptyShelf) {
                 // 空状態。サイズ指定は呼び出し側の責務（fillMaxSize は従来と同じ描画）。
                 // なぜ排他分岐で空のグリッド/リストを合成しないか: 以前は空状態の上にも fillMaxSize の
                 // Lazy コンテナが重なっており、scrollable が hit test 上で下層の「PDFを追加する」ボタンを
                 // 遮蔽してタップ不能だった（Robolectric の結線テストで検出した実バグ）。空棚では帯・フィルタも
                 // Lazy も描くものが無いため、排他分岐にして遮蔽を根元から無くす（帯は EmptyBookshelf と重なる
                 // ため空棚では出さない）。
-                EmptyBookshelf(onAddClick = onFabClick, modifier = Modifier.fillMaxSize())
+                // onFindWorks＝さがすタブ（発見ホーム）へ。ADR 0037 追記 2026-09-03 で空棚だけ発見導線を
+                // 取り戻した＝2026-07-29 の「D 共通描画は発見導線を持たない」は蔵書ありの面の話で、
+                // 蔵書ゼロの人から「これから探す」を消すと初見が行き止まりになる、という別の理由で覆っている。
+                EmptyBookshelf(
+                    onAddClick = onFabClick,
+                    onFindWorks = actions.onOpenDiscovery,
+                    modifier = Modifier.fillMaxSize(),
+                )
             } else {
                 // 発見帯『新しい物語を見つける』（FindGuideBand）は撤去した（2026-07-29 ユーザー裁定＝K形正本
                 // bookshelf-D.html 追従。発見は恒常ナビ「さがす」タブへ完全分離＝本棚は発見導線を持たない）。
@@ -1391,7 +1694,11 @@ internal fun BookshelfContent(
             bookCount = bookTargets.size,
         )
         // 既定 OFF（ユーザー選択=削除ダイアログのチェック・破壊的なので明示 ON を要求）。ダイアログを開くたびリセット。
-        var alsoDeleteSource by remember { mutableStateOf(false) }
+        // rememberSaveable にするのは上の showDeleteConfirm と対（バッテリー案内の showBatteryOptDialog／
+        // doNotShowAgain と同じ組み方）: 開閉だけ復元してチェックが落ちると、ONにしたつもりの取込元PDF削除が
+        // 黙って OFF に戻る。この宣言は if ブロック内＝ダイアログを閉じると登録ごと消えるので、
+        // 「開くたびリセット」は従来どおり成立する（保持するのは構成変更をまたぐ間だけ）。
+        var alsoDeleteSource by rememberSaveable { mutableStateOf(false) }
         NovelReaderAlertDialog(
             onDismissRequest = { showDeleteConfirm = false },
             // 蔵書とWebが混じり得るため中立の「件」で数える（蔵書のみでも自然）。
@@ -1401,6 +1708,8 @@ internal fun BookshelfContent(
                     // 欠落本の警告は本文の先頭に置く（後段の一般文＝「取り消せません」より固有かつ重い情報のため）。
                     // 欠落0冊なら描画そのものが無い＝通常の削除ダイアログは従来と1ピクセルも変わらない。
                     MissingContentDeleteWarningText(lossWarning)
+                    // 削除対象の題名列挙（監査 A11）。理由は DeleteTargetTitlesText のコメント参照。
+                    DeleteTargetTitlesText(bookTargets.map { it.title } + webTargets.map { it.title })
                     // 選択内訳（蔵書数・Web数）で本文を出し分け（系3）＝Web に「本文データも削除」の虚偽を出さない。
                     Text(deleteConfirmBody(bookTargets.size, webTargets.size))
                     DeleteSourcePdfOption(deletableCount, alsoDeleteSource) { alsoDeleteSource = it }
@@ -1455,6 +1764,37 @@ internal fun MissingContentDeleteWarningText(warning: MissingContentDeleteWarnin
             append(warning.detail)
         },
     )
+    Spacer(Modifier.height(Spacing.S24))
+}
+
+// ============================================================
+// 削除対象の題名列挙（2026-08-06 監査 A11 の一部）
+//
+// なぜ出すか: 確認ダイアログが件数（「選択した3件」）しか語らないと、削除対象を確かめる手段が
+// 背後の棚の選択マークだけになる。TalkBack には（カード側の selected 宣言があっても）ダイアログが
+// 被さった時点で棚は読めず、晴眼でもダイアログの陰の選択マークは見通せない。確認の場である
+// ダイアログ自身が「何を消すか」を名指しする。
+// なぜ上限付きか: 全選択（数十冊）では題名がダイアログを覆い、欠落警告や確定ボタンが画面外へ
+// 流れるため。先頭5件＋「ほか N件」で個別確認と一覧性を両立する。単位は表題と同じ中立の「件」
+//（蔵書と Web が混じり得るため）。
+// MissingContentDeleteWarningText と同じ「削除ダイアログの共有部品」＝K/M/P/J の削除確認（skins/）
+// からも1行で呼べる形にし、5実体で文言・上限が割れないようにする。
+// ============================================================
+
+/** 題名列挙の整形（純関数）。上限超過は「ほか N件」へ畳む。 */
+internal fun deleteTargetTitlesLine(titles: List<String>, maxShown: Int = 5): String = buildString {
+    titles.take(maxShown).forEachIndexed { i, title ->
+        if (i > 0) append('\n')
+        append('・').append(title)
+    }
+    if (titles.size > maxShown) append("\nほか ${titles.size - maxShown}件")
+}
+
+@Composable
+internal fun DeleteTargetTitlesText(titles: List<String>) {
+    if (titles.isEmpty()) return
+    Text(deleteTargetTitlesLine(titles))
+    // 段落間アキは削除確認の正本 multiselect-D の律動（.dlg p margin-bottom:24px → S24）＝欠落警告と同じ。
     Spacer(Modifier.height(Spacing.S24))
 }
 
@@ -1521,14 +1861,24 @@ private fun StatusChipRow(
     selectedStatus: ReadingStatus?,
     onSelect: (ReadingStatus?) -> Unit,
     modifier: Modifier = Modifier,
-    // 各状態の件数（ia Minor）。0件の状態チップは dim（enabled=false）にして押下不能にし、
-    // 「押せるのに空表示に落ちる袋小路」を予防する（件数併記でなく最小限の dim を選択）。
+    // 各状態の件数（ia Minor）。**見た目には効かせない**（0件の淡色化は 2026-08-07 ユーザー裁定で廃止＝
+    // 下の各チップのコメント）。現在の用途は TalkBack へ「該当0件」を残す a11y 補填だけ。
     statusCounts: Map<ReadingStatus, Int> = emptyMap(),
 ) {
+    val scrollState = rememberScrollState()
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .horizontalScroll(rememberScrollState()),
+            // 端フェード（正本 skins/bookshelf-D.html .chipsrow .fade・K からの伝播＝値は K と同一。
+            // 2026-08-20 裁定①）。horizontalScroll の**直前**に置く＝この修飾子のノード寸法が可視域そのもの
+            // になり、レイアウトノードは1つも増えない（fontScale 1.0 では溢れないので1枚も描かれない）。
+            // bottomInset を渡さない（0）のは、下パディングを呼び出し側の modifier＝**スクロール器の外側**で
+            // 受けており、この行のノード高がチップの帯そのものだから（K は内側で受けるので S12 を渡す）。
+            .horizontalScrollEdgeFade(
+                scrollState = scrollState,
+                baseColor = MaterialTheme.colorScheme.background,
+            )
+            .horizontalScroll(scrollState),
         horizontalArrangement = Arrangement.spacedBy(Spacing.S8),
     ) {
         // 「すべて」＝選択なし（null）。モックどおり既定選択。棚が非空のときだけ出る行なので常に押せる。
@@ -1538,24 +1888,38 @@ private fun StatusChipRow(
             onClick = { onSelect(null) },
         )
         // よみかけ／未読／読了。ReadingStatus と表示名・並びの対応はここが唯一の正本（モック .filters 順）。
-        // 0件の分類は enabled=false で淡く（disabled トークン）＝押しても空表示になる分類を先に塞ぐ。
+        //
+        // 0件でも淡色化しない（2026-08-07 ユーザー裁定＝検索範囲チップと同じ真因への同じ処方）。
+        // 真因: FilterChip の disabledLabelColor は**選択中にも効く**ため、選択中の分類が0件になった瞬間に
+        // 選択を示す藍がラベルから消え、「選択が外れた」と読める（分類は変わっていないのに）。
+        // 押した先が空であることは、選択後に出る「この分類の本はありません」が既に伝えている＝
+        // 淡色化は重複。押せなさで手前を塞ぐのをやめ、行き止まりの説明を着地先に置く分担へ寄せる。
         FilterChipItem(
             selected = selectedStatus == ReadingStatus.READING,
             label = "よみかけ",
             onClick = { onSelect(ReadingStatus.READING) },
-            enabled = (statusCounts[ReadingStatus.READING] ?: 0) > 0,
+            modifier = emptyStatusSemantics(
+                selected = selectedStatus == ReadingStatus.READING,
+                isEmpty = (statusCounts[ReadingStatus.READING] ?: 0) == 0,
+            ),
         )
         FilterChipItem(
             selected = selectedStatus == ReadingStatus.UNREAD,
             label = "未読",
             onClick = { onSelect(ReadingStatus.UNREAD) },
-            enabled = (statusCounts[ReadingStatus.UNREAD] ?: 0) > 0,
+            modifier = emptyStatusSemantics(
+                selected = selectedStatus == ReadingStatus.UNREAD,
+                isEmpty = (statusCounts[ReadingStatus.UNREAD] ?: 0) == 0,
+            ),
         )
         FilterChipItem(
             selected = selectedStatus == ReadingStatus.FINISHED,
             label = "読了",
             onClick = { onSelect(ReadingStatus.FINISHED) },
-            enabled = (statusCounts[ReadingStatus.FINISHED] ?: 0) > 0,
+            modifier = emptyStatusSemantics(
+                selected = selectedStatus == ReadingStatus.FINISHED,
+                isEmpty = (statusCounts[ReadingStatus.FINISHED] ?: 0) == 0,
+            ),
         )
     }
 }
@@ -1578,6 +1942,27 @@ private fun StatusFilterEmptyText(modifier: Modifier = Modifier) {
 // 意匠を発明しないため新規色は使わず surfaceVariant/outlineVariant トークンのみで構成する。
 // シマー等のアニメは付けない（既存画面に同型の演出が無く、最小の同型要素に留めるため）。
 // ============================================================
+@Composable
+/**
+ * 0件分類チップの a11y 補填（2026-08-07 ユーザー裁定・検索範囲チップの rangeLockSemantics と同型）。
+ *
+ * 淡色化（enabled=false）をやめた副作用として、TalkBack が読んでいた「無効」が消える＝**該当0件が
+ * 音声だけでは分からなくなる**。押した先の「この分類の本はありません」は視覚には出るが、チップ自身の
+ * 読み上げには乗らないため、stateDescription で選択状態と0件を同時に言葉にする（既定の
+ * 「選択済み/未選択」を上書きするので、選択の情報が落ちないよう文言側に 選択中/未選択 を含める）。
+ * 0件でない分類は既定の選択読み上げに委ねる（言い換えを増やさない＝検索範囲と同じ判断）。
+ * K（skins/k/BookshelfK）も同じ文言を使うため internal で共有する（a11y 文言の二重管理を作らない）。
+ */
+internal fun emptyStatusSemantics(selected: Boolean, isEmpty: Boolean): Modifier =
+    if (isEmpty) {
+        Modifier.semantics {
+            stateDescription =
+                if (selected) "選択中。この分類に該当する本はありません" else "未選択。この分類に該当する本はありません"
+        }
+    } else {
+        Modifier
+    }
+
 @Composable
 private fun BookshelfSkeleton(
     isGridView: Boolean,

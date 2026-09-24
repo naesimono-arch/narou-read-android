@@ -41,11 +41,13 @@ import com.novelreader.narou.computeContinuation
 import com.novelreader.narou.narouEpisodeUrl
 import com.novelreader.narou.narouWorkUrl
 import com.novelreader.parser.ChapterHtmlParser
+import com.novelreader.ui.intro.IntroGroup
+import com.novelreader.ui.intro.LocalIntroController
+import com.novelreader.ui.intro.immersiveHintConsumed
 import com.novelreader.ui.skins.ThemeControl
 import com.novelreader.ui.theme.rememberReadingColors
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
@@ -78,7 +80,11 @@ internal fun ChapterScreen(
     initialScrollIndex: Int,
     initialScrollOffset: Int,
     onSaveScroll: (index: Int, offset: Int) -> Unit,
+    // 章パース失敗のエラー画面「本棚に戻る」専用＝入場元に依らず本棚へ直行（文言どおりの行き先）。
     onNavigateToBookshelf: () -> Unit,
+    // 上端 ← ／没入時 a11y「戻る」＝システム Back と同一実装（階層 up＝章の親は目次・ADR 0047）。
+    // 判定は親 ReadingScreen の performBack が持つ＝この層で「章なら目次へ」と再実装しないこと。
+    onBack: () -> Unit,
     onNavigateTo: (String) -> Unit,
     // 参照ジャンプ（C1）。referenceMode 中は現在地の自動保存を抑止し「続きに戻る」チップを出す。
     referenceMode: Boolean,
@@ -380,32 +386,60 @@ internal fun ChapterScreen(
     }
 
     // ────── 没入クローム復帰ヒント（層②）──────
-    // クローム（上下バー）が初めて画面外へ退避したとき、復帰操作（中央タップ）を数秒だけ
-    // 一過性ラベルで示す。なぜ一度きり・自動消灯か: 常時の帯は没入を削ぐため、初回消灯時の
-    // 学習機会だけを与え以後は出さない（M12＝復帰手段が不可視だった問題への最小介入）。
-    // なぜ prefs で永続化しアプリ通算初回のみにするか: セッション毎の表示は、復帰操作を既に
-    // 学習済みのユーザーには冗長。ヒントの目的（復帰手段の可視化）は一度の学習で達成されるため、
-    // 表示済みフラグを prefs に持たせて通算初回だけに絞る。他の読書設定と同じ app_prefs に置く。
+    // クローム（上下バー）が画面外へ退避しているとき、復帰操作（中央タップ）を数秒だけ一過性ラベルで示す。
+    // なぜ一度きり・自動消灯か: 常時の帯は没入を削ぐため、学習機会を一度だけ与え以後は出さない
+    // （M12＝復帰手段が不可視だった問題への最小介入）。なぜ prefs で永続化しアプリ通算初回のみにするか:
+    // ヒントの目的（復帰手段の可視化）は一度の学習で達成されるため、表示済みフラグを prefs に持たせて
+    // 通算初回だけに絞る。他の読書設定と同じ app_prefs に置く。
+    //
+    // 消費（フラグを焼く）タイミングの所有は [ImmersiveChromeHintEffect]。ここが持つのは prefs の
+    // 読み書きと表示状態だけ＝「いつ見られたとみなすか」の判断はコンポーネント側の KDoc が正本。
     val chromeHintPrefs = remember { context.getSharedPreferences(PrefKeys.FILE_APP_PREFS, Context.MODE_PRIVATE) }
     var chromeHintConsumed by remember {
         mutableStateOf(chromeHintPrefs.getBoolean(PrefKeys.IMMERSIVE_HINT_SHOWN, false))
     }
     var showChromeHint by remember { mutableStateOf(false) }
-    LaunchedEffect(topAppBarState) {
-        snapshotFlow { topAppBarState.collapsedFraction > 0.9f }
-            .distinctUntilChanged()
-            .collect { hidden ->
-                if (hidden && !chromeHintConsumed) {
-                    chromeHintConsumed = true
-                    // 表示に踏み切った時点で永続フラグを立てる＝以後のセッションでは二度と出さない。
-                    // apply は非同期ディスク書込のため UI をブロックしない。
-                    chromeHintPrefs.edit().putBoolean(PrefKeys.IMMERSIVE_HINT_SHOWN, true).apply()
-                    showChromeHint = true
-                    delay(2600)
-                    showChromeHint = false
-                }
-            }
+
+    // ────── 「最上部へ」ピルの初回ラベル（2026-09-05 裁定・案S4 の手当）──────
+    // ピルはアイコンのみ（視覚の器 32dp）へ縮んだ。記号だけで通じる条件のうち「一度は語で見せてある」を
+    // これが担う＝**アプリ通算初回だけ**ラベル付きで出す。prefs の所有は復帰ヒントと同じくここ（route）。
+    // なぜ同じ chromeHintPrefs（app_prefs）へ相乗りするか: 読書設定の単一置き場という既存の約束を崩さない。
+    // ⚠️ 焼くタイミングの判断は描画層が持つ（「出きって、そのあと消えた」＝ChapterScreenContent の why）。
+    //    ここは読み書きだけを持つ＝復帰ヒントで確立した所有の分け方をそのまま踏襲する。
+    var topPillLabelShown by remember {
+        mutableStateOf(chromeHintPrefs.getBoolean(PrefKeys.TOP_PILL_LABEL_SHOWN, false))
     }
+
+    // ────── 教示「はじめに」組B（本文初回の 2 枚）──────
+    // 出すのは背景が描き切ってから＝push 遷移窓（deferHeavyContent）が閉じてから。窓中に載せると
+    // 説明の対象（本文）がまだ骨のままで、カードだけが浮く（正本モック §8「置きかた」）。
+    val introController = LocalIntroController.current
+    LaunchedEffect(introController, deferHeavyContent) {
+        if (!deferHeavyContent) introController?.requestAuto(IntroGroup.READING)
+    }
+
+    ImmersiveChromeHintEffect(
+        topAppBarState = topAppBarState,
+        barsVisualReady = barsVisualReady,
+        deferHeavyContent = deferHeavyContent,
+        // ⚠️ ここが今回いちばん壊しやすい 1 行（正本 §8 の★）。組B は「画面をタップでメニュー」という
+        // ピルとまったく同じことを、しかも同じ瞬間（本文初回）に言うので、二重に出してはいけない。
+        // prefs へ書くだけでは足りない——上の chromeHintConsumed は remember で**入場時に 1 度読むだけ**
+        // なので、同一セッションでは false のまま効果が走り続け、**カードを閉じた直後にピルが出る**。
+        // そこで「同じセッションで組B を出した」という observable な事実を論理和で合流させる。
+        // 判定ロジック（awaitImmersiveHintSeen）には手を入れない＝別便が直したばかりで正しい。
+        consumed = immersiveHintConsumed(
+            persisted = chromeHintConsumed,
+            introSilenced = introController?.chromeHintSilenced == true,
+        ),
+        onVisibleChange = { showChromeHint = it },
+        onConsumed = {
+            chromeHintConsumed = true
+            // 出し切った（＝一度は目に入りうる状態が規定尺のあいだ途切れず続いた）時点で初めて永続化する。
+            // apply は非同期ディスク書込のため UI をブロックしない。
+            chromeHintPrefs.edit().putBoolean(PrefKeys.IMMERSIVE_HINT_SHOWN, true).apply()
+        },
+    )
 
     // 継続カード → Custom Tabs の外部遷移コールバック。再入ガード（M1/公理3）・context・openInAppBrowser は
     // すべて副作用のため route（状態保持層）に留め、描画層 ChapterScreenContent には「押された」ことだけを渡す。
@@ -447,6 +481,14 @@ internal fun ChapterScreen(
             scrollBehavior = scrollBehavior,
             barsVisualReady = barsVisualReady,
             showChromeHint = showChromeHint,
+            topPillLabelShown = topPillLabelShown,
+            onTopPillLabelShown = {
+                // 再入は無害だが prefs 書き込みを毎回走らせない（描画層は消えるたびに呼びうる）。
+                if (!topPillLabelShown) {
+                    topPillLabelShown = true
+                    chromeHintPrefs.edit().putBoolean(PrefKeys.TOP_PILL_LABEL_SHOWN, true).apply()
+                }
+            },
         ),
         // 章ナビは route が tocEntries から算出する（隣章・活性条件・章位置）。
         nav = ChapterNav(
@@ -458,6 +500,7 @@ internal fun ChapterScreen(
             chapterNumber = if (currentIndex >= 0) currentIndex + 1 else null,
             totalChapters = tocEntries.size.takeIf { it > 0 },
             onNavigateTo = onNavigateTo,
+            onBack = onBack,
             onNavigateToBookshelf = onNavigateToBookshelf,
         ),
         // 継続導線。Custom Tabs 起動（再入ガード付き）は route の2つのコールバックが担う。

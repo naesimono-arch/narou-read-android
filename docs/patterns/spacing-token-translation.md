@@ -1,7 +1,7 @@
 # 余白リテラル → Spacing/Insets トークン翻訳（と較正値の保護）
 
 > 旧ID: —（2026-07-13 新規・F(2) 残債19ファイル再翻訳が動機）
-> 正本コード: `theme/Spacing.kt`（7段スケール `Spacing` object＋**同ファイル内の `Insets` object**＝別ファイルではない）・検査 `tools/check_design_tokens.py` Phase B。
+> 正本コード: `android/app/src/main/java/com/novelreader/ui/theme/Spacing.kt`（7段スケール `Spacing` object＋**同ファイル内の `Insets` object**＝別ファイルではない）・検査 `tools/check_design_tokens.py` Phase B。
 
 ## パターン
 
@@ -37,4 +37,4 @@ Compose の spacing-context（`padding`/`PaddingValues`/`Arrangement.spacedBy`/`
 
 **判断の線引き**: 明文化された較正/パリティを持つ値だけ保持し、それ以外は裁定スケールで淡々と丸める
 （2dp の光学 nudge 等、文書化のない微小値は S4 へ丸めてよい＝過剰に「較正扱い」しない）。関連＝auto-memory
-`agy-mechanical-batch-calibrated-values`。
+`/orchestration` §1「機械置換バッチを委譲するときの2つの盲点」。

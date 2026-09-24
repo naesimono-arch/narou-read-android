@@ -34,8 +34,14 @@
 ## 検知手段の語彙
 
 `不変条件テスト名` / `個別回帰テスト名` / `lint ルール名（lint:Xxx）` / `check_machine.py のチェック名（check_xxx）` /
-`CI ゲート（CI: Gradleタスク名）` / `知見のみ` / `なし`。テストクラス名・機械チェック名・参照パスは `` ` `` で囲って書く——
+`ファイル内の識別子（パス::識別子）` / `CI ゲート（CI: Gradleタスク名）` / `知見のみ` / `なし`。
+テストクラス名・機械チェック名・参照パス・ファイル内識別子は `` ` `` で囲って書く——
 `check_machine.py` の `known-bugs-registry` チェックが**実在を機械照合**し、リネーム・削除で嘘になった行を落とす。
+
+**検知の実体が「ファイルの中の1つの表・定数」のときは `パス::識別子` で書く**（例＝`tools/check_design_tokens.py::EXPECTED_SKIPS`）。
+素の識別子だけで書くとどの照合パターンにも当たらず、その行は**検知手段が空**と数えられて
+「検知ありを主張しているのに名指しが無い」の偽陽性になる（実際に2件出した）。この形式ならファイルの実在に加えて
+**識別子が今もそのファイルに在ること**まで照合されるので、定数をリネームした瞬間に台帳が落ちる。
 
 **CI ゲートだけは `` ` `` で囲まず素のテキストで `CI: <Gradleタスク名>` と書く**——Gradle のタスク名は
 テストクラス名・`check_xxx`・パスのどの照合パターンにも当たらず、コードスパンにすると info が出るだけだから
@@ -62,6 +68,49 @@
 3. 検知を足したら状態を `[!]` → `[~]` → `[o]` へ更新する。**逆に、テストを消したら状態を戻す**。
 4. 完了の履歴は git log が正本。ここには SHA・コミット数・差分行数を書かない。
 
+## 卒業（台帳から降ろす基準と手順）
+
+**なぜ要るか**: この台帳の唯一の効用は「どのバグ型が無防備かを**一目で**見て投資を決める」こと。降ろす規律が
+無ければ行だけが増え、効用の方が先に死ぬ。逆に「直ったから消す」を許すと〈再発しうるものだけを集めた〉という
+前提が崩れて台帳の意味が消える。∴ 降ろす条件は「直ったか」ではなく **その機序がもう起こりえないか** の一点に置く。
+
+### 卒業できる（3つのいずれか・いずれも機械で示せること）
+
+1. **経路の消滅** — 罠を踏みうるコード・画面・API がリポジトリから無くなった。`rg` が 0 件を返すこと（叩いた
+   コマンドと結果を根拠として書く）。
+2. **構造封鎖への昇格** — コンパイラが表現そのものを禁じた（必須引数・exhaustive when・sealed 型）。
+   **配線の全部**に及ぶこと。一部にしか及ばないなら `[~] 部分` のまま据え置く。
+3. **前提の消滅** — 影響する OS/OEM 条件が対象外になった（例: minSdk が該当 API 以上へ上がった）。
+   ビルド値の正本（`android/app/build.gradle`）を根拠として書く。
+
+### 卒業できない（いずれも降ろす理由にならない）
+
+- **「修正済みだから」** — 全エントリが修正済み。それは**採録**の条件であって卒業の条件ではない。
+- **「`[o] 固定` だから」** — 生きた検知が在る行は**残す**理由の方が強い。行はその検知の存在理由そのもので、
+  先に行を消すと検知本体が「誰も理由を知らない番人」として次に消される（実例＝撤去済みフックに依存した
+  判定が恒久 dead 化し、テストは緑のまま13日間死んだ `removed-hook-leaves-dead-consumer`）。
+- **「長く再発していないから」** — 沈黙は不可能性の証拠ではない。**黙って死んだ番人と見分けがつかない。**
+- **「knowledge に書いたから」** — `[!] 知見のみ` を無防備側に置いたのと同じ理由。
+
+### 手順（1コミットで完結させる）
+
+1. 不可能性を**機械で示す**（上の 1〜3 の根拠コマンドと結果）。主張だけでは降ろさない。
+2. その行が名指す**検知手段の去就を同じコミットで決める**。生かすなら「他のどの生きた経路を守るのか」を
+   検知側のコメントに残す。落とすなら `tools/roster.tsv` の宣言と `tools/killtest.py` の変異も同じコミットで
+   落とす。**孤児の検知を残さない**（忘れれば `tools/check_roster.py` が員数と双方向被覆で止める）。
+3. 行は消さず、末尾の「卒業済み」へ**1行**に畳んで移す（ID・日付・理由・根拠）。なぜ残すか＝経路が戻ったとき
+   （画面の復活・minSdk の引き下げ）に「ここは昔罠だった」と言える場所が他に無いから。
+4. 畳んだ行が**消えたパスやテスト名を名指すなら、同じ行に「撤去済み」等の注記を併記する**——
+   `check_referenced_files` の抑止則は〈同一行／直後の注記行／前置き引用／冒頭の名指し宣言〉の4形式でしか
+   黙らず（`check_suppression_selftest` が毎走その境界を検証している）、書かないと台帳が恒久的に赤いままになる。
+5. 卒業した ID は上の表から消える。**同じ ID が表と卒業済みの両方に在る＝降ろしそこね**。
+
+### いつやるか
+
+棚卸しの回にまとめない。**その行を触った回に判定する**（`fix:` で追記した・検知を足した・経路を消した回）。
+台帳と同じ理屈で、消す判断が最も安いのは既にその行を開いているときで、まとめて棚卸しする運用は
+3本の台帳すべてで上限超過を繰り返した実績がある。
+
 ---
 
 ## A. アプリ本体（Kotlin / Compose / Room / scrape）
@@ -87,8 +136,9 @@
 | `[!] 知見のみ` | `webview-position-mis-record` | Web 読書の位置が回転・戻り遷移で巻き戻る | WebView のスクロール位置を「戻り」でも記録してしまう／回転で state を捨てる | WebReader の回転巻き戻りを saveState で解消／戻り遷移では読書位置を記録しない | 知見のみ | `docs/decisions/0012-narou-reading-webview-position-tracking.md` |
 | `[!] 知見のみ` | `snackbar-indefinite-blocks-queue` | スナックバーが閉じた直後に再表示され残留して見える | actionLabel 付き Indefinite が M3 の直列キューを塞ぐ | Web 取込中表示を ProcessingBanner へ収斂 | 知見のみ | `docs/knowledge/material3-snackbar-actionlabel-indefinite-blocks-serial-queue.md` |
 | `[!] 知見のみ` | `benchmark-device-run-fragility` | マクロベンチが実機で完走せず全メトリクス0になる | broadcast の沈黙不達・新コンテンツの入力デッドウィンドウ・画面ロック・COLD 仕様衝突 | 本棚スクロール／章送り／大PDF取込の3ベンチを実機完走可能化 | 知見のみ | `docs/knowledge/coloros-broadcast-silent-drop.md`, `docs/knowledge/macrobenchmark-frametiming-scroll-pitfalls.md`, `docs/knowledge/compose-fresh-content-input-dead-window.md`, `docs/knowledge/device-screen-lock-breaks-benchmark-two-ways.md` |
-| `[~] 部分` | `a11y-contrast-below-aa` | 文字・アイコンが薄くて読めない（4.5:1 未満） | 意匠の淡色をそのまま情報テキストへ使う | ルビ3色の AA 化／発見系メタ6箇所を情報テキスト役割トークンへ／履歴チップの未ピンアイコン可視化 | `tools/check_design_tokens.py`（a11y contrast check＝トークン層で「載る面が型で宣言された」前景×面 297組を WCAG 4.5:1／非テキスト 3:1 で判定・CI の Design token check で毎push）。**呼び出し側の `.copy(alpha=)` 合成・グラデーション面・Color.kt 直参照は未検査** | `docs/decisions/0014-design-principles-and-source-layers.md` |
-| `[~] 部分` | `translucent-alpha-calibrated-for-d-leaks` | 暗色スキンで操作可能な面の背後が透けて読めない | D（明色）で較正した半透明 alpha を他スキンへ持ち越す | 「最上部へ」ピルの不透明化／P没入セーブバーのスライド退避／読書下部バーの nav 帯透け（alpha0.95 持ち越し） | `ReadingBarAlphaTest`（読書バーのみ） | — |
+| `[~] 部分` | `a11y-contrast-below-aa` | 文字・アイコンが薄くて読めない（4.5:1 未満） | 意匠の淡色をそのまま情報テキストへ使う | ルビ3色の AA 化／発見系メタ6箇所を情報テキスト役割トークンへ／履歴チップの未ピンアイコン可視化 | `tools/check_design_tokens.py`（a11y contrast check＝トークン層で「載る面が型で宣言された」前景×面を WCAG 4.5:1／非テキスト 3:1 で判定。**組数は書かない**＝実数は同スクリプト出力の `pairs=`〔⚠️ 旧記述の「297組」は 2026-09-05 実測で 330 と乖離していた〕・CI の Design token check で毎push）。**呼び出し側の `.copy(alpha=)` 合成・グラデーション面・Color.kt 直参照は未検査** | `docs/decisions/0014-design-principles-and-source-layers.md` |
+| `[~] 部分` | `translucent-alpha-calibrated-for-d-leaks` | 暗色スキンで操作可能な面の背後が透けて読めない | D（明色）で較正した半透明 alpha を他スキンへ持ち越す | 「最上部へ」ピルの不透明化（⚠️ **2026-09-04 に撤回**＝真因は〈背後の明色が透けて字とだぶる〉でコントラスト不足ではなく、下限は**明色側が先**に来る。枠＋淡影で輪郭を立て直し α.78 へ倒した）／P没入セーブバーのスライド退避／読書下部バーの nav 帯透け（alpha0.95 持ち越し） | `ReadingBarAlphaTest`（読書バーのみ） | — |
+| `[~] 部分` | `narou-markup-passthrough` | 挿絵記法が本文に記号列として出る。⚠️ **旧記述「全角の縦線で書かれたルビが記法のまま出る」は 2026-09-05 に症状ではなかったと確定**＝当該箇所は web でも記法のまま表示されており（一次ソース＝N6169DZ 第686話の作品ページ）、記法のまま出るのが**正しい見え**だった | なろうの制御記法に解釈側が無いと抽出が忠実に運んで読者へ記号列として出す——ただしこれが当たるのは**挿絵だけ**。機序が 2026-09-05 に確定した: **なろうが解釈した記法は PDF に記法として残らない**（解釈された時点で描画結果へ置き換わる）。∴ PDF に記法が残っていること自体が「なろうが解釈しなかった＝読者にも記号のまま見えている」ことの証拠になる。挿絵だけが例外なのは、なろう公式の縦書きPDF が画像を1枚も持てず（全12本で `/Subtype /Image` 0 件）、生成器が解釈結果（画像）を出力できずタグの字面だけを落とすため＝**web と PDF の見えが食い違う唯一の記法**。⚠️ 旧記述2件はいずれも誤りで撤回済み＝①「生成器はタグを全角化して本文に組むだけ」（同じ生成物内で ASCII 縦線が 23,017 件そのまま残る）②「挿絵タグが全角で出る機序は未確定」（著者が全角で書き、**なろうは全角形も挿絵として解釈している**＝N5892FB の作品ページ本文に `<img>` が出ている。ヘルプ helppageid/44 の「半角で入力してください」と実挙動は食い違う）。⚠️ **ルビ側の旧真因「なろうは縦線の半角/全角どちらも正式（helppageid/42）なのに ASCII しか見ていなかった」も撤回**＝ヘルプの記述に反して実際には適用されておらず、抽出出力の ASCII マーカーは著者入力ではなく `TextProcessor` が描画済みルビから組み立てた中間表現（`"|"` を自分で append）＝**ASCII は「ルビが描かれた証拠」・全角は「解釈されなかった証拠」**という非対称がある | **PDF 経路専用の層**（`ChapterProcessor.splitIntoChapters` → `normalizeNarouMarkup`）で**挿絵記法の除去だけ**を行う（Web の著者記述文へは掛けない＝監査 A1 と同型の誤爆面を開かないため）。⚠️ **全角縦線のルビを ASCII へ寄せる変換は 2026-09-05 に撤回**＝この分岐が見られる相手は原理的に「なろうがルビにしなかった記法」だけで、変換すると web の読者が見ていないルビを捏造する（ADR 0041）。corpus の実害は N6169DZ の 1 件で、撤回により章 HTML が 19 字ぶん literal へ戻った。⚠️ **一律置換はしない**という結論は維持＝全角縦線は挿絵タグを除き 8 件（地の文の区切り 3・`｜親（読み）` 4・ルビ形 1）。⚠️ 旧記述「打ち消し記法 4 件」は**形の誤読**＝打ち消しは `｜` を **（の直前**に置く形（helppageid/42）で、当該 4 件はいずれも縦線が親文字の前にある `｜親（読み）`（なろうは（）形を「親＝漢字・読み＝かな」のときだけ適用するため、読みが漢字/カタカナのこれらは解釈されない）。あわせて `RUBY_PATTERN` の親文字/ルビから改行を外した（ルビでない縦線 1 つで次の `《…》` までの全文が 1 つの ruby へ潰れる形＝実測で潰れ得た最大 2,886 字・改行 88 本。既存 23,017 件は挙動不変） | `JvmGoldenRegressionTest`（**`chapter_html_sha256`＝読者に出る層のハッシュを全6本で完全一致に固定**したのが本命。あわせて章本文の**挿絵記法の残留 0**と**ASCII 縦線の未変換ルビ記法の残留 0**を不変条件化）, `SplitIntoChaptersTest`, `ProcessForewordAfterwordTest`。⚠️ **golden の旧項目では原理的に検出できない**＝`body_sha256` は抽出出力のハッシュで記法は抽出段で保持される側・`ruby_run_count` は `《` の個数で**変換の有無を一切見ない**。⚠️ 追加した各ゲートは no-op へ戻して該当本だけが赤くなることを確認済み（死んだゲートでない）＝`<hr>` を出さない no-op で前後書きを持つ3本だけが `chapter_html_sha256` のみ赤 | ⚠️ **残る型（2026-09-05 更新）**: ①ルビの**括弧形**（`漢字（かな）`）と**縦線省略形**（`漢字《かな》`）は**実装してはいけない**——corpus 全12本での実測は括弧形 0 件（漢字直後の全角括弧は 1,435 件あるが中身が純かなのものは 0）・省略形 0 件（縦線なし `《…》` 169 件のうち直前が漢字かつ中身がかなは 0）で、**0 なのはなろうが全て解釈してルビグリフに変えたから**＝PDF に残った同形の文字列を拾えば必ず捏造になる（旧記述「89 件を誤爆する」は件数も理由も差し替え） ②**ASCII 縦線で書かれ、なろうが解釈しなかった記法は原理的に区別できない**＝`TextProcessor` が組み立てたマーカーと字面が完全に同一で、読みの長さでも切り分けられない（隣接ルビを1つに合成するため 11〜29 字の読みが 520 件ある）。これはルビ化され同型の捏造が残るが、corpus に観測手段が無く件数も出せない ③壊れた挿絵タグは真のタグと**区別不能** ④生成器が書式を変えると漏れる |
 | `[~] 部分` | `progress-ui-diverges-from-work` | 進捗が「2周目」に見える・分母が動かない・1%に張り付く | 進捗の段と分母を表示側が独自に組み立てる／高頻度更新 × tween で毎回キャンセル | 抽出進捗の統合／分母のライブ反映／進捗バーの spring 追従化 | `PdfBookExtractorTest`（抽出側のみ） | `docs/patterns/processing-state.md` |
 | `[~] 部分` | `vertical-glyph-bypasses-classifier` | 縦書きで約物・ルビ・題字が正立のまま死ぬ／列中心からずれる | 新しい描画経路が CharClassifier＋VertGlyphRenderer を迂回して素で描く（**3経路で再発**） | 本棚題字の1字描画を分類器経由へ／ルビも分類器経由へ／回転グリフをインク中央合わせへ／実機計測を分類表へ反映 | `CharClassifierTest`, `VerticalParagraphScreenshotTest`（既存経路のみ） | `docs/knowledge/vert-feature-pgem10-coverage.md`, `docs/knowledge/robolectric-vert-feature-noop.md` |
 | `[~] 部分` | `route-literal-pop-silently-ignored` | ← が完全無反応・画面から出られない | 消えたルート名リテラルへ pop して黙殺される（**読書側で起きた後、発見側で再発**） | 目次→本棚の pop をタブ層へ単一化／発見側の pop 3箇所を popToTab へ一般化 | `ReadingEscapeNavigationTest`, `DiscoveryUpNavigationTest` | `docs/decisions/0022-skin-structural-layer.md` |
@@ -98,18 +148,20 @@
 | `[~] 部分` | `orphan-rows-and-permissions` | 削除した本の進捗行・URI 権限が残り続ける | 複数テーブル/複数資源の削除が原子的でない | 削除のトランザクション化／失敗取込の孤児 URI 権限を起動時に回収 | `BookRepositoryTest`, `ActiveUriTrackerTest`, `StartupRecoveryTest` | — |
 | `[~] 部分` | `bookshelf-count-double-derivation` | ヘッダの冊数と実カード枚数がずれる | 同じ集合を供給点と表示点で二重に導出する | 取込済み web_novels のゴースト行を供給点で除外 | `ShelfItemsTest`, `BookshelfViewModelTest` | — |
 | `[~] 部分` | `processing-state-hub-overwrite` | PDF と Web の取込表示が相互に上書きされる・停止が効かない | 単一 Hub を複数の生産者が無条件に書く | Hub の PDF/Web 分離／停止の Web 実効化／重複スナックバーの集約 | `ProcessingStateHubTest`, `ProcessingBannerTest`, `AggregateErrorEventsTest` | `docs/patterns/processing-state.md` |
-| `[~] 部分` | `skin-wiring-omission` | 新スキンだけ機能が欠ける（読書状態フィルタ・件数集計） | スキンごとに同じ配線を手で複製する | webReadingStatusFor 新設＋全5スキン配線＋引数必須化 | `ShelfItemsTest` ＋構造封鎖（必須引数。ただしシート色・クローム欠落は封鎖の外） | `docs/decisions/0021-ui-skin-framework.md` |
+| `[~] 部分` | `skin-wiring-omission` | 新スキンだけ機能が欠ける（読書状態フィルタ・件数集計） | スキンごとに同じ配線を手で複製する | webReadingStatusFor 新設＋全5スキン配線＋引数必須化 | `ShelfItemsTest` ＋構造封鎖（必須引数＝**渡し忘れしか止めない**。受け取って使わない「受け取って捨てる」配線は素通りし、シート色・クローム欠落も封鎖の外） | `docs/decisions/0021-ui-skin-framework.md` |
 | `[~] 部分` | `state-as-frame-lag` | タブ切替が稀に効かない | `collectAsState` 化した nav 状態は1フレーム遅れる | Kタブ切替の遷移判定をライブ currentDestination へ | `KTabNavigationTest` | `docs/knowledge/navigation-compose-currentbackstackentry-state-lag.md` |
-| `[~] 部分` | `mock-code-drift` | 実装とモック正本が乖離して「どちらが正か」が分からなくなる | 人力写経の同期＝片側だけ変えても誰も気づかない | 正本モックへコード先行の視覚変更を逆同期 | `tools/check_design_tokens.py`（色・余白・書体トークンのみ／手動実行） | `docs/decisions/0018-derived-mock-drift-optin-sync-check.md` |
+| `[~] 部分` | `mock-code-drift` | 実装とモック正本が乖離して「どちらが正か」が分からなくなる | 人力写経の同期＝片側だけ変えても誰も気づかない | 正本モックへコード先行の視覚変更を逆同期 | `tools/check_design_tokens.py`（色・余白・書体トークンのみ。CI の Design token check ステップが毎 push 実行＝旧記述「手動実行」は CI 新設 2026-07-27 以降誤り） | `docs/decisions/0018-derived-mock-drift-optin-sync-check.md` |
 | `[~] 部分` | `content-height-jump-on-wrap` | 内容が2行になった瞬間に下部がガクンと動く | 内容依存の高さを予約せずレイアウトへ流す | さがすKの「今日の気分」を不可視ゴーストで高さ予約／M本棚セルを内容追従高へ | `DiscoveryHomeKMoodTest` | — |
 | `[~] 部分` | `external-api-contract-drift` | なろう API の応答で件数が欠ける・パースが落ちる | 外部 API の上限（lim）とスキーマ差異を前提に書いていない | novelDetailsBulk の500件チャンク分割／novel_type 二重キー・nu 欠落・JSON 例外正規化・NotFound 負キャッシュ | `NovelApiRepositoryTest`, `NarouJsonParseTest` | `docs/reference/02-narou-api-digest.md` |
 | `[~] 部分` | `async-response-inversion` | 古い検索結果が新しい結果を上書きする | 先行リクエストを cancel せず、遅い応答が後着する | 発見ロードの応答逆転を Job キャンセルで防止 | `DiscoveryViewModelTest` | — |
 | `[~] 部分` | `missing-data-rendered-as-fabricated` | 欠損データが「全0話」「連載中 1話」と嘘表示される | 欠損を既定値 0/1 に落として描く | 話数欠損時に捏造表示しない | `DiscoveryCommonLabelsTest` | — |
 | `[~] 部分` | `input-normalization-gaps` | 負数・桁あふれ・全角入力がサイレントに無効化される | 入力の正規化と境界検査が描画側に無い | カスタム数値入力の境界を堅牢化 | `SearchDraftTest` | — |
 | `[~] 部分` | `html-escape-missing` | 抽出テキスト中の記号で本文 HTML が崩壊する | 生成時にエスケープしない出力経路が残る | HTML 生成時に抽出テキストをエスケープ | `HtmlEscapeTest`, `HtmlExporterChapterCountInvariantTest` | — |
-| `[~] 部分` | `pdf-rule-detection-edge-case` | 単話 PDF で章タイトルが空になる | 題名マーカー0件を「章なし」と解釈する | 単話の単一章タイトルへ作品タイトルを流用（golden 第4本を追加） | `JvmGoldenRegressionTest`, `SplitIntoChaptersTest` | `docs/knowledge/narou-pdf-fullwidth-normalization.md` |
+| `[~] 部分` | `pdf-rule-detection-edge-case` | 単話 PDF で章タイトルが空になる／**単話（後書き付き）で章タイトルが「作品情報・プロローグ」に化ける・単話（前書き付き）で本文が丸ごと消える（章数0）** | **構造マーカー見出しを章見出しと数えて単話判定が外れる**。⚠️ 旧記述「題名マーカー0件を『章なし』と解釈する」は**標本の穴による誤り**（2026-09-04 訂正）＝単話でも前書き/後書きブロックには Bold 見出しが付き、話タイトル部が空なので裸の「（前書き）」「（後書き）」が出る（実測 N0089HK・N7668GF）＝マーカー総数は 0 にならない | 単話の単一章タイトルへ作品タイトルを流用（golden 第4本を追加）／**単話判定を「構造マーカーを除いた【題名】の有無」へ差し替え＋単話の前書き見出しを章の区切りにしない（畳み込み先の通常章が単話には現れず本文が全損するため）** | `JvmGoldenRegressionTest`（**golden 第5本 N7668GF＝単話×前書き＋後書き を追加して穴を塞いだ**。⚠️ 旧記の第4本 N5368ML は前書きも後書きも無い単話で、この型を覆えていなかった）, `SplitIntoChaptersTest`（実測の見出し文字列で固定）, `android/app/src/main/java/com/novelreader/pdf/ChapterProcessor.kt::isRealChapterHeading`。⚠️ **`[o] 固定` へは上げない**＝守っているのは個別回帰のみ（L1/L2 の不変条件も機械チェックも無い）。⚠️ **旧記の残る型「単話の前書きが装飾枠を持てない／本文冒頭に空行が約20行入る」は 2026-09-04 に解消**（版面由来のブロック境界を単話の前書き終端でだけ使う形で、枠の復元と空行の除去を同じ1つの判定から導く）。**新しい残る型**＝「連載なのに前書きへ見出しが付かない」形が現れたら漏れる（判定が単話に限られるため）。現状それが起きていないのは連載には必ず実在の章見出しがあるからで、**生成器が変われば崩れる前提** | `docs/knowledge/narou-pdf-fullwidth-normalization.md`, `docs/knowledge/narou-pdf-single-episode-structural-headings.md` |
+| `[~] 部分` | `front-matter-page-count-hardcoded` | 極小作品（総4ページ）が取り込めない・単話の前書きが丸ごと消える | **前付け（表紙・注意事項・作品情報）の枚数を定数3で切っている**。前付けの枚数は作品ごとに変わるのに `pageNum < 3` で無条件に捨てるため、①本文が1ページに収まる作品は処理対象ページが0枚になり本文全損 ②作品情報ページが無く前書きがページ2へ繰り上がる作品は前書きが見出しごと消える | 前付けの終端を構造で判定へ（0=表紙・1=注意事項は固定、ページ2は〈Bold 見出しが在る〉か〈捨てると本文が1枚も残らない〉なら本文と確定）。⚠️ **旧実装より捨てる枚数が増えない向き**にしてあり、新しい取りこぼしは作らない | `TextProcessorTest`（4ページ作品・見出し付きページ2・見出し無しページ2 の3型）, `JvmGoldenRegressionTest`。⚠️ **残る型**＝「作品情報ページが無く、ページ2 に見出しも無い5ページ以上の作品」は構造で判定できない（在る群と無る群でページ1 の充填率が 26〜29 対 22〜28 と重なる）＝旧実装と同じ面が残る | `docs/knowledge/narou-pdf-structure-survey-2026-09.md` |
 | `[~] 部分` | `transparent-overlay-eats-taps` | ボタンが見えているのに押せない | 透明な上位コンテナがヒットテストを食う | 空の本棚で Lazy コンテナとボタンを排他分岐へ | `BookshelfContentTest` | — |
 | `[~] 部分` | `pager-snap-from-first-visible` | 高速フリングでカードが複数枚飛ぶ | Pager 既定 snap の丸め基準が firstVisiblePage（覗き構図では視覚中央−1） | 装いの間カルーセルへカスタム PagerSnapDistance | `WardrobeFlingTargetTest` | `docs/knowledge/pager-snap-rounds-from-first-visible-page.md` |
+| `[~] 部分` | `in-flight-scroll-drops-state-change` | 期間タブのタップが無反応。しかも**同じタブをもう一度叩いても復帰しない**（実機報告「2回とも無反応」の形） | 送り（フリング/スナップ）が走っている間に届いた状態変更を `isScrollInProgress` で**見送って終わりにし、再試行の口が無い**。捨てられた変更は VM 側だけ進むためページャと食い違ったまま固定され、セッターが同値 no-op なので再操作でも復帰できない。⚠️ **同型が同じファイルで一度撤去済み**（`OrderTabsK` の追従側効果・2026-08-14「早期 return を置いてはいけない」）だったのに別の側効果に残った＝**撤去がその1箇所で閉じ、同型の横断探索へ広がらなかった**のが再発の機序 | 追従を「諦める」から「据わるまで待つ」へ（`rankingFollowAction`）＋待機中は `settledPage` の書き戻しを止める（**片方だけでは直らない＝2つで1つ**） | `RankingFollowActionTest`（判断を純関数へ切り出し全数固定）。⚠️ **画面ごとの試験は張れない**——Compose のテスト入力注入は注入前にwaitForIdle を通すため、送りが据わる前にタップを届かせる競合窓が JVM では作れない（真因確定は実機の一時ログ計測で行った） | — |
 | `[~] 部分` | `a11y-offscreen-nodes-unreachable` | 没入中に TalkBack から戻る・目次・前後章へ到達できない | 画面外ノードが a11y ツリーから刈られる | 没入中も customActions で到達可能に（視覚不変） | `NativeReadingScreenA11yTest` | `docs/knowledge/compose-offscreen-nodes-pruned-from-a11y-tree.md` |
 | `[o] 固定` | `lazylist-loading-full-replace-scroll-reset` | 再取得中に一覧が消え、スクロール位置が先頭へ飛ぶ | Loading 中に一覧を status 1行へ潰し、同一 LazyListState が縮んだ item 数で measure される（**knowledge も回帰テストも在ったのに新実装で再発**＝L1/L2 の発端） | 期間タブ切替リセットの全スキン横展開／K ランキング初訪ページのスケルトン化 | `DiscoveryHomeInvariantTest`（L1）, `DiscoveryHomeInvariantCoverageTest`（L2）, `DiscoveryHomeKSkeletonTest` | `docs/knowledge/lazylist-loading-full-replace-scroll-reset.md` |
 | `[o] 固定` | `immersive-window-ownership` | 章を送るたび没入が壊れる・消灯抑止が外れる・バーが一瞬出る | ウィンドウ資源を章スコープが `DisposableEffect` で所有し、退場側の後始末が入場側に勝つ | 読書メニューのタップトグル固定化＋window 幾何固定／window 背景をテーマ背景へ／ステータスバー明暗を Theme へ一本化／所有権を画面スコープへ移動 | `ReadingWindowContractTest`（所有権をソース走査で固定） | `docs/knowledge/compose-animatedcontent-exit-dispose-outlives-enter.md`, `docs/knowledge/immersive-toggle-cutout-letterbox-flicker.md`, `docs/knowledge/m3-topappbar-heightoffset-negative-crash.md` |
@@ -117,12 +169,13 @@
 | `[o] 固定` | `hardcoded-color-outside-tokens` | 同じ役割の色が2値に割れる・直書きが残る | トークン層を経由せず値を直書きする | ヘアライン役割2トークン化・直書き3件解消／章見出しルール色の正本化 | `tools/check_design_tokens.py` | `docs/decisions/0014-design-principles-and-source-layers.md` |
 | `[o] 固定` | `intent-filter-data-attrs` | VIEW intent-filter のマッチ集合が意図とずれる | 1つの data タグへ複数属性を書くと直積で解釈される | data タグを1属性1タグへ分割 | `lint:IntentFilterUniqueDataAttributes`（CI の lintDebug で実行） | — |
 | `[o] 固定` | `androidtest-not-compiled-by-default-gate` | androidTest が本番シグネチャ変更に追従せずコンパイル破綻したまま潜伏 | 既定ゲート `testDebugUnitTest` は androidTest をコンパイルしない | ReadingScreen のテーマ引数追加への追従／followingSystem 必須化への追従（**2回発生**） | CI: assembleDebugAndroidTest（ビルドのみ・実行は端末必須で対象外） | — |
-| `[o] 固定` | `roborazzi-verify-not-in-default-gate` | golden が実装と乖離したまま何週間も潜伏する | 既定ゲートに `verify` が同乗していない＝記録だけして照合しない | 陳腐化していた golden 24枚を再記録 | CI: verifyRoborazziDebug（単体テストと同じ1パスで48枚を照合） | `docs/knowledge/golden-regression-baselines.md` |
+| `[o] 固定` | `roborazzi-verify-not-in-default-gate` | golden が実装と乖離したまま何週間も潜伏する | 既定ゲートに `verify` が同乗していない＝記録だけして照合しない | 陳腐化していた golden 24枚を再記録 | CI: verifyRoborazziDebug（単体テストと同じ1パスで golden 全数を照合。枚数は増えるので書かない＝数え方は build スキル） | — |
 | `[o] 固定` | `release-r8-only-build-break` | debug は通るのに release だけビルド不能になる | R8 が新依存の未知属性で落ちる。日常ゲートに release ビルドが無い | In-App Review 導入で停止した release R8 ビルドを dontwarn で復旧 | CI: assembleRelease（鍵不在でも未署名で通る＝R8 破綻のみを見る） | — |
 | `[o] 固定` | `runcatching-swallows-cancellation` | キャンセルしたはずの処理が生き続ける／構造化並行性が壊れる | `runCatching` が `CancellationException` まで飲む | addBook のキャンセル例外の握り潰しを解消 | `HazardousPatternScanTest`（キャンセル文脈の runCatching を全数列挙し登録簿と突合。**機械が保証するのは「再送出が無い」ことまで**＝登録簿7件の免除根拠「本文が非 suspend」は人間の読み） | — |
 | `[o] 固定` | `test-dispatcher-escape-flaky` | 単体テストがフレーキーに落ちる | 本番コードの `launch(Dispatchers.IO)` が TestDispatcher 管理外＝`advanceUntilIdle` が待てない | BookshelfViewModelTest をディスパッチャ注入で決定化 | `HazardousPatternScanTest`（launch/flowOn/shareIn/stateIn の Dispatchers 直書きを全数列挙。withContext は呼び出し元が待つので対象外） | — |
 | `[o] 固定` | `fgs-notification-id-collision` | 完了・失敗の通知が出た瞬間に消える | 終端通知を FGS 通知と同一 ID へ投稿＝サービス停止の道連れ | PDF 終端通知を FGS 通知と別 ID へ分離 | `HazardousPatternScanTest`（notify/startForeground の投稿口を全数登録制にし、宣言 ID と実コード・TERMINAL 役と FGS の ID 一致・ID 定数の相互差分まで検査） | — |
 | `[o] 固定` | `no-network-timeout` | 通信が返らないまま画面が固まる | OkHttp 既定の `callTimeout` は無制限 | OkHttp クライアントへタイムアウト設定 | `HazardousPatternScanTest`（OkHttpClient 生成式に callTimeout があるか） | — |
+| `[o] 固定` | `backhandler-enabled-flip-loses-os-registration` | Back を押すと戻らずアプリが終了する（設定タブ／装着後／本棚の選択モード中／検索・ジャンル画面で回転後） | Predictive Back では OnBackInvokedDispatcher への**登録の有無**が効くのに、`BackHandler(enabled = <状態式>)` が `isEnabled` の false→true **反転**に依存＝反転が登録へ反映されず OS へ抜ける（反映が落ちる層は端末計測なしには未確定） | 条件を `if (<条件>) { BackHandler { … } }` へ変えコールバック自体を出し入れする形に統一（tabs・本棚選択モード・検索/ジャンル） | `HazardousPatternScanTest` 型5（`src/main` に `BackHandler(enabled = <非定数>)` が無いことを走査。位置引数形も拾う／`enabled = true` は合格／`BackHandler` 総数>0 の陽性制御つき） | **実害の判定は形だけでは足りない**＝反転形でも他に有効な cb が居れば集約は既に true で無害。決め手は「反転の瞬間に `hasEnabledCallbacks` が false→true になるか」で、**前進経路だけでなく復元経路（回転・プロセス death 復帰）まで見る**。機序＝`docs/knowledge/predictive-back-enabled-flip-not-registered.md` |
 
 ## B. tooling（`.claude/hooks` / skills / `tools/` / statusline）
 
@@ -131,8 +184,8 @@
 
 | 状態 | ID | 症状 | 機序・バグ型 | 修正の所在（コミット件名の要約） | 検知手段 | 関連 knowledge |
 |---|---|---|---|---|---|---|
-| `[~] 部分` | `stale-check-false-positive` | 機械チェックが偽陽性を出し、報告が信用されなくなる | 検査対象の除外条件を実態に追随させていない | hooks_common.py の死hook 誤検知を除外／test_*.py・MEMORY.md の抑制／block_destructive_migration の対象を .kt 限定／ref 検査の対象を docs 全体と plans 直下へ拡大し「もう無い」注記4形式の抑止則を新設（同時に、探索ルートが macrobenchmark を見ておらず実在ファイルを参照切れ扱いしていた穴も是正） | `check_machine.py` 自身の自己テスト（抑止則の境界ケース・名指し判定・実行時生成ファイル・メタ変数記法をインライン期待値で毎回検証。故障注入で「抑止しすぎ」「抑止漏れ」の両方向を検出できることを実証済み）。**抑止則に限る**＝他の検査項目の偽陽性には依然として検知手段が無い | — |
-| `[~] 部分` | `checker-fail-open-skip` | 検査器が「SKIP」を黙って飲んで全通過する | 対象が見つからない＝合格、という fail-open 設計 | check_design_tokens の SKIP 内訳を列挙・ベースライン超過で exit 1／さらに総数ラチェットを鍵付き理由表へ移行（総数だけの監視は「照合が1件死んでも別の1件が復活すれば差し引き0」で素通りしていた） | `EXPECTED_SKIPS` の鍵照合＝未知の SKIP は NG・表にあるのに SKIP しなくなれば INFO・対象から消えれば NG（負のコントロール4本で実効を実証）。起動点は CI の Design token check ステップのみ＝**ローカルでは自動起動されない**のは従前どおり | `docs/decisions/0018-derived-mock-drift-optin-sync-check.md` |
+| `[~] 部分` | `stale-check-false-positive` | 機械チェックが偽陽性を出し、報告が信用されなくなる | 検査対象の除外条件を実態に追随させていない | hooks_common.py の死hook 誤検知を除外／test_*.py・MEMORY.md の抑制／block_destructive_migration の対象を .kt 限定／ref 検査の対象を docs 全体と plans 直下へ拡大し「もう無い」注記4形式の抑止則を新設（同時に、探索ルートが macrobenchmark を見ておらず実在ファイルを参照切れ扱いしていた穴も是正）／名指し語彙へ `パス::識別子` を追加（検知の実体がファイル内の定数である行を「検知手段が空」と誤判定していた）／意図的に未登録の凍結 hook を `FROZEN_HOOKS` で無言化（未登録が正のものを毎回「死 hook の可能性」として出していた） | `check_suppression_selftest`（`.claude/skills/stale-check/check_machine.py` にインライン期待値を持ち、抑止則の境界ケース・名指し判定・実行時生成ファイル・メタ変数記法を毎回検証。故障注入で「抑止しすぎ」「抑止漏れ」の両方向を検出できることを実証済み）。**抑止則に限る**＝他の検査項目の偽陽性には依然として検知手段が無い | — |
+| `[~] 部分` | `checker-fail-open-skip` | 検査器が「SKIP」を黙って飲んで全通過する | 対象が見つからない＝合格、という fail-open 設計 | check_design_tokens の SKIP 内訳を列挙・ベースライン超過で exit 1／さらに総数ラチェットを鍵付き理由表へ移行（総数だけの監視は「照合が1件死んでも別の1件が復活すれば差し引き0」で素通りしていた） | `tools/check_design_tokens.py::EXPECTED_SKIPS` の鍵照合＝未知の SKIP は NG・表にあるのに SKIP しなくなれば INFO・対象から消えれば NG（負のコントロール4本で実効を実証）。起動点は CI の Design token check ステップのみ＝**ローカルでは自動起動されない**のは従前どおり | `docs/decisions/0018-derived-mock-drift-optin-sync-check.md` |
 | `[!] なし` | `wsl-path-translation` | WSL からの起動が空振りする／UNC を誤って開く | Linux パスを Windows 実行ファイルへそのまま渡す | open_in_vscode の wslpath 対応／ドライブパス限定化／JSON デコードエラー（**3回発生・当該フックは現在撤去済み**） | なし | — |
 | `[!] なし` | `statusline-terminal-geometry` | statusline の2行目が見切れる・worktree 名が出ない | 端末の実表示域や git-dir を推定値でハードコード較正する。**2回発生** | 余白を実測 24 桁へ較正（2回）／worktree 名を --git-dir 基準へ／「(1M) 二重表示」解消 | なし | — |
 | `[~] 部分` | `hook-output-not-delivered` | フックは動いているのに通告がモデルに一切届かない（主機能が無音で不達） | イベントごとに届く出力先が違う（stdout / stderr / additionalContext）のを取り違える。**7回発生** | schema・lint フックの additionalContext 化／センチネル状態遷移通知／コミット粒度チェック／remind_commit_plan の stderr 化／remind_task_diary の注入化／mark_kotlin_tests_passed の不達／センチネルが Bash 出力形式を読めず未更新／センチネル削除失敗通知の stderr 不達 | `check_hook_output_channel`（配線イベント×届く出力経路の突合）。**静的解析ゆえ判定不能が残り、SubagentStop 行は一次情報未確認の推測** | `docs/decisions/0008-no-hook-dispatcher.md` |
@@ -141,3 +194,10 @@
 | `[o] 固定` | `removed-hook-leaves-dead-consumer` | 撤去したフックの生成物に依存する判定が恒久 dead 化し、**テストは緑のまま13日間死ぬ** | 撤去コミットが「撤去する側」しか触らず、参照する側が残る | 恒久 dead だったセンチネル照合を退役／捏造検知のセンチネル参照を Kotlin 単一化 | `check_removed_hook_references`（撤去フックの名前に加え**旧ソースが作っていた生成物リテラル**を現ツリーの live 位置〔settings 配線・実コード・.gitignore 実エントリ・文書中の実行コマンド〕と突合）。**パスを変数で組み立てる参照とフック外の生成者撤去は対象外** | `docs/decisions/0006-detect-fabricated-execution-static-analysis.md` |
 | `[o] 固定` | `hook-guard-regex-bypass` | ブランチガード・コミットゲートが表記揺れで素通りする | コマンド文字列を正規表現で見張る設計は、改行・グローバルオプション・複合 `switch && commit` で破れる。**複数回発生** | 偽陰性の是正（改行・グローバルオプション）／複合 switch+commit の穴を封鎖／COMMIT_CMD_RE 統一と merge 素通し封鎖 | `.claude/hooks/test_hooks.py`（`check_hook_smoke` が毎回実行） | `docs/decisions/0004-branch-aware-memory-and-doc-architecture.md` |
 | `[o] 固定` | `fabrication-detector-calibration` | 実行捏造検知器が正当な作業を誤ブロックする／捏造を素通しする | 検知の閾値・免罪条件・検査窓を実データ無しで決めると必ず片側へ倒れる | v3.1／v3.2 較正・Tier B メタ議論免罪・Stop 検査窓の current_turn 拡張・画像貼付クラッシュ修正 | `.claude/hooks/test_detect_fabricated_execution.py`, `docs/reference/hallucination-ground-truth.md` | `docs/decisions/0006-detect-fabricated-execution-static-analysis.md` |
+
+## 卒業済み
+
+> 「もう起こりえない」と判定して上の表から降ろしたもの。1件1行（ID・日付・卒業理由・根拠）。
+> **ここは投資判断の対象外**＝通読時は読み飛ばしてよい。経路が戻ったときだけ引く。
+
+（まだ無い）

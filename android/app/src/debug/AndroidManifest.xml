@@ -16,6 +16,19 @@
             android:exported="true"
             android:label="Vertical Spike"
             android:theme="@style/Theme.NovelReader" />
+
+        <!-- 組版の「仕事量」計測プローブ（TypesetWorkProbe）の ON/OFF・読み出し口。
+             exported=true の安全根拠: この overlay と Receiver 実装は src/debug 限定＝release の
+             merged manifest には現れない。プローブ本体は main に居るが既定 OFF で、true にできる
+             経路はこの Receiver だけ＝出荷 APK では計測コードが動く手段が存在しない
+             （同じ隔離の型＝上の SpikeActivity）。 -->
+        <receiver
+            android:name="com.novelreader.perf.TypesetProbeReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.novelreader.debug.action.TYPESET_PROBE" />
+            </intent-filter>
+        </receiver>
     </application>
 
 </manifest>

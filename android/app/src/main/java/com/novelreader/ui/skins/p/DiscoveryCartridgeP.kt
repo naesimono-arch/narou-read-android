@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -674,7 +675,11 @@ private fun GenreSpine(label: String, color: Color, onClick: () -> Unit, isEntry
         modifier = Modifier
             .clickable(onClick = onClick)
             .width(66.dp)                 // .spine 66px
-            .height(88.dp)                // .spine 88px
+            // 高さは 88dp を下限に内容へ追従させる（.spine 88px は fontScale 1.0 での見え＝下限として維持）。
+            // 固定高のままだと器が dp・中身が sp の非対称で、fontScale 拡大時にジャンル名の最終行が clip に
+            // 無音で切られ「どの背表紙がどのジャンルか」判別不能になる（色は機械割り当てで意味を持たない＝
+            // 監査 2026-08-06 B10。fontScale 1.0 では従来と同寸＝見た目不変）。
+            .heightIn(min = 88.dp)
             .clip(shape)
             .background(color)
             .then(if (isEntry) Modifier.border(1.dp, LineDiscCartridge, shape) else Modifier)

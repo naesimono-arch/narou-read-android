@@ -1,5 +1,6 @@
 package com.novelreader.repository
 
+import android.content.ContentResolver
 import android.content.Context
 import android.net.Uri
 import android.provider.DocumentsContract
@@ -17,6 +18,7 @@ import com.novelreader.model.ChapterFilename
 import com.novelreader.narou.model.Ncode
 import com.novelreader.pdf.BookMeta
 import com.novelreader.pdf.CorruptedPdfError
+import com.novelreader.pdf.EmptyExtractionError
 import com.novelreader.pdf.EncryptedPdfError
 import com.novelreader.pdf.InsufficientStorageError
 import com.novelreader.pdf.PdfProgress
@@ -27,6 +29,7 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkStatic
 import io.mockk.unmockkStatic
+import io.mockk.verify
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
@@ -50,6 +53,16 @@ class BookRepositoryTest {
     // （mockk relaxed は get で常に null を返し往復を観測できないため）。
     private lateinit var webReadingProgressDao: FakeWebReadingProgressDao
     private lateinit var context: Context
+
+    // ⚠ 永続 URI 権限の解放（ADR 0043 の要）は **resolver を直に verify する**こと。
+    // `verify(exactly = 0) { context.contentResolver.releasePersistableUriPermission(...) }` と
+    // 連鎖で書いてはいけない: MockK は連鎖式を〈getContentResolver() → releasePersistableUriPermission()〉の
+    // **2呼び出しの列**として記録し、exactly=0 は列の各要素に掛かる。ところが addBook は取込そのもののために
+    // getContentResolver() を正当に呼ぶ（PdfBookImporter の openInputStream・persistedUriPermissions）ため、
+    // 解放が1度も起きていなくても「call 1 of 2 should not be called」で落ちる＝**測る対象を間違えている**。
+    // 子 mock を掴んでおけば連鎖が消え、解放の呼び出し回数だけを測れる（relaxed mock の
+    // context.contentResolver は常に同一インスタンスを返すので、本番が触るのと同じ mock を指す）。
+    private lateinit var resolver: ContentResolver
     // 実装クラスを直接組み立てる（internal な findExistingBook/classifyError 等を検証するため）。
     // interface BookRepository には出さない実装詳細メソッドなので DefaultBookRepository 型で受ける。
     private lateinit var repository: DefaultBookRepository
@@ -67,6 +80,8 @@ class BookRepositoryTest {
     @Before
     fun setUp() {
         context = mockk(relaxed = true)
+        // 本番が触るのと同一の子 mock を掴む（なぜ掴むかはフィールド宣言の why）。
+        resolver = context.contentResolver
         testCacheDir = createTempDir(prefix = "repoTestCache")
         every { context.cacheDir } returns testCacheDir
         bookDao = mockk(relaxed = true)
@@ -115,6 +130,14 @@ class BookRepositoryTest {
     @Test
     fun `classifyError - CorruptedPdfError を CorruptedPdf に変換する`() {
         val result = repository.classifyError(CorruptedPdfError("bad structure"))
+        assert(result is BookImportError.CorruptedPdf)
+    }
+
+    @Test
+    fun `classifyError - EmptyExtractionError を CorruptedPdf（決定的失敗）に変換する`() {
+        // 章0件（監査 A3 ゲート）は再試行しても必ず同じ結果＝CorruptedPdf 側に載せて
+        // Service の isDeterministicFailure が「再試行」を出さないことを型で保証する。
+        val result = repository.classifyError(EmptyExtractionError("no chapters"))
         assert(result is BookImportError.CorruptedPdf)
     }
 
@@ -183,8 +206,9 @@ class BookRepositoryTest {
     }
 
     // ── 処理キューの永続化（pending_jobs）─────────────────────────────────
-    // Uri.parse は JVM の android.jar スタブ（returnDefaultValues=true）で null を返すため、
-    // Uri を経由するメソッドは mockkStatic で決定的に stub する。
+    // ⚠ このファイル全体の前提: Uri.parse / DocumentsContract は JVM の android.jar スタブ
+    // （returnDefaultValues=true）で null を返すため、それらを経由するテストは mockkStatic で決定的に stub する
+    // （下の削除系テストが実例）。pending_jobs の記帳操作は URI 文字列のまま扱うため stub 不要。
 
     @Test
     fun `addPendingJob - dao に uri と displayName が記帳される`() = runTest {
@@ -202,42 +226,28 @@ class BookRepositoryTest {
         assertEquals(jobs, repository.getPendingJobs())
     }
 
+    // ADR 0043: 取込側のどの経路も永続 URI 権限を解放しない（本の生存中は保持する）。
+    // 解放してよいのは「本の死」(deleteBook) と起動時の孤児回収(releaseOrphanedPermissions) だけ。
+    // 旧実装はここで即時解放しており、アプリを閉じた後の取込元PDF削除が必ず失敗していた。
+
     @Test
-    fun `removePendingJob - 記帳の削除と永続権限の解放が行われる`() = runTest {
-        mockkStatic(Uri::class)
-        try {
-            val uri = mockk<Uri>(relaxed = true)
-            // settlePendingJob は Uri→String の round-trip（pdfUri.toString()）で deleteByUri を
-            // 呼ぶため、relaxed 既定の "Uri(#N)" ではなく実文字列を返すよう stub する
-            every { uri.toString() } returns "content://docs/1"
-            every { Uri.parse("content://docs/1") } returns uri
-            repository.removePendingJob("content://docs/1")
-            coVerify { pendingJobDao.deleteByUri("content://docs/1") }
-            coVerify { context.contentResolver.releasePersistableUriPermission(uri, any()) }
-        } finally {
-            unmockkStatic(Uri::class)
-        }
+    fun `removePendingJob - 記帳だけ削除し永続権限は保持する（ADR 0043）`() = runTest {
+        repository.removePendingJob("content://docs/1")
+        coVerify { pendingJobDao.deleteByUri("content://docs/1") }
+        verify(exactly = 0) { resolver.releasePersistableUriPermission(any(), any()) }
     }
 
     @Test
-    fun `clearPendingJobs - 全行の権限解放後に deleteAll される`() = runTest {
-        mockkStatic(Uri::class)
-        try {
-            val uri1 = mockk<Uri>(relaxed = true)
-            val uri2 = mockk<Uri>(relaxed = true)
-            every { Uri.parse("content://docs/1") } returns uri1
-            every { Uri.parse("content://docs/2") } returns uri2
-            coEvery { pendingJobDao.getAll() } returns listOf(
-                PendingJobEntity("content://docs/1", "本A", 1L),
-                PendingJobEntity("content://docs/2", "本B", 2L),
-            )
-            repository.clearPendingJobs()
-            coVerify { context.contentResolver.releasePersistableUriPermission(uri1, any()) }
-            coVerify { context.contentResolver.releasePersistableUriPermission(uri2, any()) }
-            coVerify { pendingJobDao.deleteAll() }
-        } finally {
-            unmockkStatic(Uri::class)
-        }
+    fun `clearPendingJobs - 明示停止でも永続権限は保持する（生きている本の取込元を巻き添えにしない）`() = runTest {
+        // 欠落本の一括再取込は books.sourceUri をそのまま再投入する＝停止時に解放すると、
+        // 無関係な蔵書の取込元PDF削除まで壊れる。行だけ落として権限は起動時掃除に委ねる。
+        coEvery { pendingJobDao.getAll() } returns listOf(
+            PendingJobEntity("content://docs/1", "本A", 1L),
+            PendingJobEntity("content://docs/2", "本B", 2L),
+        )
+        repository.clearPendingJobs()
+        coVerify { pendingJobDao.deleteAll() }
+        verify(exactly = 0) { resolver.releasePersistableUriPermission(any(), any()) }
     }
 
     // ── べき等ガード（同一PDF二重取込・UX監査 F-G 公理3）───────────────────
@@ -722,8 +732,58 @@ class BookRepositoryTest {
             assertTrue("書きかけHTMLディレクトリは残らない", novels.listFiles().isNullOrEmpty())
             // 本棚に出ない: insertBook は一度も呼ばれない
             coVerify(exactly = 0) { bookDao.insertBook(any()) }
-            // 永続キューの記帳は落とす（M7 再試行のため権限は残す＝settle でなく deleteByUri のみ）
+            // 永続キューの記帳は落とすが、永続 URI 権限は残す（失敗 Snackbar の「再試行」が
+            // 同一 URI を再投入しても openInputStream が通るため＝ADR 0043 以降は全経路の既定）。
             coVerify { pendingJobDao.deleteByUri("content://docs/corrupt") }
+            verify(exactly = 0) { resolver.releasePersistableUriPermission(any(), any()) }
+        } finally {
+            filesDir.deleteRecursively()
+            cacheDir.deleteRecursively()
+        }
+    }
+
+    // ── 章0件ゲート（監査 A3: import-commits-without-integrity-check）──────────────────
+    // 総ページ4以下の PDF は TextProcessor の固定トリムで全ページが除外され、章0件のまま
+    // index.html だけが書かれる。旧実装はこれを Added（成功）で確定し「開けない本」が棚に残った。
+
+    @Test
+    fun `addBook - 章0件の抽出は成功で確定せず失敗で隔離される（未insert・書きかけ削除）`() = runTest {
+        val filesDir = createTempDir(prefix = "emptyChapFiles")
+        val cacheDir = createTempDir(prefix = "emptyChapCache")
+        try {
+            every { context.filesDir } returns filesDir
+            every { context.cacheDir } returns cacheDir
+            val pdfUri = mockk<Uri>(relaxed = true)
+            every { pdfUri.toString() } returns "content://docs/short"
+            every { context.contentResolver.openInputStream(pdfUri) } returns
+                ByteArrayInputStream("short pdf bytes".toByteArray())
+            coEvery { bookDao.findByContentSha256(any()) } returns null
+
+            // 総ページ4以下の PDF を模す: 抽出は例外なく完走するが chap_N.html を1枚も書かない
+            // （全ページ除外→HtmlExporter は index.html だけ無条件に書く、が実機の姿）。
+            val emptyExtract: (File, String, File, PdfProgress) -> BookMeta = { _, _, outputDir, _ ->
+                outputDir.mkdirs()
+                File(outputDir, "index.html").writeText("<html>empty</html>")
+                BookMeta("短編PDF", "著者S")
+            }
+            val repo = DefaultBookRepository(
+                context, bookDao, progressDao, pendingJobDao,
+                webReadingProgressDao = FakeWebReadingProgressDao(),
+                runInTransaction = { block -> block() },
+                extractBook = emptyExtract,
+            )
+
+            val result = repo.addBook(pdfUri)
+
+            assertTrue("章0件は成功で確定しない（旧実装は Added＋変換完了通知）", result.isFailure)
+            assertTrue(
+                "決定的失敗（CorruptedPdf）に分類され、無効な再試行導線を出さない側に載る",
+                result.exceptionOrNull() is BookImportError.CorruptedPdf,
+            )
+            // 「開けない本」を棚に残さない: insert されず index.html だけの書きかけ一式も消える。
+            val novels = File(filesDir, "novels")
+            assertTrue("index.html だけの残骸を残さない", novels.listFiles().isNullOrEmpty())
+            coVerify(exactly = 0) { bookDao.insertBook(any()) }
         } finally {
             filesDir.deleteRecursively()
             cacheDir.deleteRecursively()
@@ -734,7 +794,9 @@ class BookRepositoryTest {
     // 契約: 既存行を保持し本文だけ再生成（id 不変・insertBook を呼ばない・進捗 DAO に触れない＝
     // 読書位置/栞/読了/追加日が残る）。本文が実在する既存本は従来どおり Duplicate（挙動不変の回帰）。
 
-    /** 復元テスト共通の repo 組み立て: 抽出 fake は outputDir へ index.html を書き、渡された bookId を記録する。 */
+    /** 復元テスト共通の repo 組み立て: 抽出 fake は outputDir へ index.html＋chap_1.html を書き、
+     *  渡された bookId を記録する。chap_1.html まで書くのは、実抽出の成功が必ず章ファイルを伴う契約を
+     *  fixture にも反映するため（章0件ゲート＝監査 A3 の追加後、index だけの fixture は取込失敗になる）。 */
     private fun restoreRepoWith(
         extractedIds: MutableList<String>,
         meta: BookMeta = BookMeta("復元本", "著者R"),
@@ -743,6 +805,7 @@ class BookRepositoryTest {
             extractedIds.add(bookId)
             outputDir.mkdirs()
             File(outputDir, "index.html").writeText("<html>restored</html>")
+            File(outputDir, "chap_1.html").writeText("<html>chap1</html>")
             meta
         }
         return DefaultBookRepository(
@@ -793,6 +856,9 @@ class BookRepositoryTest {
             coVerify(exactly = 0) { bookDao.insertBook(any()) }
             // 進捗（読書位置・栞・読了）には一切触れない＝「そのまま残ります」の実装保証。
             coVerify(exactly = 0) { progressDao.deleteByBookId(any()) }
+            // ADR 0043: 復元の確定でも取込元 URI の永続権限は返さない（本は生き続ける＝以後の
+            // 取込元PDF削除に要る）。旧実装はここで返しており、閉じた後の削除が必ず失敗していた。
+            verify(exactly = 0) { resolver.releasePersistableUriPermission(any(), any()) }
         } finally {
             filesDir.deleteRecursively()
             cacheDir.deleteRecursively()
@@ -826,6 +892,10 @@ class BookRepositoryTest {
             assertEquals("重い抽出は走らない（変換前遮断は不変）", emptyList<String>(), extractedIds)
             coVerify(exactly = 0) { bookDao.insertBook(any()) }
             coVerify(exactly = 0) { bookDao.updateRestoredContent(any(), any(), any(), any()) }
+            // ADR 0043: 確定（ここでは重複）しても永続 URI 権限は返さない。旧実装はここで解放しており、
+            // 同内容の本が既に蔵書に在るのにその本の取込元権限まで巻き添えで失っていた。
+            coVerify { pendingJobDao.deleteByUri("content://docs/dup1") }
+            verify(exactly = 0) { resolver.releasePersistableUriPermission(any(), any()) }
         } finally {
             filesDir.deleteRecursively()
             cacheDir.deleteRecursively()

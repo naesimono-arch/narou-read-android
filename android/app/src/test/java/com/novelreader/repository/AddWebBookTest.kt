@@ -25,6 +25,8 @@ import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.async
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -272,6 +274,55 @@ class AddWebBookTest {
 
             // 範囲内（新3章の chap_2）は無変更＝スクロール位置も読書順も一切動かさない。
             coVerify(exactly = 0) { progressDao.updatePosition(any(), any(), any(), any(), any()) }
+        } finally {
+            filesDir.deleteRecursively()
+        }
+    }
+
+    // ── ②''' in-flight ガード（監査 A2）: 同一 workUrl の並行取込を構造的に断つ ────────────
+    // 復元経路は bookId＝既存行 id のため、並行 2 ジョブが同一 outputDir を解決し片方の
+    // deleteRecursively が他方の生成途中を消す（torn 本）／新規側は二重 insert になる。
+    // 後着は取得を一切走らせず即失敗し、先着完了後は再び取り込めること（release 漏れなし）まで固定する。
+
+    @Test
+    fun `addWebBook - 同一URLの並行取込は後着が即失敗し、先着完了後は再び取り込める`() = runTest {
+        val filesDir = createTempDir(prefix = "webInflightFiles")
+        try {
+            every { context.filesDir } returns filesDir
+            coEvery { bookDao.findBySourceUrl(any()) } returns null
+
+            // 先着を目次取得の直前で保留し「走行中」を決定論的に作る（sleep 待ち合わせにしない）。
+            val enteredFetch = CompletableDeferred<Unit>()
+            val gate = CompletableDeferred<Unit>()
+            val slowAdapter = object : NovelSiteAdapter by adapter {
+                override suspend fun fetchToc(workUrl: String): ScrapedToc {
+                    enteredFetch.complete(Unit) // ここに達した＝in-flight 登録は完了済み（登録→②→③の順）
+                    gate.await()
+                    return adapter.fetchToc(workUrl)
+                }
+            }
+            val repo = newRepo(SiteAdapterRegistry(adapters = listOf(slowAdapter)))
+
+            val first = async { repo.addWebBook(FakeAdapter.WORK_URL) }
+            enteredFetch.await() // 先着が in-flight 登録済みで保留中になるのを待つ
+
+            // 後着: ガードで即失敗し、目次・章の取得は一切走らない（相手サイトへ触れない）。
+            val second = repo.addWebBook(FakeAdapter.WORK_URL)
+            assertTrue("後着は失敗で返る", second.isFailure)
+            assertTrue(
+                // 専用型で固定する（ViewModel が「すでに取得中」の情報通知へ出し分ける判別点＝
+                // 素の ISE のままだと一般の取得失敗と混ざり深刻さを誤って伝える）。
+                "in-flight ガードの失敗型: ${second.exceptionOrNull()}",
+                second.exceptionOrNull() is WebImportInFlightException,
+            )
+            assertEquals("後着の取得は走らない（先着の1回は gate 保留中＝未カウント）", 0, adapter.fetchTocCount)
+
+            gate.complete(Unit)
+            assertTrue("先着は通常どおり完走する", first.await().isSuccess)
+            coVerify(exactly = 1) { bookDao.insertBook(any()) }
+
+            // 先着の finally が release 済み＝同一 URL を再び取り込める（release 漏れは恒久ブロックになる）。
+            assertTrue("完了後の再取込はガードに掛からない", repo.addWebBook(FakeAdapter.WORK_URL).isSuccess)
         } finally {
             filesDir.deleteRecursively()
         }

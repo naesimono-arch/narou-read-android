@@ -82,6 +82,36 @@ class ScrapeHttpClientTest {
         assertEquals(listOf(1000L), clock.sleeps)
     }
 
+    // ②' 既定 crawlDelay（＝グローバル床）のまま同一ホストを連打すると 1req/s に律速される。
+    // 監査 2026-08-06 C4 の宣言「1req/s の床」を、アダプタ固有の crawlDelay を伴わない素の形で固定する。
+    @Test
+    fun sameHost_defaultCrawlDelay_isThrottledTo1Rps() = runBlocking {
+        val clock = FakeClock()
+        val http = client(clock, ScriptedFetch({ "a" }, { "b" }))
+        val url = "https://kakuyomu.jp/works/1"
+
+        http.getString(url)
+        http.getString(url)
+
+        assertEquals(listOf(1000L), clock.sleeps)
+    }
+
+    // ②'' 床は **client インスタンス単位**でしか効かない（gate/lastRequestByHost がインスタンスフィールド）。
+    // これは仕様であって欠陥ではない（明示生成した client は自分の床を持つ）が、**この性質があるからこそ
+    // 既定の結線ではクライアントを1つに保たなければならない**——registry ごとに new すると同一ホストへ
+    // 2req/s で重なる（監査 2026-08-06 C4 の機序）。本番側の「1つであること」は
+    // SiteAdapterRegistryTest.defaultRegistries_shareOneHttpClient が固定する。
+    @Test
+    fun separateClients_doNotThrottleEachOther() = runBlocking {
+        val clock = FakeClock()
+        val url = "https://kakuyomu.jp/works/1"
+
+        client(clock, ScriptedFetch({ "a" })).getString(url)
+        client(clock, ScriptedFetch({ "b" })).getString(url)
+
+        assertTrue("別インスタンスは互いの直近時刻を見ない: ${clock.sleeps}", clock.sleeps.isEmpty())
+    }
+
     // ③ 429 + Retry-After はその秒数以上待って再試行し、成功を返す。
     @Test
     fun http429_withRetryAfter_waitsAtLeastThatAndRetries() = runBlocking {

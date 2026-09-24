@@ -1,6 +1,9 @@
 # ProcessingState への一本化パターン
 
 > 旧 `task_diary.md` §21（本アプリ固有の実装パターン）
+> 正本コード: `android/app/src/main/java/com/novelreader/viewmodel/BookshelfViewModel.kt`（`ProcessingState` 定義）・
+> `android/app/src/main/java/com/novelreader/viewmodel/ProcessingStateHub.kt`（供給元別スロットの表示合成ハブ）・
+> `android/app/src/main/java/com/novelreader/PdfProcessingService.kt`（Service 側ライター＝isStopping の罠の現場）
 > ここは **コードが正本**。「なぜこのパターンか」に絞る。
 
 `_isProcessing: Boolean` を `ProcessingState(isProcessing, percent, phase)` に置き換えると、

@@ -2,7 +2,6 @@ package com.novelreader.ui
 
 import android.app.Activity
 import android.content.Context
-import android.provider.Settings
 import android.util.Log
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
@@ -11,21 +10,29 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.animate
+import androidx.compose.animation.core.MutableTransitionState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.updateTransition
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.LocalOverscrollConfiguration
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.indication
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.sizeIn
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
@@ -78,6 +85,7 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.platform.testTag
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -89,6 +97,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -106,17 +115,21 @@ import com.novelreader.model.ChapterContent as ChapterContentModel
 import com.novelreader.model.ParseResult
 import com.novelreader.narou.model.Ncode
 import com.novelreader.parser.ChapterHtmlParser
+import com.novelreader.perf.TypesetWorkProbe
 import com.novelreader.typeset.ParagraphPosition
 import com.novelreader.typeset.ReadingPositionMapper
+import com.novelreader.ui.theme.GothicFamily
 import com.novelreader.ui.theme.MinchoFamily
 import com.novelreader.ui.theme.FontSectionTitle
-import com.novelreader.ui.theme.FontSubTitle
+import com.novelreader.ui.theme.FontLabel
 import com.novelreader.ui.theme.MotionDurationCrossfade
 import com.novelreader.ui.theme.MotionDurationDismiss
 import com.novelreader.ui.theme.MotionDurationNavTransition
 import com.novelreader.ui.theme.MotionDurationSeizuFadeIn
 import com.novelreader.ui.theme.MotionDurationSeizuFadeInDelay
 import com.novelreader.ui.theme.MotionDurationSeizuFadeOut
+import com.novelreader.ui.theme.ChromeSurfaceAlpha
+import com.novelreader.ui.theme.ChromeTopPillAlpha
 import com.novelreader.ui.theme.ReadingColors
 import com.novelreader.ui.skins.ThemeControl
 import com.novelreader.ui.skins.j.NextDoorEdgeGlowJ
@@ -127,12 +140,14 @@ import com.novelreader.ui.skins.p.ReadingSaveBarP
 import com.novelreader.ui.skins.p.SaveChipP
 import com.novelreader.ui.skins.m.LocalSkyParallax
 import com.novelreader.ui.theme.LocalSkin
+import com.novelreader.ui.theme.LocalSkinTokens
 import com.novelreader.ui.theme.ReadingTheme
 import com.novelreader.ui.theme.Skin
 import com.novelreader.ui.theme.rememberReadingColors
 import com.novelreader.viewmodel.BookshelfViewModel
 import com.novelreader.ui.theme.Insets
 import com.novelreader.ui.theme.Spacing
+import com.novelreader.ui.theme.rememberReduceMotion
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -163,7 +178,13 @@ private val readingBackStackSaver = listSaver<ReadingBackStack, String>(
  * @param bookTitle 蔵書タイトル（なろう紐付けシートの初期検索語に使う）
  * @param ncode 紐付け済みなろう作品の Nコード（null = 未紐付け。継続導線の分岐に使う）
  * @param viewModel BookshelfViewModel（進捗保存・ncode 紐付けに使用）
- * @param onNavigateToBookshelf 本棚に戻るコールバック
+ * @param onNavigateToBookshelf 本棚へ直行するコールバック（章パース失敗のエラー画面「本棚に戻る」専用）。
+ * @param onExitReading 読書フローの終端＝目次より一つ上の階層へ上がる（Back/← が
+ *   [ReadingBackStack.back]==null に達したときだけ呼ぶ＝現在地が目次のときだけ）。
+ *   「読書フローの親」は入場元で決まり、本棚（続きから・通知）と作品詳細（「アプリで読む」）の2種ある。
+ *   どちらへ帰るかは NavController を見る MainActivity.upFromReading が決める
+ *   （ADR 0047＝2026-09-04 に失効したのは「読書の親＝本棚」という**親の固定**だけで、階層 up のモデル自体
+ *   ではなかった。親を入場元から引けば階層モデルのまま解ける）。
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -181,6 +202,7 @@ fun ReadingScreen(
     followingSystem: Boolean,
     onFollowSystem: () -> Unit,
     onNavigateToBookshelf: () -> Unit,
+    onExitReading: () -> Unit,
     // 遷移ジャンク対策（案A・2026-07-29 裁定）: NavHost の本棚→読書 push の enter アニメ窓だけ true
     //（MainActivity が遷移の離散状態 currentState/targetState から導出＝P2 本棚と同じ信号）。窓の間、
     // 初期表示面（目次 or 章）の重い実内容を構造骨（TransitionSkeletons.kt）へ差し替える。
@@ -188,10 +210,9 @@ fun ReadingScreen(
     deferHeavyContent: Boolean = false,
 ) {
     // 読書ナビの Back スタック（実データ構造＝ReadingBackStack）。末尾が現在地。
-    // なぜ「現在地1個」でなく経路を保持するスタックか（前進操作の巻き戻し・参照退避元の探索に使うため）:
+    // なぜ「現在地1個」でなく経路を保持するスタックか（Back の前画面復元・前進操作の巻き戻し・参照退避元の探索）:
     // 目次ボタンで既存目次へ戻る／「続きに戻る」で退避元章へ復帰、が経路上の位置を必要とする。
-    // ただし Back 自体は経路逆再生ではなく「必ず一つ上の階層へ」（2026-07-19 裁定＝章は目次・目次は本棚）。
-    // 直行入場でも Back は目次を経て本棚へ抜け、左上 ← ボタンと一致する（push/巻き戻し規則は ReadingBackStack 参照）。
+    // Back と左上 ← は「必ず一つ上の階層へ」の1実装（下の performBack＝[ReadingBackStack.back] を参照）。
     // なぜ旧 navHistory 全逆再生バグを再発させないか: 覗き（目次⇄章）は ReadingBackStack が
     // 「既出は巻き戻し・話送りは置き換え」で段を増やさないため、何度覗いてもスタック深さは不変（不変条件②）。
     // なぜ rememberSaveable に bookId.value（生 String）をキーとして含めるか:
@@ -262,33 +283,44 @@ fun ReadingScreen(
         }
     }
 
-    // Back キー＝「必ず一つ上の階層へ」（2026-07-19 裁定）。back() は章なら目次を開き・目次なら null（本棚）を返す。
-    // null のとき onNavigateToBookshelf で本棚へ抜ける。横スワイプ Back と左上 ← ボタンを同一モデル（一階層 up）へ一本化した。
-    // これで「本棚→本文直行でも Back は目次を経て本棚（2段）／目次経由なら目次→本棚」が入場形に依らず ← と一致する
-    // ＝07/15 の「実経路を逆再生し直行なら Back 1発で本棚」の意図的撤回（可視の 1→2 タップ化は裁定が織り込んだ回帰）。
-    // App bar の ←（Up）は無改修＝別経路（各画面が直接呼ぶ）: 章の ← は onNavigateTo("index.html")＝目次を
-    // 開く（backStack にも反映）／目次の ← は onNavigateToBookshelf で本棚へ直行（スタックを介さない親ジャンプ）。
-    // Back を ← 側へ寄せたため両者の可視挙動は今や一致する（back() は openToc へ委譲＝定義上つねに同一遷移）。
+    // 戻るの単一実装＝「必ず一つ上の階層へ」（2026-07-19 ユーザー裁定・07-29 に全アプリへ拡大＝ADR 0026／
+    // 一度覆したのを ADR 0047 で復帰）。システム Back（横スワイプ・端末ボタン）と左上 ←（章・目次とも）と
+    // 没入時 a11y「戻る」が**この performBack だけ**を叩く＝同じ画面で操作によって行き先が割れない
+    // （07/12 階層→07/15 逆再生→07/19 階層 と3度反転した真因は、Back と ← が別実装で育ったこと自体だった）。
+    // 行き先は「今どの階層に居るか」だけで決まり、どう来たかには依らない:
+    //   ・章に居る … 目次へ上がる（既出の目次まで巻き戻し／直行入場で目次が無ければ積む）
+    //   ・目次に居る … back() が null＝読書フローの終端。onExitReading が入場元（本棚／作品詳細）へ帰す
+    //     ＝この画面は入場元を知らないままでよい（判定は MainActivity.upFromReading）。
+    // ⚠️ 「前画面へ1段 pop」（履歴逆走）へ倒さないこと＝ADR 0046 の誤り: [章,目次]（直行入場から目次を開いた形）
+    // で目次から章へ**降りて**しまい「戻るのに階層が下がる」が起きる（実機で最初に指摘された症状）。
+    // 0046 が動機に挙げた「作品詳細から入場しても本棚へ落ちる」は実在のバグだが、それは終端の脱出先を
+    // 入場元依存にするだけで階層モデルのまま解ける（MainActivity.upFromReading）＝失効していたのは
+    // 「読書の親＝本棚」という**親の固定**であって、階層モデル自体ではなかった。モデルごと倒したのが誤り。
+    // 下端「目次」ボタンは残す（章では ← と同じ着地だが、行き先を名乗る導線として別に露出する）。
     // 【旧 navHistory 全逆再生バグの再発防止】前進操作が経路を無制限に伸ばさない（既出巻き戻し・話送り置き換え）ため、
-    // Back が上がる目次の位置も一意に定まる。覗きで段が増えないのは ReadingBackStack 側規則が担保する（不変条件②）。
-    // 【生命線】Back で saveProgress を呼ばず backStack 更新だけに留める理由: 新仕様の Back は章を再表示せず必ず
-    // 目次へ上がる（目次は進捗保存のブロック対象）ため、章先頭への scrollIndex=0 破壊的上書きは Back 経路では起きない。
-    // 章の現在位置保存は ChapterScreen 再表示時の debounce/onStop フラッシュに一元化する（前進で新章を開いたときのみ
-    // 「先頭から」を保存する非対称設計を Back でも崩さない）。lastChapterFile は現在章ハイライト用に維持（Back では更新しない）。
+    // 章→目次の上がりが「読んだ章列の逆走」にはならない。覗きで段が増えないのは ReadingBackStack 側規則（不変条件②）。
+    // 【生命線】Back で saveProgress を呼ばず backStack 更新だけに留める理由: 進捗の書き込みは ChapterScreen の
+    // debounce/onStop フラッシュに一元化してあり（C1 で遷移時の eager saveProgress は廃止済み）、Back で章を
+    // 再表示しても章先頭への scrollIndex=0 破壊的上書きは起きない。再表示位置はセッション内記憶＝
+    // resolveInitialScroll が「読んでいた場所」を復元する。lastChapterFile は現在章ハイライト用に維持（Back では更新しない）。
     // 参照モード（jumpOrigin）の解除は「続きに戻る」チップ・滞留昇格・目次からの続き章再選択が担う。
-    // Back で覗き章から目次へ上がっても jumpOrigin は残すが、目次上では referenceMode は無害
+    // Back で覗き章から目次へ戻っても jumpOrigin は残すが、目次上では referenceMode は無害
     // （抑止・チップは章表示中のみ効く）＝参照の挙動を壊さない（invariant④: jumpOrigin 挙動を壊さない）。
-    // PredictiveBackHandler にしない理由: Back は内部スタック（章⇄目次）の階層 up＝離散的な状態切替で、
+    // PredictiveBackHandler にしない理由: Back は内部スタック（章⇄目次）の離散的な状態切替で、
     // 進捗連動で見せられるプレビュー面が無い（NavHost pop の predictive 対応も navigation-compose 2.7.5 には無い）。
     // ジェスチャ確定時のみ発火する現行セマンティクスを保つ（進捗途中で back() が走ると覗き状態が壊れる）。
-    BackHandler(enabled = true) {
+    val performBack: () -> Unit = {
         val popped = backStack.back()
         if (popped != null) {
             backStack = popped
         } else {
-            onNavigateToBookshelf()
+            onExitReading()
         }
     }
+    // ⚠️ 末尾ラムダ形を保つこと（`onBack = performBack` の名前付き引数にしない）: HazardousPatternScanTest の
+    // 型5 走査は BackHandler の丸括弧内を「enabled の駆動式」として読むため、名前付き第2引数を足すと
+    // 定数 true と見なされず違反として落ちる（＝Predictive Back の登録漏れ検査の識別力を守るための形）。
+    BackHandler(enabled = true) { performBack() }
 
     // 読書再開位置。画面初回に一度だけ DB から取得する（章の途中から復元するため）。
     // null=取得待ち。getProgress は DB 1行クエリのため一瞬で解決する。
@@ -357,7 +389,12 @@ fun ReadingScreen(
         mutableIntStateOf(prefs.getInt(PrefKeys.READING_FONT_SIZE, 18).coerceIn(14, 24))
     }
     // ドラッグ中の毎値：本文プレビュー追従のため状態のみ更新（永続化しない）
-    val onFontSizeChange: (Int) -> Unit = { size -> fontSize = size }
+    // 計測（既定 OFF）: 再組版の駆動源＝分母。ドラッグ中の move ごとに来るコールバック数と、
+    // うち丸め後の値が実際に変わった回数を分けて数える（後者だけが再組版を起こす）。
+    val onFontSizeChange: (Int) -> Unit = { size ->
+        TypesetWorkProbe.onFontSizeChange(size)
+        fontSize = size
+    }
     // 確定時のみ：現在の fontSize を永続化する。apply は非同期ディスク書込のため UI をブロックしない
     val onFontSizePersist: () -> Unit = {
         prefs.edit().putInt(PrefKeys.READING_FONT_SIZE, fontSize).apply()
@@ -372,7 +409,10 @@ fun ReadingScreen(
         mutableFloatStateOf(prefs.getFloat(PrefKeys.READING_LINE_HEIGHT, 2.5f).coerceIn(2.3f, 2.8f))
     }
     // フォントサイズと同型：ドラッグ中は状態のみ・永続化は確定時に一度だけ
-    val onLineHeightChange: (Float) -> Unit = { v -> lineHeightEm = v }
+    val onLineHeightChange: (Float) -> Unit = { v ->
+        TypesetWorkProbe.onLineHeightChange(v)
+        lineHeightEm = v
+    }
     val onLineHeightPersist: () -> Unit = {
         prefs.edit().putFloat(PrefKeys.READING_LINE_HEIGHT, lineHeightEm).apply()
     }
@@ -502,9 +542,8 @@ fun ReadingScreen(
     // 目次⇄本文も slide だと「空ごと」動く＝コンテンツのみをフェードで差し替える（ADR 0019 追記「M星図の例外」）。
     // reduce-motion では即時切替（読書Mのモーションゼロ規律と整合）。他スキンは従来の slide push 不変。
     val isSeizu = LocalSkin.current == Skin.SEIZU_M
-    val reduceMotion = remember {
-        Settings.Global.getFloat(context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f
-    }
+    // 判定は theme/ReduceMotion.kt の単一情報源（旧: ここで直読み＋キー無し remember＝設定変更が届かなかった・監査 C2）。
+    val reduceMotion = rememberReduceMotion()
     // 【透過の天の川・2026-07-19 裁定】読書Mも常駐 backdrop（R1s 実物の天の川）を透かして見せる（reading-M-rich-R4 中）＝
     // 読書中も hidden=false のまま。ただし本文（index.html 以外）では読書Mモーションゼロ（ADR 0022 §3）との整合で
     // z2 流星のみ抑止する（meteorSuppressed）。目次（index.html）は透過の構造画面＝空も流星も見せる。読書面自体は透明にし
@@ -572,7 +611,13 @@ fun ReadingScreen(
                 currentChapterFile = lastChapterFile,
                 // 章選択は参照ジャンプ扱い（C1）。続き位置と別章なら jumpOrigin へ退避し自動保存を抑止する。
                 onSelectChapter = onSelectChapterFromToc,
-                onNavigateToBookshelf = onNavigateToBookshelf,
+                // 目次の ← ＝ Back と同一の performBack（階層 up・ADR 0047）。目次の一つ上は読書フローの外
+                // ＝入場形に依らず**常に**読書フローを出て入場元（本棚／作品詳細）へ帰る。
+                // ⚠️ 直行本文から開いた目次（[章,目次]）でも本文へは降りない＝上がる方向しか無いのが階層 up。
+                // ⚠️ 引数名が onNavigateToBookshelf のままなのは各スキンの目次（D/C/M/P/J）が共有する
+                // 呼び名で、改名は全スキンの署名変更を伴うため（受け取る側は「← が押された」以上の意味を
+                // 持たない）。この行が渡す実体が唯一の正＝「本棚へ直行」ではないことに注意。
+                onNavigateToBookshelf = performBack,
                 onRetry = { tocRetryKey++ },
             )
         } else {
@@ -638,8 +683,11 @@ fun ReadingScreen(
                         // file は画面内部の String。型付き API 境界でのみ ChapterFilename に包む。
                         viewModel.saveScrollPosition(bookId, ChapterFilename(file), index, offset)
                     },
+                    // 章パース失敗のエラー画面「本棚に戻る」専用＝入場元に依らず本棚へ落ちる（文言どおり）。
                     onNavigateToBookshelf = onNavigateToBookshelf,
-                    // 前後章・目次ボタン・章の Up からの遷移はスタックへ反映（話送りは置換・目次開きは巻戻し/積み）
+                    // 章の ← ／没入時 a11y「戻る」＝ Back と同一実装（階層 up＝章の親は目次・ADR 0047）。
+                    onBack = performBack,
+                    // 前後章・下端「目次」ボタンからの遷移はスタックへ反映（話送りは置換・目次開きは巻戻し/積み）
                     onNavigateTo = navigateForward,
                     // 参照ジャンプ（C1）: 抑止フラグ・「続きに戻る」復帰・滞留昇格を ChapterScreen へ渡す。
                     referenceMode = referenceMode,
@@ -787,6 +835,8 @@ internal fun ChapterScreenContent(
     val scrollBehavior = chrome.scrollBehavior
     val barsVisualReady = chrome.barsVisualReady
     val showChromeHint = chrome.showChromeHint
+    val topPillLabelShown = chrome.topPillLabelShown
+    val onTopPillLabelShown = chrome.onTopPillLabelShown
     val prevFile = nav.prevFile
     val nextFile = nav.nextFile
     val navEnabled = nav.navEnabled
@@ -794,6 +844,7 @@ internal fun ChapterScreenContent(
     val chapterNumber = nav.chapterNumber
     val totalChapters = nav.totalChapters
     val onNavigateTo = nav.onNavigateTo
+    val onBack = nav.onBack
     val onNavigateToBookshelf = nav.onNavigateToBookshelf
     val bookTitle = ncodeLink.bookTitle
     val ncode = ncodeLink.ncode
@@ -1005,9 +1056,13 @@ internal fun ChapterScreenContent(
             .semantics {
                 if (topAppBarState.collapsedFraction > 0.5f) {
                     customActions = buildList {
-                        // 「戻る」=上端 ← ボタン（目次へ）／「目次を開く」=下端目次ボタン。どちらも実ボタンと同じ
-                        // onNavigateTo("index.html")＝別経路を作らず挙動乖離を防ぐ（実 UI も両ボタンが目次へ向かう）。
-                        add(CustomAccessibilityAction("戻る") { onNavigateTo("index.html"); true })
+                        // 「戻る」=上端 ← ボタン（階層 up＝onBack）／「目次を開く」=下端目次ボタン
+                        // （常に目次＝onNavigateTo("index.html")）。実ボタンと同一コールバックを貼るのが要。
+                        // ⚠️ ここは章の描画層＝章では両者の**着地は同じ目次**（章の親が目次だから・ADR 0047）。
+                        // それでも2つ露出するのは重複ではなく、実ボタンが2つ在り「customActions は実ボタンと
+                        // 同一コールバック」が到達性回復の前提だから＝操作名の違い（階層を上がる／目次を開く）を
+                        // そのまま a11y へ写す。片方へ寄せると実ボタンとの1対1対応が崩れ、前提が静かに死ぬ。
+                        add(CustomAccessibilityAction("戻る") { onBack(); true })
                         add(CustomAccessibilityAction("目次を開く") { onNavigateTo("index.html"); true })
                         // 前後章は実ボタンの活性条件（navEnabled＝目次ロード済）に一致させる。端章では隣接章が無く
                         // prev/next が index.html へ縮退するため、「前の章/次の章」ラベルが目次を開く誤誘導になる。
@@ -1107,16 +1162,28 @@ internal fun ChapterScreenContent(
                 // 67ms 級と実測・ChapterContent.kt:77）をコンポーズせず、本文の行リズムへ載せた段落骨だけを
                 // 描く。クローム（上下バー・シート・覗き機構）は軽量なので実描画のまま＝P2「重い可変部だけ骨」
                 // と同じ分担。パース Loading のスピナーも窓内は骨で置き換わる（遷移中の回転体は視線を奪うため
-                // 骨に統一）。縦横分岐（verticalMode）の上流で差し替える＝縦書きの遷移も同経路で効き、骨は
-                // 横書き汎形1種のみ（2026-07-29 裁定＝縦書き専用骨は作らない。250ms の場所取りに組方向の
-                // 忠実さより「1種で全設定に成立する汎形」を優先）。
+                // 骨に統一）。
+                // 骨は組方向で出し分ける（2026-08-26 裁定＝ADR 0040。2026-07-29 の「縦書き専用骨は作らない」を
+                // 覆した）。なぜ覆したか: 汎形1種で通す取引の対価は「縦書き利用者だけが着地の瞬間に紙面の
+                // 90度回転を見る」ことで、骨の目的（着地先の予告＝跳ねを消す）と正面から反するため。
+                // 差し替え点（deferHeavyContent の立ち下がり）は縦横分岐の【上流】のままで動かさない＝
+                // 変わるのは窓の中に何を描くかだけ。
                 if (deferHeavyContent) {
-                    ReadingBodySkeleton(
-                        colors = colors,
-                        fontSize = fontSize,
-                        lineHeightEm = lineHeightEm,
-                        bodyMarginDp = bodyMarginDp,
-                    )
+                    if (verticalMode) {
+                        ReadingBodySkeletonVertical(
+                            colors = colors,
+                            fontSize = fontSize,
+                            lineHeightEm = lineHeightEm,
+                            bodyMarginDp = bodyMarginDp,
+                        )
+                    } else {
+                        ReadingBodySkeleton(
+                            colors = colors,
+                            fontSize = fontSize,
+                            lineHeightEm = lineHeightEm,
+                            bodyMarginDp = bodyMarginDp,
+                        )
+                    }
                 } else when (val result = parseResult) {
                     is ParseResult.Loading -> CircularProgressIndicator()
 
@@ -1248,6 +1315,16 @@ internal fun ChapterScreenContent(
             }
         }
 
+        // ────── 上下バーの地（2段塗りの材料）──────
+        // 面＝スキンの裁定 α（D/K・J は .92・C/M/P は不透明）／システム帯＝常に不透明。理由は readingChromeBarSurface。
+        val barFaceAlpha = LocalSkinTokens.current.readingBarSurfaceAlpha
+        // なぜ IgnoringVisibility か: バー自身の windowInsets と同じ源を使う。可視追従の insets だと
+        // トグルのたびに 0⇄実測値で振れ、帯の高さが1フレームずれて「帯だけ透ける」瞬間が出る。
+        val barSystemInsets = WindowInsets.systemBarsIgnoringVisibility
+        val barDensity = LocalDensity.current
+        val navBandPx = barSystemInsets.getBottom(barDensity).toFloat()
+        val statusBandPx = barSystemInsets.getTop(barDensity).toFloat()
+
         // ────── ボトムバー（オーバーレイ）──────
         // collapsedFraction（トップバーの退避割合）に連動して下方向へスライド退避させる。
         // これにより中央タップトグルでトップバーと同フレームで同期して動く。
@@ -1260,19 +1337,27 @@ internal fun ChapterScreenContent(
                     translationY = bottomBarHeightPx * topAppBarState.collapsedFraction
                     // 初期実測待ちの不可視化＋案3ライブプレビュー退避（スライダー押下中は完全透明）の合成。
                     alpha = readingBarAlpha(barsVisualReady, settingsPeek.value)
-                },
+                }
+                // 地は Surface でなくここで2段に塗る（面＝半透明／ナビ帯＝不透明）。graphicsLayer の内側に
+                // 置くので、スライド退避も設定退避のフェードも従来どおり地ごと一緒に動く。
+                .readingChromeBarSurface(
+                    color = colors.navBackground,
+                    faceAlpha = barFaceAlpha,
+                    systemBandHeightPx = navBandPx,
+                    bandAtTop = false,
+                ),
             // なぜ IgnoringVisibility か: トグルと同フレームで systemBars を hide/show するため、
             // 可視追従の既定 insets だとバー内パディングが 0⇄実測値で振れ、バー高の再測定で
             // 開閉のたびに下端がガタつく（本文側 ChapterContent と同じ対策をバー自身にも適用）。
             windowInsets = WindowInsets.systemBarsIgnoringVisibility
                 .only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom),
-            // なぜ不透明か: モック reading-D は上下バーとも background:var(--bar)（不透明）＝
-            // 不透明な上部バー（topBarBackground）との対称が正。旧 .copy(alpha=0.95f) は WebView 期
-            // html_exporter.py .nav-footer の持ち越しで、BottomAppBar の Surface は nav バー inset 帯まで
-            // この色で塗るため、5% 透過が inset 帯（ボタン行の下の無地部分）で本文の透けとして見えていた
-            //（2026-07-29 実機・上下バー非対称の真因）。M の navBackground も焼き込み済み不透明トークン＝
-            // 使用側で alpha を掛けない前提（SkinM.kt）。
-            containerColor = colors.navBackground,
+            // なぜ Surface 自身は透明か: Surface は windowInsets ぶんのナビ帯まで containerColor で塗るため、
+            // ここへ α を掛けると帯（ボタン行の下の無地部分）から本文が覗く＝2026-07-29 実機・上下バー
+            // 非対称の真因（旧 .copy(alpha=0.95f)・WebView 期 html_exporter.py .nav-footer の持ち越し）。
+            // 2026-09-04 裁定で面だけを .92 で透かすことになったので、塗りを Surface から上の
+            // readingChromeBarSurface（面＝半透明／帯＝不透明の2段）へ移し、Surface は塗らない係にする。
+            // ⚠️ ここを再び地色に戻すと2枚重ねになって面の透過が消えるので戻さないこと。
+            containerColor = Color.Transparent,
             contentColor = colors.topBarIcon,
         ) {
             // C①案A: 下端を4分割。横書き＝[前章｜目次｜表示設定｜次章]。表示設定を右上隅の歯車から下端へ
@@ -1318,13 +1403,22 @@ internal fun ChapterScreenContent(
         }
 
         TopAppBar(
-            modifier = Modifier.graphicsLayer {
-                // なぜ graphicsLayer か: レイアウトを再計算せず描画位置のみを変えるため。
-                // これによりバーの追従中でも本文の位置が一切動かない。
-                translationY = topAppBarState.heightOffset
-                // 初期実測待ちの不可視化＋案3ライブプレビュー退避（スライダー押下中は完全透明）の合成。
-                alpha = readingBarAlpha(barsVisualReady, settingsPeek.value)
-            },
+            modifier = Modifier
+                .graphicsLayer {
+                    // なぜ graphicsLayer か: レイアウトを再計算せず描画位置のみを変えるため。
+                    // これによりバーの追従中でも本文の位置が一切動かない。
+                    translationY = topAppBarState.heightOffset
+                    // 初期実測待ちの不可視化＋案3ライブプレビュー退避（スライダー押下中は完全透明）の合成。
+                    alpha = readingBarAlpha(barsVisualReady, settingsPeek.value)
+                }
+                // 下バーと同じ2段塗り（面＝半透明／ステータス帯＝不透明）。上下で扱いを揃えるのが 2026-09-04
+                // 裁定の要件＝片方だけ透かすと 2026-07-29 と同じ「上下バー非対称」を作り直すことになる。
+                .readingChromeBarSurface(
+                    color = colors.topBarBackground,
+                    faceAlpha = barFaceAlpha,
+                    systemBandHeightPx = statusBandPx,
+                    bandAtTop = true,
+                ),
             title = {
                 when (val r = parseResult) {
                     // 2026-07-29 裁定(a): 縦書きモード中は章題テキストを出さない（バー自体・戻る←・
@@ -1346,11 +1440,17 @@ internal fun ChapterScreenContent(
                 }
             },
             navigationIcon = {
-                // 章の ← は「その本の目次へ」戻る。横スワイプ Back も同一モデルへ一本化済み（一階層 up・2026-07-19 裁定）。
-                // 本棚へは目次画面の ← が担う（本文→目次→本棚）。
-                IconButton(onClick = { onNavigateTo("index.html") }) {
+                // 章の ← ＝一つ上の階層＝目次へ（システム Back と同一実装＝performBack・ADR 0047）。
+                // 入場形に依らず必ず目次へ上がる（既出の目次まで巻き戻し／直行入場で目次が無ければ積む）。
+                // ⚠️ ここを onNavigateTo("index.html") へ**書き戻さないこと**: 着地は同じでも、Back と ← が
+                // 別実装に割れた状態こそが 07/12→07/15→07/19 と3度の反転を招いた真因で、両者の一致は
+                // 「同じ関数を叩く」ことでしか保てない（着地の一致は実装が割れた瞬間に崩れる）。
+                // 目次を開く導線は下端「目次」ボタンも別に担う（章では同じ着地・ラベルどおりの行き先）。
+                IconButton(onClick = onBack) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        // 階層 up では章の ← の行き先は常に目次＝一意なので、操作名でなく行き先を名乗れる
+                        //（0046 が操作名「戻る」へ倒した根拠「入場形で行き先が変わる」は階層 up で消えた）。
                         contentDescription = "目次に戻る",
                     )
                 }
@@ -1371,8 +1471,10 @@ internal fun ChapterScreenContent(
                 }
             },
             colors = TopAppBarDefaults.topAppBarColors(
-                containerColor = colors.topBarBackground,
-                scrolledContainerColor = colors.topBarBackground,
+                // 地は上の readingChromeBarSurface が2段で塗る（理由は BottomAppBar 側のコメントと同じ）。
+                // scrolledContainerColor も透明にしないと、スクロール合成で帯だけ不透明地が戻って段差が出る。
+                containerColor = Color.Transparent,
+                scrolledContainerColor = Color.Transparent,
                 // Material3 内部の色計算に依存せず読書テーマの色を直接指定。
                 // containerColor が非デフォルト値のとき titleContentColor が
                 // 意図しない薄さになる場合があるため明示する。
@@ -1406,6 +1508,10 @@ internal fun ChapterScreenContent(
                     if (chapterNumber != null) append(" · 第${chapterNumber}話")
                 },
                 fontSize = 11.sp,                      // reading-M .ghost .ct 11px
+                // 行箱を明示する理由: 未指定だと bodyLarge の 28sp を継承し、上端から padding(top=S12)
+                // で据えるゴースト題字が行箱の余り（約5dp）ぶん下へ沈む＝正本の 46px 帯の中心と合わない。
+                // 正本 `.ghost .ct` は 11px・line-height 未指定＝normal（ゴシック実測 1.6）＝17.6px。
+                lineHeight = 17.6.sp,
                 letterSpacing = 0.14.em,
                 color = colors.textSecondary,          // --dim
                 maxLines = 1,
@@ -1463,30 +1569,130 @@ internal fun ChapterScreenContent(
 
         // 没入クローム復帰ヒント（初回消灯時に数秒フェード）。タップは奪わない純表示。
         // fade は motion トークン MotionDurationCrossfade 経由（d-motion 08 禁止則②＝野良既定に委ねない）。
+        //
+        // なぜ visible= でなく visibleState= か（2026-09-03 の実機是正）: 下の取っ手が「ピルが消えてから出る」
+        // ためには、**ピルが画面に残っている間**を知る必要がある。showChromeHint は退場アニメの*開始*を指す
+        // 入力にすぎず、ピルはその後 MotionDurationCrossfade のあいだ描かれ続ける＝boolean を見ても
+        // 「まだ居るのか」は分からない。MutableTransitionState なら currentState が退場完了で初めて false に
+        // なるので、ピルの実寿命がそのまま読める（取っ手側の受け渡し条件＝下の graphicsLayer）。
+        // 初期値に showChromeHint を入れるのは、初回コンポーズで意図しない入場アニメを走らせないため。
+        val chromeHintState = remember { MutableTransitionState(showChromeHint) }
+        chromeHintState.targetState = showChromeHint
         AnimatedVisibility(
-            visible = showChromeHint,
+            visibleState = chromeHintState,
             enter = fadeIn(tween(MotionDurationCrossfade)),
             exit = fadeOut(tween(MotionDurationCrossfade)),
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .padding(bottom = Insets.ChromeHintBottom),
+                // 下端＝正本 reading-D `.hint` の bottom:26px を離散スケール最近傍の S24 で写す（26→24）。
+                // なぜ旧 Insets.ChromeHintBottom(96dp) をやめたか: あの値は「下端バー(80dp)の上へ逃がす」
+                // クリアランスだが、このヒントが出るのは**没入中＝下端バーが画面外へ退避しているとき**だけで、
+                // 避ける相手が居ない＝前提そのものが成り立っていなかった（2026-09-03 裁定「下端を正本へ」）。
+                // 前提ごと消えた値なので Insets からトークンごと削除した（他に使い道が無い＝Spacing.kt 参照）。
+                .padding(bottom = Spacing.S24),
         ) {
             Box(
                 modifier = Modifier
+                    // 最小高 48dp＝Material の最小タップ標的（2026-09-03 裁定・正本6ファイルへ追記済み）。
+                    // 復帰ヒント自体は純表示だが、3ピルは「同型の器」で語られる一族なので器の寸法規則を揃える。
+                    .heightIn(min = 48.dp)
                     // 半透明のナビ背景色で本文に沈める丸ピル（色は必ずテーマトークン経由）
                     .clip(RoundedCornerShape(50))
-                    .background(colors.navBackground.copy(alpha = 0.92f))
+                    .background(colors.navBackground.copy(alpha = ChromeSurfaceAlpha))
                     .padding(horizontal = Spacing.S16, vertical = Spacing.S8),
+                contentAlignment = Alignment.Center, // 48dp の器の中で字面を中央に置く
             ) {
                 Text(
                     // 実タップ領域は本文全面（中央に限らない）ため文言も全面に一致させる（gesture 指摘）。
                     text = "画面をタップでメニュー",
-                    color = colors.topBarIcon,
-                    fontFamily = MinchoFamily,
-                    fontSize = FontSubTitle,
+                    // ────── 色＝infoText（2026-09-07 裁定・ADR 0014-D 適用裁定「復帰ヒント」）──────
+                    // 旧実装は正本 reading-D `.hint` の --soft を [ReadingColors.textSecondary] へ素直に
+                    // 写していた（2026-09-03）。それが誤訳だった理由は「淡いから」ではない——textSecondary は
+                    // 型の側で「意味を運ばない装飾補助」と宣言され、**だからコントラスト検査の対象外**に
+                    // 置いてある枠（Theme.kt の KDoc／tools/check_design_tokens.py の READING_OUT_OF_SCOPE）で、
+                    // 意味を運ぶ文言をそこへ入れると AA 未達が構造的に検知されなくなる（実際 3.79:1 で潜伏した）。
+                    // この文言は意味を運ぶ側だと裁定した: ①「復帰手段が不可視」（M12）への手当てとして足した
+                    // 導線そのもの ②アプリ通算1回きり（PrefKeys.IMMERSIVE_HINT_SHOWN で焼き切る）
+                    // ③約 2.6 秒で自動消灯し再掲なし ④以後残る層②の取っ手は語を持たない（α.30 の 3dp 帯）
+                    // ＝没入からの復帰操作を**語で教える機会はアプリ生涯でここ 1 回だけ**＝無いと操作が分からない。
+                    // よって正本モックの --soft 側を誤りとして改め（reading-D `.hint` も同便で是正）、未読ラベル
+                    // UnreadSeiji・ルビ・発見系メタと同型の「色相彩度を保った最小暗化」＝ infoText を採る。
+                    // ⚠️ 3ピルの「純表示＝--soft／タップ可＝--ink」という描き分け自体は捨てていない。infoText は
+                    //    タップ可2つが使う text より明らかに淡く（D/LIGHT #5C606D vs #1C1F26）階層は残る。
+                    //    捨てたのは**コントラストを描き分けの軸に使うこと**だけ（原則D が禁じるのはそれ）。
+                    // ⚠️ ピルの地は素地ではなく navBackground×[ChromeSurfaceAlpha]＝スキンによっては素地と
+                    //    別面になる。infoText は素地基準の較正なので P/DARK 等に残差が出る（数値・真因・
+                    //    追跡先は ADR 0014 の同裁定に記載。ここを直すのはピル一族3枚まとめての別便）。
+                    color = colors.infoText,
+                    // 案A（2026-09-03 裁定・比較モック reading-pill-size-face-compare-D.html）＝正本へ寄せる。
+                    // 正本は 11px ゴシック（reading-D `.hint`／reading-backtotop-D `.toppill`）で、実装だけが
+                    // 13sp 明朝だった。トークンの値は動かさず参照先だけ差し替える（FontSubTitle の他所は不変）。
+                    fontFamily = GothicFamily,
+                    fontSize = FontLabel,
+                    // 行箱を明示する理由: 未指定だと bodyLarge の 28sp を継承し、上下 S8 のピルが
+                    // 44dp まで膨れる（ピルは行箱の外周をそのままなぞる器）。正本はいずれも
+                    // line-height 未指定＝normal（ゴシック実測 1.6）なので 11sp × 1.6 ＝ 17.6sp。
+                    lineHeight = 17.6.sp,
                 )
             }
         }
+
+        // ────── 没入中の取っ手（案D・正本モック tutorial-onboarding-K.html §6／申し送り §8）──────
+        // ピル（一度きり・数秒で消える教示）と違い、**没入中はずっと出ている**静かな手がかり（層②）。
+        // 文言を持たず「ここに何かある」だけを示すので、理解した後もコストにならない。
+        // なぜクローム表示中は出さないか: そのときは下端バーが同じ場所に居るため、取っ手は用を失うどころか
+        // バーと二重の帯に見える（正本 §6 の裁定）。よって退避割合に比例して現れる。
+        // 実測値は正本 §6 の裁定値で**動かさない**＝幅 46 / 高さ 3 / 角丸 2 / 不透明度 .30 / 下端から 16dp。
+        //
+        // なぜ復帰ヒント表示中も出さないか（2026-09-03 追加）: 3ピル裁定でヒントの下端が 96dp→24dp（正本
+        // reading-D `.hint` の 26px 相当）へ下りた結果、ピルは下端から 24..72dp・取っ手は 16..19dp を占め、
+        // **両者の間隔は 5dp**（＝離散スケールの最小アキ [Spacing.S4] 並み）まで詰まった。重なりはしないが、
+        // 取っ手がピルの「外れた下辺」に見える距離で、独立した層②として読めない。
+        // 真因は取っ手の 16dp ではない——正本 §8 の成立根拠が「現行ピルの ChromeHintBottom(96dp) と 80dp
+        // 離れる」という**他方の値への相対**で書かれており、その 96dp が誤り（避ける相手が居ない）だったため、
+        // ピルが正しい位置へ戻った瞬間に根拠だけが残って崩れた。取っ手を上へ逃がすとピルの内側へ入るだけで、
+        // 幾何では分離できない＝**時間で分ける**。正本 §6 の「ピルが出て自分で消える。そのあと取っ手だけが
+        // 残る」という層①→層②の受け渡しそのものに戻す（当て値でピルや取っ手を動かさない）。
+        //
+        // ⚠️ 2026-09-03 の実機是正: 当初 `!showChromeHint` で直接ゲートしたが**退場方向だけ受け渡しが成立
+        // していなかった**（実測＝ピルがまだ 98% 不透明の同一フレームで取っ手が 0→満値へ跳び、約180ms 並ぶ）。
+        // 真因は取っ手側でなく**参照している信号**: showChromeHint の false は退場アニメの*開始*を指す入力で、
+        // ピルはその後 MotionDurationCrossfade のあいだ描かれ続ける。取っ手にはもともと淡入が無く（濃さは
+        // collapsedFraction に比例するだけ）、その二値が「ピルがまだ居るフレーム」で反転していた。
+        // 入場方向だけ正常に見えたのは、立ち上がりでは同じ二値が取っ手を*即座に消す*側へ働き、
+        // 「先に消えてからピルが出る」という望ましい順序と偶然一致していたから（対称ではない）。
+        // 是正＝ピルの実寿命（[chromeHintState]）を見る。currentState は退場完了で初めて false になるので、
+        // 「ピルの最後の1フレームが描かれ切ってから取っ手が出る」が構造的に保証される。
+        // 遅延やアニメを足していない＝新しい時定数を持ち込まず、参照する信号だけを正しいものへ替えた。
+        // 判定は [immersiveHandleVisible] に括り出して単体テストで縛る（ImmersiveHandleHandoffTest）。
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = Insets.ImmersiveHandleBottom)
+                .size(width = ImmersiveHandleWidth, height = ImmersiveHandleHeight)
+                // 装飾＝TalkBack へ新しいフォーカス可能ノードを足さない（正本 §8 a11y）。
+                // 実際の操作は本文全面のタップで、a11y の到達性は既存経路（本文の semantics）が担う。
+                .clearAndSetSemantics { }
+                // collapsedFraction は graphicsLayer 内の deferred read＝バー追従でフレーム毎に動いても
+                // composition を再実行しない（没入ゴースト題字と同じ形）。barsVisualReady=false
+                //（入場時の初期退避が実測待ち）の間は一切出さない＝バーが未確定のうちに帯だけ光るのを防ぐ。
+                .graphicsLayer {
+                    alpha = if (
+                        immersiveHandleVisible(
+                            barsVisualReady = barsVisualReady,
+                            hintIdle = chromeHintState.isIdle,
+                            hintCurrentlyShown = chromeHintState.currentState,
+                        )
+                    ) {
+                        ImmersiveHandleAlpha * topAppBarState.collapsedFraction
+                    } else {
+                        0f
+                    }
+                }
+                .clip(RoundedCornerShape(ImmersiveHandleCorner))
+                // 色は藍アクセントをトークン経由で（直書き禁止＝/visual-language）。
+                .background(colors.accent),
+        )
 
         // 「続きに戻る」チップ（C1）。参照ジャンプ中だけ上端中央に常時表示し、退避元の続き位置へ復帰する。
         // 意匠は復帰ヒントの丸ピルと同型（新意匠を発明しない）。ヒントと違い自動消灯せず、タップ可能。
@@ -1503,14 +1709,25 @@ internal fun ChapterScreenContent(
         ) {
             Text(
                 text = "続きに戻る",
-                color = colors.topBarIcon,
-                fontFamily = MinchoFamily,
-                fontSize = FontSubTitle,
+                // 正本に専用セレクタが無い唯一のピル。色は「タップできるか」で割る＝正本 `.toppill`（--ink）と
+                // 同型のタップ標的なので --ink（＝text）を採る（純表示の復帰ヒントだけが --soft）。
+                color = colors.text,
+                // 案A（2026-09-03 裁定）＝11px ゴシックへ。詳細は復帰ヒント側のコメント。
+                fontFamily = GothicFamily,
+                fontSize = FontLabel,
+                // 行箱を明示する理由: 未指定だと bodyLarge の 28sp を継承し、上下 S8 のピルが
+                // 44dp まで膨れる（ピルは行箱の外周をそのままなぞる器）。正本はいずれも
+                // line-height 未指定＝normal（ゴシック実測 1.6）なので 11sp × 1.6 ＝ 17.6sp。
+                lineHeight = 17.6.sp,
                 modifier = Modifier
+                    // 最小高 48dp＝Material の最小タップ標的（2026-09-03 裁定）。字面をいくら動かしても
+                    // 48dp には届かない（案A のピル高は 33.6dp）ので、器側に最小高を持たせる。
+                    .heightIn(min = 48.dp)
                     // 復帰ヒントと同じ半透明ピル。こちらはタップで退避元へ戻る。
                     .clip(RoundedCornerShape(50))
-                    .background(colors.navBackground.copy(alpha = 0.92f))
+                    .background(colors.navBackground.copy(alpha = ChromeSurfaceAlpha))
                     .clickable(onClick = onReturnToContinuation)
+                    .wrapContentHeight(Alignment.CenterVertically) // 48dp の器の中で字面を中央に置く
                     .padding(horizontal = Spacing.S16, vertical = Spacing.S8),
             )
         }
@@ -1536,8 +1753,53 @@ internal fun ChapterScreenContent(
                 total > 0 && lazyListState.firstVisibleItemIndex * 10 >= total * 3
             }
         }
+        // ────── A1（2026-09-05 裁定・比較モック candidates/reading-toppill-occlusion-candidates.html）──────
+        // スクロール中は**ピルだけ**退場する。読んでいるまさにその瞬間の被覆を 0 にするのが狙いで、
+        // 止まれば戻る＝「ピルが要る時」と「本文が要る時」を時間で分ける。
+        //
+        // ⚠️ **バーの挙動は変えない**（裁定の外）。上下バーの出没は画面タップのトグルのままで、
+        // [scrollBehavior] は heightOffsetLimit の測定用に持っているだけ＝nestedScroll へ繋いでいない。
+        // ここでバーまでスクロール連動にすると没入の設計そのものが別物になる。
+        //
+        // ⚠️ この軸の意味は途中で変わっている。当初は「本文を読んでいる間は出さない」と読んでいたが、
+        // 実装を読むと**クロームはスクロールで自動退避しない**（自動なのは章入場時の初期退避 1 回だけ）＝
+        // ピルが本文を覆うのは**読者が自分でクロームを出した状態**に限られる。つまり A1 が救うのは
+        // 「クロームを出したまま読み続ける人」であって、没入で読んでいる人はそもそも被覆を受けていない。
+        //
+        // なぜ derivedStateOf か: isScrollInProgress は boolean だが、読む場所がこの Content スコープなので
+        // 反転時だけ recompose させる定石へ揃える（本棚 showBand・敷居光・上の pastThreshold と同型）。
+        val scrollIdle by remember(lazyListState) {
+            derivedStateOf { !lazyListState.isScrollInProgress }
+        }
+
+        // ピルの**実寿命**（入退場アニメを含む）。復帰ヒント→取っ手の受け渡しで確立した同ファイルの作法と
+        // 同じ理由で必要になる: targetState=false は退場アニメの*開始*しか意味せず、currentState だけが
+        // 「まだ画面に居る／出きった」を表す。初回ラベルを焼く判断（下）がこの区別に依存する。
+        val topPillState = remember { MutableTransitionState(false) }
+        topPillState.targetState = chromeVisibleForPill && pastThreshold && scrollIdle
+
+        // ────── 初回だけラベル（2026-09-05 裁定・案S4 の手当）──────
+        // アイコンのみで通じるための条件は3つ（①標準語彙のアイコン ②同画面に紛れる別アイコンが無い
+        // ③一度は語で見せてある）で、③をこのフラグが作る。②は下端バーの4項目が全てラベル付きなので
+        // 満たさない＝「面の中の恒久ボタンは語で／本文の上に浮く一時的な器は記号で」と規則を書き分けて
+        // 正当化する（正本 reading-backtotop-D.html の why が本文）。
+        //
+        // ⚠️ 焼くのは「**出きって、そのあと画面から消えた**」時点。表示中に焼くと pref の反転がそのまま
+        // 画面に出て、**読者の目の前で語が消えて器が縮む**。A1 でピルは頻繁に出入りするので、この差は
+        // 実際に見える（「出た瞬間に焼く」だと指送りの合間に一瞬出ただけで語が二度と出なくなる問題も併発する）。
+        var topPillWasFullyShown by remember { mutableStateOf(false) }
+        LaunchedEffect(topPillState.isIdle, topPillState.currentState) {
+            if (topPillState.isIdle && topPillState.currentState) {
+                topPillWasFullyShown = true
+            } else if (topPillState.isIdle && !topPillState.currentState && topPillWasFullyShown) {
+                onTopPillLabelShown()
+            }
+        }
+        // ラベルを出すか。pref が焼かれるのはピルが画面から消えた後なので、表示中にこの値は反転しない。
+        val topPillShowsLabel = !topPillLabelShown
+
         AnimatedVisibility(
-            visible = chromeVisibleForPill && pastThreshold,
+            visibleState = topPillState,
             enter = fadeIn(tween(MotionDurationCrossfade)),
             exit = fadeOut(tween(MotionDurationCrossfade)),
             modifier = Modifier
@@ -1545,33 +1807,92 @@ internal fun ChapterScreenContent(
                 // 下端バーの実測高さ＋S12 で「バー直上」に浮かべる（バー高はナビバー実高で変わるため実測値）。
                 .padding(bottom = with(LocalDensity.current) { bottomBarHeightPx.toDp() } + Spacing.S12),
         ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(Spacing.S4),
+            // ────── S4（2026-09-05 裁定）＝見える器と当たり判定を分ける ──────
+            // 外側の Box が**タップ標的 48dp**（透明・地も枠も持たない）、内側の Row が**視覚の器 32dp**。
+            // ⚠️ 48dp は Material の最小タップ標的（2026-09-03 裁定）で、**器を縮めても割ってはいけない**。
+            // 「器も標的も 34dp へ」（案S5）は規範割れとして裁定で落ちている。標的が器と一緒に縮む退行は
+            // 見た目に出ないので、[NativeReadingScreenTopPillTest] が寸法を両方向で機械固定する。
+            // なぜ ripple を内側へ付け替えるか: clickable を外側の 48dp に置いたまま既定の indication を
+            // 使うと、**見えているピルより一回り大きい輪**が波紋として出る（器を縮めた意味が薄れる）。
+            // interactionSource だけ外へ、描画は内側の器の clip の中へ、と分けて浮遊物の輪郭に揃える。
+            val pillInteraction = remember { MutableInteractionSource() }
+            Box(
+                contentAlignment = Alignment.Center,
                 modifier = Modifier
-                    .clip(RoundedCornerShape(50))
-                    // 不透明地（alpha を掛けない）。真因＝半透明(.92)地は暗色スキン(J=#101913)で
-                    // 背後の章末mark「— 第N話 了 —」(明色)が8%透けてピル文字とだぶる（2026-07-17 実機）。
-                    // モックの .92 は D 明色テーマ（ピル色≒地色で透過が目立たない）較正で、暗地×明背景の
-                    // J では成立しない。操作可能ピルは可読性優先＝navBackground を不透明で敷く。
-                    .background(colors.navBackground)
-                    // animateScrollToItem: 瞬間ジャンプは味気ないというユーザー所見（2026-07-16）で滑走化。
-                    // 遠距離は Lazy が目標近くまで内部で座標を寄せてから滑らかに着地する＝長章でも安全。
-                    .clickable(onClick = { scope.launch { lazyListState.animateScrollToItem(0) } })
-                    .padding(horizontal = Spacing.S16, vertical = Spacing.S8),
+                    .sizeIn(minWidth = TopPillTouchTarget, minHeight = TopPillTouchTarget)
+                    .clickable(
+                        interactionSource = pillInteraction,
+                        indication = null,
+                        // animateScrollToItem: 瞬間ジャンプは味気ないというユーザー所見（2026-07-16）で滑走化。
+                        // 遠距離は Lazy が目標近くまで内部で座標を寄せてから滑らかに着地する＝長章でも安全。
+                        onClick = { scope.launch { lazyListState.animateScrollToItem(0) } },
+                    ),
             ) {
-                Icon(
-                    imageVector = Icons.Filled.VerticalAlignTop,
-                    contentDescription = null, // 隣のテキストが意味を担う（重複読み上げ回避）
-                    tint = colors.topBarIcon,
-                    modifier = Modifier.size(16.dp),
-                )
-                Text(
-                    text = "最上部へ",
-                    color = colors.topBarIcon,
-                    fontFamily = MinchoFamily,
-                    fontSize = FontSubTitle,
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.S4),
+                    modifier = Modifier
+                        // 視覚の器＝32dp（案S4）。アイコンのみのときはこの値ちょうど（16dp ＋ 上下の余りが
+                        // 中央寄せで吸収される）。
+                        // ⚠️ **固定寸ではなく下限**にしてある。語つき（通算初回）は 11sp の字面がフォントの
+                        // 上下余白ごと積まれて 36dp になる＝2026-09-05 のゲートで実測。ここを height() で
+                        // 32dp に固定すると、字が大きい端末設定（FontLabel は sp＝ユーザー倍率が乗る）で
+                        // 語が欠ける。器が数 dp 伸びる代償のほうが軽い。
+                        // なお 32⇄36 の切り替わりは**ピルが画面から消えている間**に起きる（ラベルを焼くのは
+                        // 退場しきった後＝下の why）ので、読者の目には高さの跳ねとして映らない。
+                        .heightIn(min = TopPillVisualHeight)
+                        // なぜ testTag か: 「見える器は 32dp・タップ標的は 48dp」という**2枚重ねの寸法**は
+                        // semantics には外側（標的）しか出ない＝内側が 48dp へ戻る退行を検知できない。
+                        // 器の側を掴む手がかりをここに置いて、両方の寸法をテストで固定する。
+                        .testTag(ReadingTopPillFaceTag)
+                        // 地＝α.78（2026-09-04 裁定・比較モック reading-toppill-translucency-candidates.html 案D／
+                        // 正本 reading-backtotop-D `.toppill`）。提起理由は 2026-09-04 に訂正されている＝
+                        // 旧「他2ピルと器が揃わず独りだけ板に見える」（器の一貫性）ではなく
+                        //「**不透明だから本文が隠れてしまう**」（本文の見え量）。
+                        // 旧実装が不透明だった why は残す: 2026-07-17 に「α.92 の地は暗色スキン J(#101913) で
+                        // 背後の章末mark(明色)が透けて字とだぶる」ため不透明へ倒した。⚠️ 2026-09-04 に実測して
+                        // 分かったのは、あれは**だぶり**であって**コントラスト不足ではない**こと＝下限は明色側が
+                        // 先に来る（J は α.70 でも 4.78:1）。だぶりは 1px ヘアライン枠＋淡影で輪郭を立て直して抑える。
+                        .readingChromePillSurface(
+                            color = colors.navBackground,
+                            faceAlpha = ChromeTopPillAlpha,
+                        )
+                        // 1px ヘアライン枠（正本 `.toppill{border:1px solid var(--bar-line)}`＝divider トークン）。
+                        // α を下げると地との境が消えるので、枠は値とセット＝輪郭の主はこちらで、影は補助。
+                        .border(1.dp, colors.divider, RoundedCornerShape(50))
+                        // clip は枠より内側＝ripple を器の形へ収める（枠自身は clip の外なので欠けない）。
+                        .clip(RoundedCornerShape(50))
+                        // 波紋は外側 48dp の標的ではなく**見えている器**の中だけで鳴らす（上の why）。
+                        .indication(pillInteraction, LocalIndication.current)
+                        // 左右の余白は語の有無で変わる（アイコンのみ＝S8 で 8+16+8＝32dp の正方形／
+                        // 語つき＝正本どおり S16）。上下は器の 32dp と中央寄せが担うので持たない。
+                        .padding(horizontal = if (topPillShowsLabel) Spacing.S16 else Spacing.S8),
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.VerticalAlignTop,
+                        // 語が出ているときは隣のテキストが意味を担う（重複読み上げ回避）。語を消した後は
+                        // **アイコンが唯一の意味の担い手**になるので、ここに読み上げ用の名前を移す
+                        //（移し忘れると TalkBack から「最上部へ」が完全に消える＝見た目には出ない退行）。
+                        contentDescription = if (topPillShowsLabel) null else "最上部へ",
+                        // 正本 reading-backtotop-D `.toppill svg{stroke:var(--ink)}`＝字と同じ --ink。
+                        tint = colors.text,
+                        modifier = Modifier.size(16.dp),
+                    )
+                    if (topPillShowsLabel) {
+                        Text(
+                            text = "最上部へ",
+                            // 正本 `.toppill` は --ink（＝text）。純表示の復帰ヒント（--soft）と使い分ける。
+                            color = colors.text,
+                            // 案A（2026-09-03 裁定）＝11px ゴシックへ。詳細は復帰ヒント側のコメント。
+                            fontFamily = GothicFamily,
+                            fontSize = FontLabel,
+                            // 行箱を明示する理由: 未指定だと bodyLarge の 28sp を継承し、器が 44dp まで膨れる
+                            //（ピルは行箱の外周をそのままなぞる器）。正本はいずれも line-height 未指定＝normal
+                            // （ゴシック実測 1.6）なので 11sp × 1.6 ＝ 17.6sp。
+                            lineHeight = 17.6.sp,
+                        )
+                    }
+                }
             }
         }
 
@@ -1634,3 +1955,53 @@ internal fun ChapterScreenContent(
  */
 internal fun readingBarAlpha(barsVisualReady: Boolean, settingsPeek: Float): Float =
     if (barsVisualReady) 1f - settingsPeek else 0f
+
+// ────── 没入中の取っ手（案D）の造形寸法 ──────
+// 正本モック tutorial-onboarding-K.html の `.handle{width:46px;height:3px;border-radius:2px;opacity:.30}`。
+// ⚠️ ユーザーが目視裁定した実測値＝勝手に動かさない（§8「取っ手の実測値（裁定中・動かさない）」）。
+// 余白スケール（Spacing）へ丸めないのは、これが「リズムの余白」ではなく1つの部品の造形寸法だから
+// （ADR 0014 §C の除外軸・ComponentPadding と同じ理由）。
+/**
+ * 没入中の取っ手を出してよいか（層①ピル → 層②取っ手の受け渡し規則）。
+ *
+ * 正本 `tutorial-onboarding-K.html` §6 は「ピルが出て自分で消える。**そのあと**取っ手だけが残る」＝順次で、
+ * 同時に並ぶ絵ではない。よって判定は「ピルがまだ描かれているか」で、**入力の boolean ではなく
+ * ピルの実寿命**（[MutableTransitionState]）を見る必要がある——`showChromeHint=false` は退場アニメの
+ * *開始*でしかなく、ピルはそのあと数フレーム描かれ続けるため、boolean で切ると
+ * 「まだ 98% 不透明のピルの隣に取っ手が満値で出る」（2026-09-03 実機実測）。
+ *
+ * @param hintIdle ピルの遷移が停止しているか（アニメ中は false）。
+ * @param hintCurrentlyShown 遷移の現在値＝退場が完了するまで true のまま。
+ */
+internal fun immersiveHandleVisible(
+    barsVisualReady: Boolean,
+    hintIdle: Boolean,
+    hintCurrentlyShown: Boolean,
+): Boolean =
+    // barsVisualReady: 入場直後の初期退避が実測待ちの間は帯を光らせない（既存の条件・意味は不変）。
+    // idle かつ現在値 false ＝「ピルは居ないし、これから出入りしている最中でもない」。
+    // 入場方向（target=true になった瞬間）は idle が false へ落ちるので、この式は**同じフレームで**
+    // false を返す＝取っ手は従来どおり即座に消える（ピルが淡入するより先に場所を空ける）。
+    barsVisualReady && hintIdle && !hintCurrentlyShown
+
+/**
+ * 「最上部へ」ピルの**見える器**（32dp 側）を掴むための testTag。標的（48dp）は clickable の semantics で
+ * 掴めるが、器の側は semantics に出ないため（[NativeReadingScreenTopPillTest] の寸法固定に使う）。
+ */
+internal const val ReadingTopPillFaceTag = "reading_top_pill_face"
+
+// 「最上部へ」ピルの寸法（2026-09-05 裁定・案S4／正本 reading-backtotop-D.html `.toppill`）。
+// ⚠️ この2つは**別の役目**で、揃えてはいけない。[TopPillVisualHeight] は目に見える器（本文をどれだけ
+// 覆うかを決める）、[TopPillTouchTarget] は Material の最小タップ標的（2026-09-03 裁定の下限）。
+// 器を縮めた副作用で標的まで縮む退行が最も起きやすく、しかも見た目には出ない＝
+// [com.novelreader.ui.NativeReadingScreenTopPillTest] が両方を機械で固定している。
+// ⚠️ internal なのはテスト都合ではなく**導出関係を機械で結ぶため**（2026-09-05）: スキンJ の章末印が
+// 避ける距離 [com.novelreader.ui.theme.Insets.ReadingChapterEndPillClearance] は「S12 ＋ 標的 48dp」で
+// 導いてある。片側だけ改訂されると重なりが戻るので、テストが両方を読んで等式を固定する。
+internal val TopPillVisualHeight = 32.dp
+internal val TopPillTouchTarget = 48.dp
+
+private val ImmersiveHandleWidth = 46.dp
+private val ImmersiveHandleHeight = 3.dp
+private val ImmersiveHandleCorner = 2.dp
+private const val ImmersiveHandleAlpha = 0.30f

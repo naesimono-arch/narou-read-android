@@ -61,9 +61,12 @@ const val MotionDurationCrossfade: Int = 250
 // motion は ADR 0005-B 実機後詰め層のため値・型とも実機で決めてよい（HTMLモック非対象）。
 const val MotionDurationNavTransition: Int = 250
 
-// 明快K: ボトムナビのタブ切替（本棚⇄さがす⇄設定）。なぜ slide でなく短い crossfade か:
-// タブは「同格の目的地の切替」で階層移動ではない＝方向を語る slide は誤った空間語彙になる
-// （ADR 0019 の slide は push/pop 用）。バーは静止しコンテンツだけ素早く入れ替わるのがタブの標準文法。
+// 明快K: ボトムナビのタブ切替（本棚⇄さがす⇄設定）＝Pager の animateScrollToPage の尺
+// （TabPagerHost・MainActivity の onSelectTab。DiscoveryHomeK のランキング Pager も同スロットを踏襲）。
+// なぜタップも slide（ページスライド）か: タブの Pager 化でスワイプは指追従のスライドになったため、
+// タップだけ旧 crossfade だと同じ切替の運動言語が割れる＝タップも同トークン長のページスライドへ統一
+// （旧 crossfade は廃止＝ADR 0022 追記 2026-07-24。旧理由「方向を語る slide は誤った空間語彙」は
+// Pager 化以前の、バー静止＋コンテンツ入替え前提の裁定だった）。
 const val MotionDurationKTabSwitch: Int = 150
 
 // M星図スキンだけの画面遷移＝フェードスルー（退出 fadeOut 先行→進入 fadeIn。ADR 0019 追記「M星図の例外」・
@@ -96,3 +99,47 @@ val MotionEasingSettingsPeekReturn: Easing = CubicBezierEasing(0.25f, 0.1f, 0.25
 // 読了という状態変化の伝達＝原則5「静謐＝フィードバックのための motion」に合致（装飾でない・初回一回きり・自動ループ無し）。
 const val MotionDurationSeal: Int = 220
 val MotionEasingSeal: Easing = CubicBezierEasing(0.22f, 1f, 0.36f, 1f)
+
+// 「さがす」検索範囲チップの**最後の1つ**を押したときの応答＝注記の横揺れ（案A・2026-08-07 ユーザー裁定。
+// 正本モック docs/design-candidates/skins/search-range-lock-A.html の `@keyframes nudge` / `.22s ease-in-out`）。
+// なぜ必要か: 制約を「押せなさ（disabled で淡色化）」で示すのをやめた結果、押下が状態を変えない
+// ＝そのままでは無反応（死んだアフォーダンス）になる。「入力は届いた／でも外せない」だけを動きで返す。
+// なぜ同値の MotionDurationSeal(220) を借りずスロットを足すか: 値が同じでも意味が別（押印＝状態変化の祝祭／
+// こちらは状態が変わらないことの通知）で、片方を実機調整したときにもう片方が巻き添えで動くのを避ける。
+// なぜ 220ms か: モック較正値。離散的な enter/exit を縛る禁止則①の 350ms 上限内。
+// なぜ ease-in-out か: 往復（0→−→＋→0）の折返しを角立てずに繋ぐ。色の点滅は伴わない（意味の無い色変化を作らない）。
+// 揺れ幅（振幅）は呼び出し側の意匠差なのでトークン化しない（押下スケールの targetValue と同じ扱い）。
+const val MotionDurationRangeLockNudge: Int = 220
+val MotionEasingRangeLockNudge: Easing = CubicBezierEasing(0.42f, 0f, 0.58f, 1f) // CSS ease-in-out
+
+// 教示カード列（IntroOverlay）の 1 枚めくり＝**横スライド（shared axis X）**。正本モック
+// docs/design-candidates/tutorial-onboarding-K.html の `@keyframes oslide`（.25s / cubic-bezier(0,0,.58,1) /
+// 40% までフェードを待つ）を同値で写経する。移動量は新しい寸法を発明せず Spacing.S32（32dp）を使う。
+// なぜ新設か: 2026-09-07 のユーザー実機所見「『次へ』をタップするたびにパッと切り替わる」＝めくりに
+// 遷移が一切無く、カードが差し替わるだけだった。
+// なぜ同値の MotionDurationNavTransition(250) を借りないか: あちらは**画面そのもの**の push、こちらは
+// **1 枚の面の中で中身だけ**が入れ替わる＝意味が別で、片方を実機調整したときにもう片方が巻き添えで
+// 動くのを避ける（Seal/Nudge/EdgeFade と同じ判断）。禁止則①の 350ms 上限内。
+// なぜカード幅ぶんの押し出し（full push）にしないか: 320dp 級の面を 250ms で走らせると小さな面の中では
+// 騒がしく、原則5「静謐＝フィードバックのための motion」から外れる。移動は**方向を語るだけ**にし、
+// 入れ替わりはフェードが担う。
+const val MotionDurationIntroCardFlip: Int = 250
+
+// 上のフェードスルーの内訳＝**退場が先（100ms）→ 入場は退場ぶん遅れて 150ms**（合計が上の尺と一致する）。
+// なぜ同時クロスフェードにしないか: 32dp しか動かさないため、同時に薄く重ねると 2 枚の文字がほぼ同じ位置で
+// 二重に見える（移動量の大きい push なら潰れる重なりが、小さい移動では読めなくなる）。
+// 型は M星図の MotionDurationSeizuFadeOut/In/InDelay と同じ「退出先行のフェードスルー」だが、あちらは
+// 画面遷移の尺を二分した値＝用途が別なので借りない。
+const val MotionDurationIntroCardFlipFadeOut: Int = 100
+const val MotionDurationIntroCardFlipFadeIn: Int = 150
+val MotionEasingIntroCardFlip: Easing = CubicBezierEasing(0f, 0f, 0.58f, 1f) // CSS ease-out（モック写経）
+
+// 横スクロール行の端フェードの点灯/消灯（2026-08-20 ユーザー裁定①。正本モック
+// docs/design-candidates/skins/bookshelf-K.html・同 -D.html の `.fade{transition:opacity .18s ease}`）。
+// なぜ motion が要るか: 点灯条件は canScrollBackward/canScrollForward＝**端に触れた瞬間に真偽が跳ねる**ため、
+// 尺ゼロだと指を止めた位置で帯がパチンと現れ/消える（スクロールの連続感の中で唯一そこだけ離散的になる）。
+// 状態変化（まだ続く／もう無い）の伝達であって装飾ではない＝原則5に合致・禁止則①の 350ms 上限内。
+// なぜ同じ CSS ease の MotionEasingSettingsPeekReturn(260ms) を借りないか: 値が近いだけで意味が別
+//（あちらは面の退避と復帰）＝片方を実機調整したときにもう片方が巻き添えで動くのを避ける（Seal/Nudge と同じ判断）。
+const val MotionDurationEdgeFade: Int = 180
+val MotionEasingEdgeFade: Easing = CubicBezierEasing(0.25f, 0.1f, 0.25f, 1f) // CSS ease

@@ -127,9 +127,9 @@ val InverseSurfaceDark       = Color(0xFFC7CDD3)
 val InverseOnSurfaceDark     = Color(0xFF2A2E35)
 val InversePrimaryDark       = Color(0xFF1C3D5A)
 
-// 書影の縦ルール（D 署名要素）のデフォルト藍。暗色スラブ上で沈まないようトークン藍 #1C3D5A より
-// 明るい藍を使う（BookCover.kt から昇格＝直書き解消。読書 DARK accent と同値だが意味は独立）。
-val BookCoverRuleIndigo      = Color(0xFF6E96B8)
+// （削除 2026-08-21）BookCoverRuleIndigo #6E96B8 ＝ D 世代の暗色スラブ書影の縦ルール色。
+// 唯一の利用者だった BookCover.kt が案2-c（栞書影＋淡地の帯）への移行で消え、参照が 0 になった。
+// 値が要るときは git 履歴から引ける（ここに残すと「使ってよいトークン」に見えてしまうので消す）。
 
 // ============================================================
 // 栞書影（本棚グリッド）専用の紙／墨（ダークのみ）。

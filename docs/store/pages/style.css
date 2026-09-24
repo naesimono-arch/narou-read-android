@@ -1,0 +1,35 @@
+/* 公開ページ共通のスタイル（privacy.html / index.html が共有）。
+   色は 2026-08-20 に裁定済みのアイコン A「栞書影」／フィーチャーグラフィック A「夜の帯」の値をそのまま使う
+   （藍 #1C3D5A・濃紺 #0E2030・和紙 #FBFAF8・青磁明 #A9C2BB）＝この場で意匠を新規に決めない。 */
+:root {
+  --ink: #17202a; --sub: #4a5a6a; --bg: #FBFAF8; --card: #ffffff;
+  --line: #dfd9d0; --accent: #1C3D5A;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ink: #e8e6e1; --sub: #a9b5c0; --bg: #0E2030; --card: #14293b;
+    --line: #274259; --accent: #A9C2BB;
+  }
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0; padding: 2.5rem 1.25rem 4rem; background: var(--bg); color: var(--ink);
+  font-family: system-ui, -apple-system, "Hiragino Sans", "Noto Sans JP", "Yu Gothic", sans-serif;
+  line-height: 1.9; font-size: 16px;
+}
+main { max-width: 46rem; margin: 0 auto; }
+h1 { font-size: 1.6rem; line-height: 1.5; margin: 0 0 1.5rem; padding-bottom: .75rem; border-bottom: 2px solid var(--accent); }
+h2 { font-size: 1.15rem; margin: 2.75rem 0 .75rem; color: var(--accent); }
+p { margin: 0 0 1rem; }
+ul { margin: 0 0 1.25rem; padding-left: 1.4em; }
+li { margin-bottom: .4rem; }
+a { color: var(--accent); }
+code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .92em; word-break: break-all; }
+/* 横に長い表は本文を横スクロールさせず、表だけをスクロールさせる（狭い画面で本文が読めなくなるのを防ぐ） */
+.tw { overflow-x: auto; margin: 0 0 1.5rem; -webkit-overflow-scrolling: touch; }
+table { border-collapse: collapse; width: 100%; min-width: 34rem; font-size: .9rem; background: var(--card); }
+th, td { border: 1px solid var(--line); padding: .6rem .7rem; text-align: left; vertical-align: top; line-height: 1.7; }
+th { background: rgba(28, 61, 90, .10); font-weight: 600; }
+@media (prefers-color-scheme: dark) { th { background: rgba(169, 194, 187, .12); } }
+footer { margin-top: 3.5rem; padding-top: 1rem; border-top: 1px solid var(--line); color: var(--sub); font-size: .85rem; }

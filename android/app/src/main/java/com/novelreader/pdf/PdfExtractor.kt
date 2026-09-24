@@ -2,39 +2,80 @@ package com.novelreader.pdf
 
 import com.tom_roush.pdfbox.pdmodel.PDDocument
 import com.tom_roush.pdfbox.pdmodel.PDPage
+import com.tom_roush.pdfbox.pdmodel.PDPageTree
 import com.tom_roush.pdfbox.text.PDFTextStripper
 import com.tom_roush.pdfbox.text.TextPosition
+import java.io.File
+import java.util.concurrent.Callable
+import java.util.concurrent.ExecutionException
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicReference
 
 /** 表紙(1ページ目)から得た書籍メタ情報。 */
 data class BookMeta(val title: String, val author: String)
 
 /**
- * PDFBox-android の CID→Unicode 出力を pdfminer（移植のオラクル）に揃える 1 文字正規化。
+ * 1 グリフの文字を決める復号器。**フォントの符号化そのもの**（文字コード）を第一の根拠にする。
  *
- * なぜ: PDFBox-android は一部グリフを Adobe-Japan1/pdfminer と別コードポイントへ写す。放置すると
- * title・本文・章題が実機とオラクルでズレ、ゴールデン回帰がグリフ差だけで不一致になる。1:1 で対応が
- * 付くものをオラクル側へ寄せる（N6169DZ 章題ドリフト・task_diary #35）。写像:
- *   - FF5E FULLWIDTH TILDE → 301C WAVE DASH（有名な「波ダッシュ問題」の CMap 版。なろうでは波ダッシュが
- *     正で FF5E の正当用例はほぼ無く低リスク）
- *   - FF0D FULLWIDTH HYPHEN-MINUS → 2212 MINUS SIGN（章題6件）
- *   - 2191/2193 UP/DOWN ARROW → 2190/2192 LEFT/RIGHT ARROW（PDFBox が矢印を 90° 回転誤読するのを補正・章題3件）
+ * なぜ ToUnicode を第一にしないか（字種写像 6 系統の真因・ADR 0041 決定1）:
+ * なろうの縦書き PDF が使うのは `…-UniJIS-UTF16-V/H` 系の CMap で、**文字コードが UTF-16 符号単位
+ * そのもの**（CMap 名の UTF16 がその契約）＝コードには作者が書いた字そのものが入っている。一方
+ * ToUnicode は「縦組みグリフ(CID)→Unicode」の逆引き表で、縦組み専用の**表示形**や、CID を共有する
+ * 別字へ写る。実測でこの逆引きが web 原文と食い違った字（正は第二実装 `~/naro-pdf-engine/` ＝
+ * ncode.syosetu.com の原文と一致した側。`docs/knowledge/extraction-charmap-diverges-from-web-source.md`）:
+ *   - `［`FF3B / `］`FF3D → `﹇`FE47 / `﹈`FE48（縦書き表示形へ写る）
+ *   - `〟`301F → `〞`301E（二重引用符の閉じ。CID 共有による取り違え）
+ *   - `—`2014 → U+0336 結合長打消線（**独立字ですらない**＝実機表示が壊れる側）
+ *   - `↑`2191 → 別の矢印
+ * コードを見れば 4 系統すべてが原文どおりに出る＝写像表を足して個別に打ち返すのではなく、
+ * **参照する層を変える**のが真因対処。残る 2 系統（波ダッシュ FF5E→301C・マイナス FF0D→2212）は
+ * ここで明示的に潰していた正規化で、同 ADR で写像ごと撤去した（PDF は FF5E と 301C を作品ごとに
+ * 撃ち分けて保持しており、一律 301C は情報の復元ではなく破壊だった）。
  *
- * ⚠ FF0D→2212 は body にも同グリフが出れば正規化され、短中編の body_sha256（現状 pdfminer と完全一致）を
- *   破壊しうる＝pdfminer が本文では FF0D のまま出す証拠になる。実機ゲート(PdfExtractorDeviceSpikeTest)で
- *   検証し、短中編 body_sha256 が壊れたら FF0D→2212 は取り下げる（golden から離れる写像は入れない）。
- *   矢印は本文に出にくく低リスク。
+ * ⚠️ **フォント名に UTF16 を含むときだけ**コードを字として読む。この前提が無い符号化（Identity-H で
+ * CID がグリフ番号のフォント等）でコードを文字扱いすると、字を**別の読める字に化けさせる**＝
+ * ToUnicode より悪い壊れ方をするため、前提が確認できないフォントは ToUnicode の結果をそのまま使う。
+ * この前提のもとでは ToUnicode の穴（U+FFFD 化。実測 N6169DZ 本文に 32 件）も自動的に埋まる
+ * ——穴が空いているのは逆引き表の側だけで、コードには字が入っているため。
  *
- * 各写像は個別 indexOf ガードで包み、対象を含まない大多数のグリフでは新規文字列を確保しない
- * （processTextPosition は 1 グリフ毎＝超長編で数百万回走るホットパス。PdfExtractorTest の assertSame 契約）。
- * 見た目が酷似する文字が多いため取り違え防止にエスケープで明示する。
+ * 直前フォントの判定結果を持つのでインスタンス単位で使う＝**並列走行の各 [GlyphStripper] が
+ * 自分のを持つ**（共有すると別スレッドが書いたフォント判定を読む）。
  */
-internal fun normalizeGlyphUnicode(s: String): String {
-    var r = s
-    if (r.indexOf('\uFF5E') >= 0) r = r.replace('\uFF5E', '\u301C')  // FULLWIDTH TILDE → WAVE DASH
-    if (r.indexOf('\uFF0D') >= 0) r = r.replace('\uFF0D', '\u2212')  // FULLWIDTH HYPHEN-MINUS → MINUS SIGN
-    if (r.indexOf('\u2191') >= 0) r = r.replace('\u2191', '\u2190')  // UPWARDS → LEFTWARDS ARROW
-    if (r.indexOf('\u2193') >= 0) r = r.replace('\u2193', '\u2192')  // DOWNWARDS → RIGHTWARDS ARROW
-    return r
+internal class GlyphDecoder {
+    // 直前グリフのフォントと、その UTF16 判定。グリフは同一フォントで長く連続するので 1 段で足りる
+    // （processTextPosition は 1 グリフ毎＝超長編で数百万回走るホットパス）。
+    private var lastFont: Any? = null
+    private var lastFontIsUtf16 = false
+
+    /** @return このグリフの文字。前提を満たさないときは ToUnicode の結果をそのまま返す。 */
+    fun decode(text: TextPosition): String? {
+        val raw: String? = text.unicode
+        val font = text.font
+        if (font !== lastFont) {
+            lastFont = font
+            lastFontIsUtf16 = font?.name?.contains("UTF16") == true
+        }
+        if (!lastFontIsUtf16) return raw
+        val codes = text.characterCodes ?: return raw
+        if (codes.isEmpty()) return raw
+        if (codes.size == 1) {
+            val c = codes[0]
+            // UTF-16 符号単位に収まらない値＝上の前提が崩れているので、推測せず ToUnicode に委ねる。
+            if (c < 0 || c > 0xFFFF) return raw
+            // ToUnicode と一致する大多数では既存の String をそのまま返す（1 グリフ毎の確保を避ける）。
+            if (raw != null && raw.length == 1 && raw[0].code == c) return raw
+            return c.toChar().toString()
+        }
+        val sb = StringBuilder(codes.size)
+        for (c in codes) {
+            if (c < 0 || c > 0xFFFF) return raw
+            sb.append(c.toChar())
+        }
+        return sb.toString()
+    }
 }
 
 /**
@@ -52,30 +93,115 @@ internal fun normalizeGlyphUnicode(s: String): String {
  * （TextPosition.{unicode,xDirAdj,yDirAdj,heightDir,font,fontSizeInPt} は 2.0.x 系で同名同義）。
  */
 class GlyphStripper(
-    // ページ開始ごとに「開始済みページ数(1始まり)」を通知する省略可のフック。
+    // ページ開始ごとに発火する省略可のフック。
     // なぜ: 本文グリフ抽出は getText(doc) の単一走査で、そのままでは進捗を出さない。
     // load フェーズの進捗バー連動に使う（未指定＝通知なし＝オラクル/1ページ抽出など通知不要な用途）。
-    private val onPageStart: ((loaded: Int) -> Unit)? = null,
+    // なぜ「開始済みページ数」を引数で渡さないか: 並列走行では各ストリッパが自分の担当範囲しか数えず、
+    // 局所カウントは進捗として意味を持たない。数える責務は呼び出し側（[PdfExtractor.loadPages]）が持つ。
+    private val onPageStart: (() -> Unit)? = null,
+    /**
+     * 処理するページ範囲（0 始まり・両端含む）。null＝全ページ（従来の単一走行）。
+     * 並列走行で各スレッドが同一 PDF の別範囲だけを担当するために使う。
+     */
+    private val pageRange: IntRange? = null,
+    /**
+     * 1 ページ分のグリフが揃った時点で発火する省略可のフック（**ストリーミング取り出し**）。
+     *
+     * 指定すると [pages] へは一切溜めず、ページ完了ごとにその 1 ページ分だけを渡して即座に捨てる。
+     * なぜ要るか＝全ページを溜める形（[pages]）は保持量がページ数に比例し、8,668 ページの実測で
+     * 500MB 級に達して端末のヒープ天井を越える（真因）。ページを跨いで CharBox を参照する処理は
+     * 一つも無いので、同時生存は 1 ページで足りる。
+     *
+     * ⚠️ 渡した List は復帰後に破棄される前提＝**受け取り側は参照を持ち越してはならない**
+     * （持ち越すとページ数比例の保持に戻り、この経路を入れた意味が消える）。
+     */
+    private val onPageComplete: ((List<CharBox>) -> Unit)? = null,
 ) : PDFTextStripper() {
 
+    /** 全ページ蓄積モードの結果。[onPageComplete] 指定時は常に空（溜めないのが目的のため）。 */
     val pages: MutableList<MutableList<CharBox>> = mutableListOf()
     private var current: MutableList<CharBox> = mutableListOf()
 
+    /**
+     * ページツリーの走査を基底から引き取る。目的は 2 つ。
+     *
+     * ① **内容ストリームを持たないページも 1 件として出す**（真因対処）。基底の `processPages` は
+     *   `if (page.hasContents())` でそのページを走査対象から**外す**ため、[pages] の件数が文書の
+     *   ページ数より短くなり、**リスト位置と実ページ番号がズレる**。ズレたリストをそのまま使う
+     *   [PdfExtractor.runFinalEngine] は位置をページ番号として扱う（「先頭 3 ページ・最終ページを捨てる」・
+     *   ページ跨ぎの段落縫合）ので、空ページが 1 枚在るだけで本文の先頭が削られる
+     *   （実測: 白紙 padding の PDF で本文 11p のうち先頭 3p が消えた）。空ページも 1 件出せば
+     *   「リスト位置＝ページ番号」が文書の形に依らず成り立つ。
+     * ② [pageRange] 指定時に担当範囲だけを処理して打ち切る（範囲外はコンテンツストリームを
+     *   一切パースしない＝これが並列分割の実体）。
+     *
+     * なぜ処理中だけ `startPage`/`endPage` を 0 へ落とすか: 基底の `processPage` は先頭で
+     * `currentPageNo in startPage..endPage` を判定するが、`currentPageNo`（private・setter 無し）を
+     * 進めるのは基底の `processPages` だけで、差し替えた以上ここでは 0 のまま動かない。
+     * 0..0 にすれば通る（`startBookmarkPageNumber`/`endBookmarkPageNumber` も既定値のまま両方通ることを
+     * javap -c で確認済み・実機スパイク PdfParallelLoadPagesSpikeTest で 8,668 ページ分の等価性も確認済み）。
+     * 呼び出し側から見える 1 始まりのページ範囲は退避して復元するので、外形は従来どおり。
+     */
+    override fun processPages(tree: PDPageTree) {
+        // 呼び出し側が指定した 1 始まりの処理範囲。pageRange（0 始まり）が在ればそちらが優先。
+        val from = pageRange?.let { it.first + 1 } ?: startPage
+        val to = pageRange?.let { it.last + 1 } ?: endPage
+        startPage = 0
+        endPage = 0
+        try {
+            var pageNo = 0
+            for (page in tree) {
+                pageNo++
+                if (pageNo > to) break
+                if (pageNo < from) continue
+                if (page.hasContents()) {
+                    processPage(page)
+                } else {
+                    // 内容ストリームが無い＝グリフが 1 つも無いページ。基底の processPage は
+                    // 呼べない（中で hasContents を見て何もしない）ので、ページの開始と終了だけを
+                    // 直接叩いて「グリフ 0 件のページ」を 1 件出す。
+                    startPage(page)
+                    endPage(page)
+                }
+            }
+        } finally {
+            startPage = from
+            endPage = to
+        }
+    }
+
+    /**
+     * ストリーミング取り出し時だけ、揃った 1 ページ分を渡して即座に手放す。
+     * `endPage` は PDFTextStripper が「そのページの全グリフを processTextPosition へ流し終えた後」に
+     * 呼ぶフック＝ここが 1 ページ完成の唯一の確定点。
+     */
+    override fun endPage(page: PDPage) {
+        val sink = onPageComplete
+        if (sink != null) {
+            sink(current)
+            // 参照を切って GC 可能にする（次ページの startPage で作り直す）。
+            current = mutableListOf()
+        }
+        super.endPage(page)
+    }
+
     override fun startPage(page: PDPage) {
         current = mutableListOf()
-        pages.add(current)
-        // pages.size ＝ 開始済みページ数。getText の全ページ単一走査中にページ毎に発火するため、
-        // 支配的コストの本文抽出中も進捗バーを前進させられる（handover の UX ギャップ対策）。
-        onPageStart?.invoke(pages.size)
+        // ストリーミング取り出し時は溜めない（溜めるとページ数比例の保持に戻る＝真因そのもの）。
+        if (onPageComplete == null) pages.add(current)
+        // getText の走査中にページ毎に発火するため、支配的コストの本文抽出中も進捗バーを前進させられる
+        // （handover の UX ギャップ対策）。並列走行ではキャンセル確認もこの経路に相乗りする。
+        onPageStart?.invoke()
         super.startPage(page)
     }
 
-    override fun processTextPosition(text: TextPosition) {
-        val raw = text.unicode
-        if (raw.isNullOrEmpty()) return
-        // PDFBox-android の CID→Unicode を pdfminer(オラクル)へ揃える（波ダッシュ等・task_diary #35）。
-        val s = normalizeGlyphUnicode(raw)
+    // グリフ 1 つぶんの文字を決める復号器。ストリッパ 1 本＝1 インスタンス（状態を持つため共有しない）。
+    private val decoder = GlyphDecoder()
 
+    override fun processTextPosition(text: TextPosition) {
+        // 字は ToUnicode の逆引きでなくフォントの符号化から決める（理由は [GlyphDecoder]）。
+        val s = decoder.decode(text)
+        if (s.isNullOrEmpty()) return
         val bottom = text.yDirAdj.toDouble()
         val top = bottom - text.heightDir.toDouble()
         current.add(
@@ -91,18 +217,102 @@ class GlyphStripper(
     }
 }
 
+/**
+ * 全ページのグリフを **1 ページずつ** 消費側へ渡す供給源。
+ *
+ * なぜ型として切るか（真因対処の中核）: 旧経路は [PdfExtractor.loadPages] の戻り値
+ * `List<List<CharBox>>` ＝**全ページ分の CharBox を同時生存**させる形で、保持量がページ数に比例した
+ * （N6169DZ 8,668 ページで Dalvik ピーク実測 514MB ＝約 59KB/ページ。192MB 端末では確実に、
+ * 512MB 級の実機でも使い切る寸前）。だがページを跨いで CharBox を参照する処理は**一つも無い**
+ * ——rules 検出も段落化もページ内で閉じる——ので、同時生存は 1 ページに畳める。
+ *
+ * [forEachPage] は**複数回呼べる**。rules 検出（bodySize→列/ルビ）と本文整形は「前段の結果が要る」
+ * 依存があり 1 走査に畳めないため、走査を繰り返せることを型の契約にする。
+ *
+ * ⚠️ consume へ渡した List は**復帰後に破棄されうる**。受け取り側は参照を持ち越してはならない。
+ */
+internal fun interface PageGlyphSource {
+    /** ページ 0..n-1 を昇順に [consume] へ渡す。ページ順は rules 検出・段落縫合の前提。 */
+    fun forEachPage(consume: (pageIndex: Int, chars: List<CharBox>) -> Unit)
+}
+
+/**
+ * 既に materialize 済みのページ列をそのまま流す供給源。
+ * 走査ごとの再パースが無い＝**ヒープに余裕がある端末での高速経路**（従来と同じ 1 パース）。
+ */
+internal class MaterializedPageSource(private val pages: List<List<CharBox>>) : PageGlyphSource {
+    override fun forEachPage(consume: (Int, List<CharBox>) -> Unit) {
+        for (i in pages.indices) consume(i, pages[i])
+    }
+}
+
+/**
+ * 走査のたびに PDF を読み直す供給源。保持量は常に 1 ページ分＝**ページ数に依存しない**。
+ *
+ * 代償は走査回数ぶんの再パース（PDFBox のパースは抽出コストの 85〜91%）。よって
+ * [PdfExtractor.canMaterializeAllPages] が「溜めても安全」と判断した端末では使わない。
+ * 同一 [PDDocument] を再利用するのでフォント/CMap の解決結果はドキュメント内キャッシュに乗る。
+ */
+internal class ReparsingPageSource(
+    private val doc: PDDocument,
+    private val onPageLoaded: (() -> Unit)? = null,
+) : PageGlyphSource {
+    override fun forEachPage(consume: (Int, List<CharBox>) -> Unit) {
+        var index = 0
+        GlyphStripper(
+            onPageComplete = { chars ->
+                onPageLoaded?.invoke()
+                consume(index, chars)
+                index++
+            },
+        ).apply {
+            sortByPosition = false
+            startPage = 1
+            endPage = Int.MAX_VALUE
+        }.getText(doc)
+    }
+}
+
 object PdfExtractor {
 
     /**
      * 全ページの文字を取得する（list[list[CharBox]]）。
+     * **返り値の件数は必ず `doc.numberOfPages` と等しく、リスト位置＝0 始まりの実ページ番号**
+     * （内容ストリームを持たないページは空リストで並ぶ＝[GlyphStripper.processPages] の KDoc）。
+     * 下流はこの位置をページ番号として扱うので、この契約が崩れると本文が丸ごとズレる。
      * onPageLoaded はページ開始ごとに (開始済みページ数, 総ページ数) を通知する（既定＝無通知）。
+     *
+     * [source] に PDF の実ファイルを渡すと、端末のヒープに余裕がある場合だけ**ページ範囲を分割して
+     * 並列に**読む（[parallelDegree] が K を決める。K=1 と判定されたら従来の単一経路をそのまま通る）。
+     * null なら常に単一経路＝並列化前と完全に同じ挙動（オラクル/プロファイラ/テストの既定）。
+     * 並列でも結果はページ順に連結するので `body_sha256` は動かない（JVM/実機の両スパイクで全 K 一致を確認済み）。
      */
     fun loadPages(
         doc: PDDocument,
+        source: File? = null,
         onPageLoaded: (loaded: Int, total: Int) -> Unit = { _, _ -> },
     ): List<List<CharBox>> {
         val total = doc.numberOfPages
-        val stripper = GlyphStripper(onPageStart = { loaded -> onPageLoaded(loaded, total) }).apply {
+        if (source == null) return loadPagesSingle(doc, total, onPageLoaded)
+        val degree = parallelDegree(
+            totalPages = total,
+            maxMemoryBytes = Runtime.getRuntime().maxMemory(),
+            availableProcessors = Runtime.getRuntime().availableProcessors(),
+        )
+        // K=1 相当なら**並列ハーネスを通さない**。ハーネスをスレッド1本で回すと PDF の再オープンと
+        // 連結のぶんだけ単一より遅い（実機実測 0.87〜0.96x）＝余裕の無い端末で速度まで落とす筋の悪い形になる。
+        if (degree <= 1) return loadPagesSingle(doc, total, onPageLoaded)
+        return loadPagesParallel(doc, source, degree, onPageLoaded)
+    }
+
+    /** 従来の単一走行経路（並列化前と同一）。 */
+    private fun loadPagesSingle(
+        doc: PDDocument,
+        total: Int,
+        onPageLoaded: (loaded: Int, total: Int) -> Unit,
+    ): List<List<CharBox>> {
+        var loaded = 0
+        val stripper = GlyphStripper(onPageStart = { onPageLoaded(++loaded, total) }).apply {
             sortByPosition = false
             startPage = 1
             endPage = Int.MAX_VALUE
@@ -110,6 +320,197 @@ object PdfExtractor {
         stripper.getText(doc)
         return stripper.pages
     }
+
+    // ==========================================================
+    // ページ範囲並列（loadPages は engine の 66〜70%＝ここだけが単一スレッド天井の外側）
+    // ==========================================================
+
+    /**
+     * 並列度 K を**端末のヒープ上限と文書規模から事前に**決める。
+     *
+     * なぜ事前決定しかないか: 実機では ART が [OutOfMemoryError] を投げる前に OEM がプロセスごと殺す
+     * （PGEM10 実測＝`o-kill(109)`・logcat の OutOfMemoryError は 0 件）。走らせてから落ちても
+     * 捕捉できないので、走らせる前にヒープから決めるのが唯一の防ぎ方
+     * （`docs/knowledge/pdf-extract-engine-cost-ceiling.md`「実機ではヒープ天井が並列利得の上限を決める」）。
+     *
+     * 式（すべて PGEM10 実測の数値だけから導く。N6169DZ 8,668ページ・`heapgrowthlimit=384m`）:
+     * - 予算 = maxMemory の [HEAP_BUDGET_PERCENT]%。残す 10%（384MB なら 38.4MB）は GC 猶予＝
+     *   同一文書・同一走行形状でも単一のピークが 276.1〜313.4MB と振れた実測幅（37.3MB＝未回収ゴミぶん）
+     *   とほぼ同じ。ゴミの量は確保量に比例するので、固定 MB でなく上限に対する割合で持つ。
+     * - 単一走行の必要量 = ページ数 × [SINGLE_RUN_KB_PER_PAGE]（276.1MB ÷ 8,668ページ＝約 32KB/ページ）。
+     *   ⚠️ **文書規模を式に入れる**のがここ。1セットの量は結果の CharBox 列が支配し、これは K に依らず
+     *   必ず要る＝固定 MB で判定すると長編で K を許して殺し、短編で不要に K=1 へ落とす両方の誤りが出る。
+     *   ページ数を代理変数にするのはグリフ数が事前に分からないため（実測のページ密度は 390〜476 グリフ/ページ）。
+     * - 並列の上乗せ = (K−1) × [PARALLEL_EXTRA_MB_PER_THREAD]（K=3 のピーク 360.5MB − 単一 276.1MB を
+     *   増えた 2 スレッドで割って 42MB/スレッド）。K 個の `PDDocument` が同時に開き、各スレッドの
+     *   パース済み COS とフォント資源が重なるぶん。
+     *   ⚠️ この上乗せを**文書規模に比例させなかった**理由: 実測点が (8,668ページ, K=3) の 1 点しかなく、
+     *   比例係数を決める根拠が無い。固定値は小さい文書に対しては過剰予約（＝安全側）になり、逆に
+     *   8,668ページより大きい文書では上の単一走行項が先に予算を食い潰して K=1 に落ちるため、
+     *   固定値を外挿する領域へそもそも入らない（512MB 端末でも 13,000ページ台で K=1 になる）。
+     *
+     * 上限は3つ: [MAX_PARALLEL_DEGREE]（実機で K=3 が最良＝2.1x／JVM でも長編は K=4 で伸びない）、
+     * CPU コア数、そして [MIN_PAGES_PER_THREAD]（1スレッドあたりの持ち分）。
+     */
+    internal fun parallelDegree(totalPages: Int, maxMemoryBytes: Long, availableProcessors: Int): Int {
+        val budgetMb = maxMemoryBytes / (1024L * 1024L) * HEAP_BUDGET_PERCENT / 100
+        val estSingleRunMb = totalPages.toLong() * SINGLE_RUN_KB_PER_PAGE / 1024
+        val headroomMb = budgetMb - estSingleRunMb
+        // 単一走行だけで予算を超える文書＝並列化する余地が無い（単一経路で祈るしかない領域）。
+        if (headroomMb <= 0) return 1
+        val byHeap = 1 + (headroomMb / PARALLEL_EXTRA_MB_PER_THREAD).toInt()
+        // 実測で良好だった最小の持ち分は中編 799ページ ÷ K=3 ＝ 266ページ/スレッド。これを下回る
+        // 細分は測っていない（再オープン＋連結の固定費 4〜15% を取り返せる保証が無い）＝外挿しない。
+        val byPages = totalPages / MIN_PAGES_PER_THREAD
+        return minOf(byHeap, byPages, minOf(availableProcessors, MAX_PARALLEL_DEGREE)).coerceAtLeast(1)
+    }
+
+    /**
+     * ページ範囲を [degree] 分割し、各スレッドが**自分の [PDDocument] を開いて**担当範囲だけ収集し、
+     * ページ順に連結する。自前の PDDocument が要るのは PDFBox の COSDocument がスレッド安全でないため。
+     *
+     * 内部可視なのは JVM テスト（`PdfParallelLoadPagesTest`）が K を固定して単一経路との等価性を
+     * 縛るため＝ヒープの都合で K が動くと等価性の網が端末依存になってしまう。
+     */
+    internal fun loadPagesParallel(
+        doc: PDDocument,
+        source: File,
+        degree: Int,
+        onPageLoaded: (loaded: Int, total: Int) -> Unit = { _, _ -> },
+    ): List<List<CharBox>> {
+        require(degree >= 1) { "degree は 1 以上（指定値: $degree）" }
+        val total = doc.numberOfPages
+        // 並列区間に入る前に単一スレッドで 1 ページ処理し、静的キャッシュ（PDFBoxResourceLoader/CMap/
+        // glyphlist）を温める。スパイクで等価性が成立した条件のひとつがこれで、未初期化のまま K スレッドが
+        // 同時に触る形は検証していない。本番経路では直前の extractBookMeta が既に温めているので実質再実行
+        // だが（1ページ＝数ミリ秒）、この関数の暗黙の前提条件にはしない。
+        if (total > 0) loadFirstPage(doc)
+
+        val progress = PageLoadProgress(total, onPageLoaded)
+        // 最初に失敗した例外。キャンセル（進捗コールバックが投げる CancellationException）もここに載る。
+        // 「最初の1つ」を保つのは、後続スレッドが投げる打ち切り例外で本物のキャンセルが化けないようにするため。
+        val firstFailure = AtomicReference<Throwable?>(null)
+        val threadSeq = AtomicInteger(0)
+        val pool = Executors.newFixedThreadPool(degree) { runnable ->
+            // 名前を付けるのは実機トレース/ANR ログでどのスレッドが抽出中か判別するため。
+            // デーモンにするのは、万一ワーカーが停止に応じなくてもプロセス終了を妨げないようにするため。
+            Thread(runnable, "$LOAD_THREAD_PREFIX${threadSeq.incrementAndGet()}").apply { isDaemon = true }
+        }
+        try {
+            val futures = splitRanges(total, degree).map { range ->
+                pool.submit(
+                    // 型を明示するのは `stripper.pages` の可変型がそのまま Future の型引数へ流れ込むのを避けるため。
+                    Callable<List<List<CharBox>>> {
+                        try {
+                            PDDocument.load(source).use { own ->
+                                val stripper = GlyphStripper(
+                                    onPageStart = {
+                                        // 仲間が既に落ちている（＝キャンセル含む）なら自分もページ境界で降りる。
+                                        // use を抜けて自分の PDDocument を閉じさせるのが目的なので、
+                                        // firstFailure を上書きしない専用の型で抜ける。
+                                        if (firstFailure.get() != null) throw LoadAborted()
+                                        progress.onPageStart()
+                                    },
+                                    pageRange = range,
+                                ).apply { sortByPosition = false }
+                                stripper.getText(own)
+                                stripper.pages
+                            }
+                        } catch (t: Throwable) {
+                            // 握り潰さない。記録して同じものを投げ直す（記録は他スレッドを降ろすため）。
+                            firstFailure.compareAndSet(null, t)
+                            throw t
+                        }
+                    }
+                )
+            }
+            val merged = ArrayList<List<CharBox>>(total)
+            for (f in futures) merged.addAll(f.get())
+            return merged
+        } catch (t: Throwable) {
+            // ExecutionException は原因を剥がして投げ直す。剥がさないとキャンセルの型が呼び出し側
+            // （PdfBookImporter の `if (e is CancellationException) throw e`）で判別できなくなり、
+            // 「停止」が Unknown エラーに化ける。
+            val primary = firstFailure.get() ?: (t as? ExecutionException)?.cause ?: t
+            // main 側起因（get の割り込みなど）でもワーカーを降ろすため必ず記録してから待つ。
+            firstFailure.compareAndSet(null, primary)
+            awaitWorkersStopped(pool, primary)
+            throw primary
+        } finally {
+            pool.shutdown()
+        }
+    }
+
+    /**
+     * 全ワーカーが**終了しきる**（＝各スレッドの `use` が自分の PDDocument を閉じ終える）のを待つ。
+     *
+     * なぜ待つか: 待たずに例外を投げ返すと、走り続けるワーカーが数十〜数百 MB を掴んだまま呼び出し元の
+     * 後始末（出力ディレクトリ削除・次の取込）と重なり、ヒープ天井付近で「2セット同時生存」を作る
+     * ＝実機ではこの形が OEM の system kill を招く。閉じ順は ①ワーカー内 `use`（例外経路でも必ず）→
+     * ②ここで全ワーカーの終了確認 → ③呼び出し元へ例外 → ④facade の `use` が元の PDDocument を閉じる。
+     */
+    private fun awaitWorkersStopped(pool: ExecutorService, primary: Throwable) {
+        // 打ち切りはページ境界で見るので、1ページぶんの仕事（実機で約 7ms）で降りるのが正常。
+        // shutdownNow は待機中タスクの取り消しと割り込みの試行（PDFBox のパースは割り込みに応じないので保険）。
+        pool.shutdownNow()
+        try {
+            if (!pool.awaitTermination(WORKER_STOP_TIMEOUT_SEC, TimeUnit.SECONDS)) {
+                // 症状を隠さない: 停止しないワーカーが居ることは PDDocument が開きっぱなしという意味なので、
+                // 本来の例外に添えて必ず外へ出す（本来の例外は差し替えない＝キャンセルの型を保つ）。
+                primary.addSuppressed(
+                    IllegalStateException(
+                        "並列 loadPages のワーカーが ${WORKER_STOP_TIMEOUT_SEC}s 以内に停止しなかった（PDDocument が開いたままの可能性）"
+                    )
+                )
+            }
+        } catch (e: InterruptedException) {
+            Thread.currentThread().interrupt()
+            primary.addSuppressed(e)
+        }
+    }
+
+    /** [0, totalPages) を先頭から順に [degree] 個の連続範囲（0 始まり・両端含む）へ分ける。 */
+    private fun splitRanges(totalPages: Int, degree: Int): List<IntRange> {
+        val per = totalPages / degree
+        val rem = totalPages % degree
+        var from = 0
+        return (0 until degree).map {
+            // 余りは先頭から1ページずつ配る（分割の仕方は結果に影響しないが、実機スパイクと同一にしておく）。
+            val size = per + if (it < rem) 1 else 0
+            val range = from until (from + size)
+            from += size
+            range
+        }
+    }
+
+    /**
+     * 並列走行の進捗を1本のカウンタへ集約する。
+     *
+     * なぜ atomic + 直列化か: 下流（PdfBookImporter → PdfProcessingService の通知間引き）は
+     * 「1度に1スレッドから・単調増加で来る」既存の契約で書かれている。並列化はエンジン内部の実装詳細に
+     * 留め、外へ出す進捗の形は単一走行時と同一に保つ。到着が入れ替わって後退した通知は捨てる
+     * （捨てても最後の loaded==total は常に最大値なので取りこぼさない）。
+     */
+    private class PageLoadProgress(
+        private val total: Int,
+        private val onPageLoaded: (loaded: Int, total: Int) -> Unit,
+    ) {
+        private val loaded = AtomicInteger(0)
+        private var lastEmitted = 0 // synchronized(this) で保護
+
+        fun onPageStart() {
+            val n = loaded.incrementAndGet()
+            synchronized(this) {
+                if (n <= lastEmitted) return
+                lastEmitted = n
+                // キャンセル（呼び出し側の ensureActive）はここから投げられる。ロックは巻き戻しで解放される。
+                onPageLoaded(n, total)
+            }
+        }
+    }
+
+    /** 仲間の失敗を受けて自分のページ走査を打ち切るための内部専用シグナル（外へは出ない）。 */
+    private class LoadAborted : RuntimeException("並列 loadPages: 他スレッドの失敗により打ち切り")
 
     /** 1 ページ目だけの文字を取得する（タイトル・著者抽出用）。 */
     private fun loadFirstPage(doc: PDDocument): List<CharBox> {
@@ -203,21 +604,137 @@ object PdfExtractor {
      * onProgress は load(全ページのグリフ抽出＝超長編の支配的コスト)と process(段落化)を [EnginePhase]
      * で区別して通知する。facade(PdfBookExtractor) が両フェーズを重み合成し、load 中も進捗バーを前進
      * させるために渡す（未指定＝null なら通知しない＝オラクル/テスト用途）。
+     *
+     * [source] は [doc] の元ファイル。渡すと load フェーズがヒープに応じて並列化されうる（[loadPages]）。
+     * 省略すると単一走行＝並列化前と同じ挙動になる（ゴールデン/プロファイラはこちらを使う）。
      */
     fun runFinalEngine(
         doc: PDDocument,
+        source: File? = null,
+        blockStarts: MutableSet<Int>? = null,
+        onProgress: ((phase: EnginePhase, current: Int, total: Int) -> Unit)? = null,
+    ): List<String> =
+        runFinalEngine(doc, source, Runtime.getRuntime().maxMemory(), blockStarts, onProgress)
+
+    /**
+     * ヒープ上限を注入できる [runFinalEngine]。
+     *
+     * なぜ注入口を開けるか: 経路の分岐（全ページ保持 / ストリーミング）は端末のヒープ天井で決まるが、
+     * **開発機は高性能で低スペック側の分岐を人間が踏めない**。人が実機で確認できない以上、境界の
+     * 保証は機械の網しか無いので、テストから両経路を名指しで叩けるようにする。
+     */
+    internal fun runFinalEngine(
+        doc: PDDocument,
+        source: File?,
+        maxMemoryBytes: Long,
+        blockStarts: MutableSet<Int>? = null,
         onProgress: ((phase: EnginePhase, current: Int, total: Int) -> Unit)? = null,
     ): List<String> {
         val totalPages = doc.numberOfPages
-        val charListsByPage = loadPages(doc) { loaded, total ->
-            onProgress?.invoke(EnginePhase.LOAD, loaded, total)
+        // 走らせる前にヒープ上限から経路を決める（[canMaterializeAllPages] の why を参照）。
+        val materialize = canMaterializeAllPages(totalPages, maxMemoryBytes)
+
+        // LOAD フェーズ（進捗バー前半）＝「rules 検出に要る走査」。溜める経路は 1 走査、溜めない経路は
+        // 2 走査なので、通し進捗が巻き戻らないよう総数を走査数倍して単調増加のカウンタで出す。
+        val loadTotal = totalPages * (if (materialize) 1 else DetectedRules.STREAMING_PASSES)
+        var loaded = 0
+
+        val rulesSource: PageGlyphSource
+        val bodySource: PageGlyphSource
+        if (materialize) {
+            // 従来と同じ 1 パース経路。全ページ分の CharBox を保持できると判断した端末だけが通る。
+            val all = MaterializedPageSource(
+                loadPages(doc, source) { n, _ -> onProgress?.invoke(EnginePhase.LOAD, n, loadTotal) },
+            )
+            rulesSource = all
+            bodySource = all
+        } else {
+            // 保持量をページ数から切り離す経路。走査のたびに再パースする代わりに同時生存は 1 ページ。
+            // rules 用と本文用でインスタンスを分けるのは、進捗通知を LOAD フェーズの走査だけに限るため
+            // （本文走査の通知は PROCESS 側が出す＝1 ページで 2 回数えない）。
+            rulesSource = ReparsingPageSource(doc) {
+                loaded++
+                onProgress?.invoke(EnginePhase.LOAD, loaded, loadTotal)
+            }
+            bodySource = ReparsingPageSource(doc)
         }
+
         // 本文処理の前に、この文書の実配置から解析パラメータを検出する（検出不能な項目は FALLBACK＝
         // 現行実測値へ退避）。生成側が同形状のまま寸法を微調整しても追随できるようにするため。
-        val rules = DetectedRules.detect(charListsByPage)
+        val rules = DetectedRules.detect(rulesSource, totalPages)
+
+        // 行の復元もページ単位のストリーミングで回す（中間の全ページ CharBox を持たない）。
         // processPages が出す pct(10-60) は元々未使用のため捨て、(processed, bodyTotal) のみ前送りする。
-        return TextProcessor.processPages(charListsByPage, totalPages, rules) { _, processed, bodyTotal ->
+        val lines = ArrayList<String>()
+        val streamer = TextProcessor.LineStreamer(totalPages, rules, { _, processed, bodyTotal ->
             onProgress?.invoke(EnginePhase.PROCESS, processed, bodyTotal)
-        }
+        }, blockStarts) { lines.add(it) }
+        bodySource.forEachPage { index, chars -> streamer.addPage(index, chars) }
+        streamer.finish()
+        return lines
     }
+
+    /**
+     * 全ページ分の CharBox を**同時に保持してよいか**（＝再パースの無い高速経路を採れるか）を、
+     * 端末のヒープ上限と文書規模から**走らせる前に**決める。
+     *
+     * なぜ事前判定しかないか: [OutOfMemoryError] を捕まえてから退避する形は採れない。捕捉できた時点で
+     * ヒープは既に危険域で後続の確保も失敗しうるうえ、実機では ART が投げる前に OEM がプロセスごと
+     * 殺すこともある（`docs/knowledge/pdf-extract-engine-cost-ceiling.md`）。**踏む前に避ける**のが唯一の道。
+     *
+     * 係数の出典（いずれも実測。端末の ART 実装で 2 倍近く振れるので**大きい側**を安全側として採る）:
+     * - OPPO PGEM10 実機: engine ピーク 276.1MB / 8,668 ページ ＝ 約 32KB/ページ
+     * - x86_64 エミュレータ(API34): Dalvik ピーク 514MB / 8,668 ページ ＝ 約 59KB/ページ
+     * 保持の実体は 1 グリフ 1 [CharBox]（実測 390〜476 グリフ/ページ）なので、ページ数を代理変数にする。
+     *
+     * 予算を上限の [MATERIALIZE_BUDGET_PERCENT]% に留めるのは、CharBox 以外に
+     * PDDocument とフォント/CMap（実測で数十 MB）・段落/章の文字列・GC 猶予が同時に要るため。
+     *
+     * @param maxMemoryBytes `Runtime.getRuntime().maxMemory()` 相当。**引数で受けるのはテストのため**
+     *   ＝開発機が高性能で低スペック側の分岐を人間が踏めない以上、境界の保証は機械の網しか無い。
+     */
+    internal fun canMaterializeAllPages(totalPages: Int, maxMemoryBytes: Long): Boolean {
+        val budgetBytes = maxMemoryBytes / 100 * MATERIALIZE_BUDGET_PERCENT
+        val estimatedBytes = totalPages.toLong() * MATERIALIZED_BYTES_PER_PAGE
+        return estimatedBytes <= budgetBytes
+    }
+
+    // ==========================================================
+    // 並列 loadPages の較正値（すべて PGEM10 実機実測が出典・根拠は parallelDegree の KDoc）
+    // 出典: docs/knowledge/pdf-extract-engine-cost-ceiling.md
+    // ==========================================================
+
+    /**
+     * 全ページ保持の見積り（1 ページあたり）。実測 32KB（PGEM10 実機）〜59KB（x86_64 エミュ）の
+     * **大きい側**へ寄せた安全値。小さく見積もると天井を越えて落ちる／大きく見積もると遅い経路へ
+     * 落ちるだけ＝誤りの代償が非対称なので安全側に倒す。
+     */
+    internal const val MATERIALIZED_BYTES_PER_PAGE = 64L * 1024
+
+    /**
+     * 全ページ保持に割いてよいヒープ上限の割合。残りは PDDocument とフォント/CMap（実測で数十 MB）・
+     * 段落/章の文字列・GC 猶予が同時に要るぶん。
+     */
+    internal const val MATERIALIZE_BUDGET_PERCENT = 50L
+
+    /** ヒープ上限のうち抽出に使ってよい割合。残り 10% は GC 猶予（未回収ゴミの実測振れ幅 37.3MB/384MB 相当）。 */
+    private const val HEAP_BUDGET_PERCENT = 90L
+
+    /** 単一走行 1 セットの必要量（276.1MB ÷ 8,668ページ）。結果の CharBox 列が支配し K に依らず必ず要る。 */
+    private const val SINGLE_RUN_KB_PER_PAGE = 32L
+
+    /** スレッドを 1 本増やすごとの上乗せ（K=3 の 360.5MB − 単一 276.1MB を増分 2 スレッドで割った値）。 */
+    private const val PARALLEL_EXTRA_MB_PER_THREAD = 42L
+
+    /** 並列度の上限。実機は K=3 が最良（長編 2.1x・中編 2.7x）で、JVM でも長編は K=4 で伸びない。 */
+    private const val MAX_PARALLEL_DEGREE = 3
+
+    /** 1 スレッドあたりの最小ページ数。実測で良好だった最小の持ち分（中編 799 ÷ K=3 ＝ 266）を下回らない値。 */
+    private const val MIN_PAGES_PER_THREAD = 256
+
+    /** 並列ワーカーのスレッド名接頭辞（トレース/ANR ログでの識別と、テストの停止確認に使う）。 */
+    internal const val LOAD_THREAD_PREFIX = "pdf-load-"
+
+    /** 打ち切り後にワーカーの終了（＝PDDocument の close）を待つ上限。1ページの仕事は実機で約 7ms。 */
+    private const val WORKER_STOP_TIMEOUT_SEC = 10L
 }

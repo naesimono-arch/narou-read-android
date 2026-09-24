@@ -1,6 +1,7 @@
 package com.novelreader.ui.discovery
 
 import android.annotation.SuppressLint
+import android.os.Bundle
 import android.webkit.CookieManager
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
@@ -29,6 +30,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.Saver
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -40,9 +43,26 @@ import com.novelreader.narou.narouWorkUrl
 import com.novelreader.viewmodel.PdfImportEvent
 import com.novelreader.viewmodel.PdfImportUiState
 import com.novelreader.viewmodel.PdfImportViewModel
+import com.novelreader.ui.intro.IntroGroup
+import com.novelreader.ui.intro.LocalIntroController
 import com.novelreader.ui.theme.FontSubTitle
 import com.novelreader.ui.theme.FontTopBarTitle
 import com.novelreader.ui.theme.Spacing
+
+/**
+ * scrollIntoView の寄せ位置（`block` オプション）。**スクロール後の見えは、ここ1行の差し替えで切り替わる。**
+ *
+ * 【なぜ center か】引数なしの `scrollIntoView()` は既定が `block:"start"`＝対象要素の**上端をビューポート上端へ
+ * 貼り付ける**ため、目的地のフォームが画面の一番端に来て「どこへ着いたのか分かりにくい」（2026-09-04 実機所感）。
+ * 中央に置けば上下に地の文脈（目次の末尾・フォーム下のフッタ）が残り、着地点として読み取りやすい。
+ * 【代替 nearest を残す理由】.c-under-nav はフォーム＋ボタンの塊で高さがあり、center は**要素の中心**を画面中心へ
+ * 合わせる＝要素高がビューポートより大きいと上端の「縦書きPDF」見出しが画面外へ切れうる。実機で切れて見えたら
+ * "nearest"（既に見えていれば動かさず、外に在るときだけ最小移動で収める）へ倒す。
+ * 【なぜ2つの JS で定数を共有するか】主経路とフォールバックで寄せ位置が食い違うと、どちらが走ったかで見えが変わる
+ * ——そしてどちらが走ったかは実機からは判別できない。2箇所に literal を書かず、必ずここを参照させる。
+ * 【規約】block は「ビューポートをどう寄せるか」の指定にすぎず CSS 注入でも DOM 改変でもない＝ADR 0010/0011 の線の内側。
+ */
+private const val AUTO_SCROLL_BLOCK = "center"
 
 /**
  * 目次到達時に PDF 生成フォーム(.c-under-nav)へビューポートを寄せる注入 JS（onPageCommitVisible 主経路用）。
@@ -61,7 +81,7 @@ private const val AUTO_SCROLL_JS_ON_VISIBLE = """
   function tryScroll(){
     if (window.__nrAutoScrollDone) return true;
     var el = document.querySelector('.c-under-nav');
-    if (el) { el.scrollIntoView(); window.__nrAutoScrollDone = true; return true; }
+    if (el) { el.scrollIntoView({block:'$AUTO_SCROLL_BLOCK'}); window.__nrAutoScrollDone = true; return true; }
     return false;
   }
   if (tryScroll()) return;
@@ -81,7 +101,7 @@ private const val AUTO_SCROLL_JS_FALLBACK = """
 (function(){
   if (window.__nrAutoScrollDone) return;
   var el = document.querySelector('.c-under-nav');
-  if (el) { el.scrollIntoView(); window.__nrAutoScrollDone = true; }
+  if (el) { el.scrollIntoView({block:'$AUTO_SCROLL_BLOCK'}); window.__nrAutoScrollDone = true; }
 })();
 """
 
@@ -121,6 +141,49 @@ fun PdfImportScreen(
     val lowerNcode = remember(ncode) { ncode.urlSlug }
     // 目次ページ URL 判定用の正規表現。onPageCommitVisible と onPageFinished の双方で使うため hoist（重複回避）。
     val menuUrlRegex = remember(lowerNcode) { Regex("^https://ncode\\.syosetu\\.com/$lowerNcode/?$") }
+
+    // ── 教示「はじめに」組D（1 枚）＝この画面を初めて開いたときだけ出す（正本 §2/§3・2026-09-04 反転）──
+    // null＝教示のホストが居ない構成（プレビュー・個別画面だけの Robolectric）＝何も出さない。
+    val introController = LocalIntroController.current
+    // カードを出す契機。**背景が描き切ってから出す**（正本 §8「置きかた」）に対して、この画面で取れる最良点。
+    // 【なぜ onPageCommitVisible＋menuUrlRegex 一致か】他の組は着地の信号を持つ（組B＝deferHeavyContent が
+    // 閉じた／組C＝push 遷移窓が閉じた）が、この画面の背景は WebView で、**Kotlin 側は自動送りが終わったことを
+    // 知らない**（AUTO_SCROLL_JS_* を evaluateJavascript へ投げっぱなしで結果コールバックを受けていない）。
+    // 目次ページの**初描画**は取れるので、自動送りの JS を投げるのと同じ瞬間をカードの契機にする。
+    // 【担保できること】①なろうの目次ページに着いた後にしか出ない（作品ページ以外の多段フロー中には出ない）
+    //   ②白いままの画面には載らない（onPageCommitVisible＝最初のピクセルが出た後）。
+    // 【担保できないこと】**カードが載る瞬間、背後はまだ目次の上の方**のことがある——scrollIntoView が
+    //   走り切ったかを知る手段が無いため。カード文言「開いた位置にある ［縦書きPDF］ の枠から」は
+    //   **閉じた後の状態**を指しており、スクロールはカードの下で進むので実害は出ない想定だが、
+    //   これはモックでは確かめられない＝実機の二段検分で見る（visual-language 恒久ルール5）。
+    // 【なぜこれ以上踏み込まないか】JS からコールバックを返せば「寄せ終わった」を取れるが、それは注入 JS の
+    //   役割を〈ビューポート移動のみ〉から広げる話＝ADR 0010/0011 の線に触れる。踏み込むなら別 ADR。
+    val menuPageCommitted = remember { mutableStateOf(false) }
+    LaunchedEffect(menuPageCommitted.value) {
+        // requestAuto 自身が〈未消費か〉〈他のカードを出していないか〉を見るので、ここで条件を重ねない
+        // （重ねると同じ規則が 2 箇所に散り、片方だけ直されて腐る）。再訪でも true のままなので発火は 1 回。
+        if (menuPageCommitted.value) introController?.requestAuto(IntroGroup.IMPORT)
+    }
+
+    // 構成変更（回転・ダーク切替・fontScale 変更）で Activity が再生成されると WebView も破棄される。
+    // 旧実装は plain remember＋無条件 loadUrl(menuUrl) だったため、なろうの多段フロー
+    // （作品ページ→縦書きPDF→書式設定→生成）の途中で構成変更が起きると作品ページ先頭へ巻き戻っていた。
+    // WebView.saveState/restoreState で「履歴スタック（＝フローのどこに居るか）」ごと持ち回る
+    // （隣の WebReaderScreen が 2026-07-12 persist Major で塞いだ同機序の移植。以下の判断も同源）。
+    // 【規約厳守（ADR 0010/0011）】saveState/restoreState はネイティブ WebView の状態シリアライズ API であり、
+    // evaluateJavascript でも DOM 改変でもない＝注入 JS を scrollIntoView に限る規約を一切侵さない。
+    // なぜ custom Saver でライブの WebView から取り出すか: 状態保存フェーズ（onSaveInstanceState 経由）は
+    // onDispose より前に走るため、onDispose で Bundle へ書いても初回の構成変更に間に合わない。Saver.save を
+    // 「保存フェーズ時点で生存中の WebView へ saveState する」形にして、その時点の最新状態を確実に捕える。
+    // なぜ空 Bundle をセンチネルにするか: rememberSaveable の型パラメータは T : Any（null 不可）のため
+    // 「未保存＝null」が表現できない。「未保存＝空 Bundle」で代替し、消費側は isEmpty で初回判定する
+    // （WebView 不在/saveState 失敗時も空のまま＝安全側で menuUrl ロードに落ちる）。
+    val restoredState = rememberSaveable(
+        saver = Saver<Bundle, Bundle>(
+            save = { webViewHolder.value?.let { wv -> Bundle().apply { wv.saveState(this) } } ?: Bundle() },
+            restore = { it },
+        )
+    ) { Bundle() }
 
     // 取り込み開始イベント: Toast を出して画面を閉じる（一度きり）。
     LaunchedEffect(Unit) {
@@ -195,6 +258,10 @@ fun PdfImportScreen(
                             override fun onPageCommitVisible(view: WebView?, url: String?) {
                                 if (url != null && menuUrlRegex.matches(url)) {
                                     view?.evaluateJavascript(AUTO_SCROLL_JS_ON_VISIBLE, null)
+                                    // 教示カード（組D）の契機。ここは UI スレッドなので snapshot state を直接触れる。
+                                    // requestAuto を直接呼ばず state 経由にするのは、コントローラを触るのを
+                                    // コンポジション側（LaunchedEffect）に寄せるため＝他の入口と同じ形にする。
+                                    menuPageCommitted.value = true
                                 }
                             }
 
@@ -228,7 +295,10 @@ fun PdfImportScreen(
                         }
 
                         webViewHolder.value = this
-                        loadUrl(menuUrl)
+                        // 復元状態があれば履歴スタックごと復元（構成変更でPDF生成フローが巻き戻るのを防ぐ）。
+                        // 無ければ初回として作品ページをロードする。復元後に目次ページが再描画された場合も
+                        // 自動スクロール注入は menuUrlRegex 判定＋__nrAutoScrollDone 冪等化で従来どおり安全。
+                        if (!restoredState.isEmpty) restoreState(restoredState) else loadUrl(menuUrl)
                     }
                 },
             )

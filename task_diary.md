@@ -264,7 +264,9 @@ Python で `raise EncryptedPdfError("...")` すると、Kotlin側では `PyExcep
 | 8.6.x | 8.7+ |
 
 Gradleダウングレードより**AGPアップグレード**の方がAndroid Studioのキャッシュ問題を回避できて確実。
-現在の構成: AGP 8.6.1 + Gradle 8.9 + Kotlin 1.9.22 + Compose Compiler 1.5.10 + Compose BOM 2024.04.01。
+（上の表は当時の互換調査の記録。**現在の版をここに書かない**＝AGP/Kotlin/Compose は以後さらに上げており、
+書けば必ず取り残される。版の正本＝`android/settings.gradle`〔AGP・Kotlin・各プラグイン〕と
+`android/app/build.gradle`〔SDK・依存〕。）
 
 ---
 
@@ -494,7 +496,7 @@ Tom Roush の PDFBox-Android（Chaquopy/pdfminer からの移植先）は、**�
 
 ToUnicode CMap を持たない CID フォントのグリフ解決に、AAR 同梱の Adobe glyphlist/CMap 資産を使う。そのため **`com.tom_roush.pdfbox.android.PDFBoxResourceLoader.init(applicationContext)` を全ての `PDDocument.load` の前に1回**呼ぶ必要がある（`MainActivity.onCreate` の `Python.start` 置換位置か `Application.onCreate`）。フォントは AAR 同梱で手動配布不要。androidTest では `@Before` で instrumentation の `targetContext` により init する。
 
-**【2026-07-03 実機実測で解消＝穴3 KILL】** OPPO PGEM10(ColorOS) 実機で `PdfExtractorDeviceSpikeTest`（実PDF3件を golden_regression と同一指標で突合）を実行。**init は実機で効く**＝CID→Unicode 解決が根本的に機能する。決定的証拠: 短編 N1453LW は body_sha256 まで**完全一致**、中編 N2959KI（9786段落/131章/38万字）も **body_sha256 完全一致**。残差は init 失敗ではなく既知の CID→Unicode マッピング差で、正体は #35（波ダッシュ主因）＋超長編 N6169DZ の 0.01% オーダーのエッジ（文字+0.012%・ルビ+0.97%）。submission-B デスクトップ実測の「ルビ P/R 約81%」は char-level 指標での話で、段落/本文ベースでは実機でもほぼ一致した（[[kotlin-pdfbox-migration-prototype]]）。
+**【2026-07-03 実機実測で解消＝穴3 KILL】** OPPO PGEM10(ColorOS) 実機で `PdfExtractorDeviceSpikeTest`（実PDF3件を golden_regression と同一指標で突合）を実行。**init は実機で効く**＝CID→Unicode 解決が根本的に機能する。決定的証拠: 短編 N1453LW は body_sha256 まで**完全一致**、中編 N2959KI（9786段落/131章/38万字）も **body_sha256 完全一致**。残差は init 失敗ではなく既知の CID→Unicode マッピング差で、正体は #35（波ダッシュ主因）＋超長編 N6169DZ の 0.01% オーダーのエッジ（文字+0.012%・ルビ+0.97%）。submission-B デスクトップ実測の「ルビ P/R 約81%」は char-level 指標での話で、段落/本文ベースでは実機でもほぼ一致した（memory `legacy-python-artifacts`）。
 
 #### 32. WSL Bash ツールで Gradle を回す作法（.bashrc 非ロード・sdk.dir 競合・sed 警告）  ★★
 

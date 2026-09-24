@@ -1,7 +1,6 @@
 package com.novelreader.pdf
 
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertSame
 import org.junit.Test
 
 /**
@@ -40,31 +39,15 @@ class PdfExtractorTest {
         assertEquals("著者", PdfExtractor.authorFromChars(chars))
     }
 
-    // --- グリフ正規化（task_diary #35）: PDFBox-android の CID→Unicode を pdfminer(オラクル)へ揃える ---
-
-    @Test fun normalizeMapsFullwidthTildeToWaveDash() {
-        // '\uFF5E'(PDFBoxが返す) → '\u301C'(pdfminerが返す)
-        assertEquals("\u301C", normalizeGlyphUnicode("\uFF5E"))
-        assertEquals("前世を思い出しました　\u301Cあれ", normalizeGlyphUnicode("前世を思い出しました　\uFF5Eあれ"))
-    }
-
-    @Test fun normalizeMapsDashAndArrowsToGolden() {
-        // 1:1 コードポイント写像（N6169DZ 章題ドリフトを golden へ寄せる）
-        assertEquals("\u2212", normalizeGlyphUnicode("\uFF0D"))   // FULLWIDTH HYPHEN-MINUS → MINUS SIGN
-        assertEquals("\u2190", normalizeGlyphUnicode("\u2191"))   // UP → LEFT ARROW
-        assertEquals("\u2192", normalizeGlyphUnicode("\u2193"))   // DOWN → RIGHT ARROW
-        // 文中混在・複数写像の同時適用（章題「第－1話　↑戻る」相当）
-        assertEquals("第\u22121話　\u2190戻る", normalizeGlyphUnicode("第\uFF0D1話　\u2191戻る"))
-    }
-
-    @Test fun normalizeLeavesUnmappedUntouched() {
-        // 既に写像先のものは不変（二重変換しない）
-        assertEquals("\u301C", normalizeGlyphUnicode("\u301C"))
-        assertEquals("\u2212", normalizeGlyphUnicode("\u2212"))
-        assertEquals("\u2190\u2192", normalizeGlyphUnicode("\u2190\u2192"))
-        // 無関係な文字は不変かつ同一インスタンス（ホットパスで新規確保しない設計＝assertSame 契約）
-        val plain = "婚約の継続"
-        assertEquals(plain, normalizeGlyphUnicode(plain))
-        assertSame(plain, normalizeGlyphUnicode(plain))
-    }
+    // --- グリフの字を決める経路（ADR 0041 決定1）---
+    //
+    // かつてここに `normalizeGlyphUnicode` の写像テスト 3 本が在ったが、写像そのものを撤去したので
+    // 一緒に落とした（FF5E→301C・FF0D→2212・矢印回転。追従先だった pdfminer は既に存在しない実装＝
+    // **死んだオラクル**で、実際には 6 系統すべてで web 原文と食い違っていた）。
+    //
+    // 置き換え先は [GlyphDecoder]（字は ToUnicode の逆引きでなくフォントの符号化から決める）で、
+    // その契約を見張るのは `WebAnchoredOracleTest` の S2b＝**実 PDF 4 本の全文で 19 コードポイントの
+    // 出現数を web 原文オラクルと突き合わせる**ゲート。ここに合成入力の単体テストを置き直さないのは、
+    // [GlyphDecoder] の入力が PDFBox の TextPosition（フォント・符号化・ToUnicode を伴う実物）で、
+    // 手で組んだモックでは「どちらの層を見ているか」という検証したい当のものが再現できないため。
 }

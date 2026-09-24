@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
@@ -34,6 +35,42 @@ sealed interface NovelDetailUiState {
 }
 
 /**
+ * 取込済みの蔵書と、その本の**手元の栞**（作品詳細の固定バーが読む唯一の状態）。
+ *
+ * ⚠️ **顔（主CTA の文言）と着地先を1つの値から出すための型**（2026-09-04 裁定）。
+ * この画面には栞が2つある——**手元の栞（ここ）** と **なろうの栞**（`readingProgress`）——ので、
+ * どちらがどちらを決めるかを型で分ける: **主＝手元／副＝なろう**。
+ * 取込済みの「既読／未読」の顔は手元の栞だけで決まり、なろう側の位置は一切見ない
+ * （旧実装はなろうの位置で顔を決めていたため、〈アプリで8割読了・なろう未訪〉が「未読」の顔のまま
+ * 続きへ着地していた）。
+ *
+ * ⚠️ **2026-09-07 に判定軸を明示して再確認した（結論は据え置き）**。軸＝「バーの顔と、主CTA を押した
+ * ときの着地が食い違わないこと」＝表示が事実として正しいかは第二義。**この軸では手元の栞しか採れない**:
+ * 主CTA の着地は手元の本の中（章 or 目次）にしか無く、なろうの位置はその着地を一切決めないため、
+ * なろうを根拠にすると根拠と着地が別物のまま残る。同じ軸で落とした2案を再開させないためここへ畳む——
+ * **併記案**（「アプリ8割／なろう第120話」）＝顔が2つになって「押したらどちらへ行くのか」が言えなくなり
+ * 軸そのものを外す。加えて主CTA のラベル丈が伸び、案Bの「4状態すべてバー総高137dp」を割る。
+ * **現状維持案**（なろう側のまま注記だけ足す）＝食い違いを残す選択なので軸に反する。
+ * どちらも「事実として正しい」ことを理由に採れそうに見えるが、それは第二義の軸。
+ *
+ * @param bookId 蔵書の id（読書ルートの引数）。
+ * @param lastReadFile 進捗行の `lastReadFilename`。行が無ければ null＝一度も章を開いていない。
+ */
+data class ImportedBook(val bookId: String, val lastReadFile: String?) {
+    /** 主CTA の着地先ファイル。栞が無ければ目次（本棚から本を開く既存経路と同じ既定）。 */
+    val startFile: String get() = lastReadFile ?: INDEX
+
+    /** 「続きから」の顔にするか。⚠️ **着地が章かどうか**そのものを条件にしているので、
+     *  顔と着地がずれることが**構造的に起きない**（進捗行に目次が保存されていても未読の顔になる）。 */
+    val hasBookmark: Boolean get() = startFile != INDEX
+
+    private companion object {
+        /** 目次のファイル名（ReadingBackStack.INDEX と同値。読書ルートの既定着地）。 */
+        const val INDEX = "index.html"
+    }
+}
+
+/**
  * 作品詳細（discovery/detail/{ncode}）。ナビ引数の ncode を load() で受けて全項目を取得する。
  * DiscoveryViewModel から分離している理由: 詳細はルート引数だけで自己完結し、
  * 発見系の共有状態（ホーム/結果一覧）と寿命が異なるため。
@@ -50,7 +87,7 @@ class NovelDetailViewModel(application: Application) : AndroidViewModel(applicat
 
     private var loadedNcode: Ncode? = null
 
-    // load() された ncode の Flow 版。onShelf/isImported の購読切り替え（flatMapLatest）の起点にする。
+    // load() された ncode の Flow 版。onShelf/importedBookId の購読切り替え（flatMapLatest）の起点にする。
     private val ncodeFlow = MutableStateFlow<Ncode?>(null)
 
     /** 現在の作品が Web由来カードとして本棚に置かれているか（固定バーのトグル表示用）。
@@ -66,9 +103,13 @@ class NovelDetailViewModel(application: Application) : AndroidViewModel(applicat
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
-    /** 機能②: この作品の WebView 読書位置（最後に開いた話数。未記録＝0）。
-     *  >0 のとき作品詳細に「続きから読む 第N話」を出し、記録した話へ直接着地させる。
-     *  比較は保存時正規化（trim+uppercase）と同じ形で行う（表記ゆれで記録が引けない事故を防ぐ）。 */
+    /** 機能②: この作品の**なろう側**の読書位置（最後に開いた話数。未記録＝0）。
+     *  >0 のとき記録した話へ直接着地する導線を出す。
+     *  比較は保存時正規化（trim+uppercase）と同じ形で行う（表記ゆれで記録が引けない事故を防ぐ）。
+     *
+     *  ⚠️ **これは「なろうの栞」で、手元の本の栞（[ImportedBook.hasBookmark]）とは別物**（2026-09-04 裁定）。
+     *  取込済みでは**副アクションだけ**がこれを読む＝主＝手元／副＝なろう。未取込のときは手元に本が
+     *  無いのでこれが唯一の位置＝従来どおり固定バーの顔も決める。 */
     @OptIn(ExperimentalCoroutinesApi::class)
     val readingProgress: StateFlow<Int> = ncodeFlow
         .flatMapLatest { nc ->
@@ -80,18 +121,29 @@ class NovelDetailViewModel(application: Application) : AndroidViewModel(applicat
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
 
-    /** 現在の作品が既に蔵書（PDF 取込済み・ncode 紐付け）か。
-     *  取込済みなら「取り込む」「本棚に置く」の2アクションは冗長のため固定バーから隠す（モック注記）。 */
+    /** 現在の作品が既に蔵書（PDF 取込済み・ncode 紐付け）なら、その蔵書と**手元の栞**。未取込なら null。
+     *  取込済みなら「取り込む」「本棚に置く」の2アクションは冗長のため固定バーから隠す（モック注記）。
+     *
+     *  ⚠️ **Boolean でなく [ImportedBook] を持つ**（2026-09-04 裁定・案A ＋ 同日の栞一本化）:
+     *  取込済みの主CTA は蔵書を読書画面で開くので、判定だけでなく**着地先**（bookId と開くファイル）が要る。
+     *  作品詳細が ncode しか持たず bookId を持たないことが「取込済みなのに手元の本へ行けない」の真因だった。
+     *  ⚠️ さらに **`allProgress` を合流させて栞まで同じ1値に入れる**のが要点＝主CTA の文言（顔）と着地先が
+     *  同じ源を見る。別々に引くと「未読の顔で続きから開く」食い違いが必ず戻る（それが今回の真因）。
+     *  ⚠️ 進捗は Room の Flow なので、読書画面から戻ってきた時点で自動的に顔が更新される
+     *  （一度きりの suspend 取得では「読んだのに未読の顔のまま」が残る）。 */
     @OptIn(ExperimentalCoroutinesApi::class)
-    val isImported: StateFlow<Boolean> = ncodeFlow
+    val importedBook: StateFlow<ImportedBook?> = ncodeFlow
         .flatMapLatest { nc ->
-            if (nc == null) flowOf(false)
-            else bookRepository.allBooks.map { books ->
+            if (nc == null) flowOf(null)
+            else combine(bookRepository.allBooks, bookRepository.allProgress) { books, progress ->
                 // 表記ゆれ無視の同一作品判定は Ncode.sameWorkAs（storageKey 突合＝2026-07-27 に全流儀と統一）に集約。
-                books.any { it.ncode?.let { n -> Ncode(n).sameWorkAs(nc) } == true }
+                val book = books.firstOrNull { it.ncode?.let { n -> Ncode(n).sameWorkAs(nc) } == true }
+                book?.let { b ->
+                    ImportedBook(b.id, progress.firstOrNull { it.bookId == b.id }?.lastReadFilename)
+                }
             }
         }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     /** 「本棚に置く/外す」トグル。Content 未取得（Loading/Error）では何もしない
      *  （置くのに必要な title/writer/話数が無く、ボタン自体も Content でしか出ない）。 */

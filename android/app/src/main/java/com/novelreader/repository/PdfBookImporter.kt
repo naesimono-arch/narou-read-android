@@ -9,6 +9,7 @@ import com.novelreader.data.ProgressDao
 import com.novelreader.narou.model.Ncode
 import com.novelreader.pdf.BookMeta
 import com.novelreader.pdf.CorruptedPdfError
+import com.novelreader.pdf.EmptyExtractionError
 import com.novelreader.pdf.EncryptedPdfError
 import com.novelreader.pdf.InsufficientStorageError
 import com.novelreader.pdf.PdfProgress
@@ -60,6 +61,10 @@ internal class PdfBookImporter(
         is EncryptedPdfError        -> BookImportError.EncryptedPdf()
         is InsufficientStorageError -> BookImportError.InsufficientStorage()
         is CorruptedPdfError        -> BookImportError.CorruptedPdf()
+        // 章0件（③' ゲート）も CorruptedPdf 扱い＝「読み取れません」の固定文言に載せる。
+        // なぜ: 同一 PDF の再試行は必ず同じ結果の決定的失敗であり、CorruptedPdf は Service の
+        // isDeterministicFailure が「再試行」を出さない側に分類する（無効な再試行導線を出さない）。
+        is EmptyExtractionError     -> BookImportError.CorruptedPdf()
         else -> {
             val msg = e.message ?: ""
             when {
@@ -131,7 +136,9 @@ internal class PdfBookImporter(
                 val restoreByHash = existingByHash?.takeIf { overwrite || !it.hasContent(context.filesDir) }
                 if (existingByHash != null && restoreByHash == null) {
                     // outputDir はまだ mkdirs していないので掃除不要。変換の成否が確定した（＝重複）ので
-                    // 成功/重複時と同じく pending_jobs を落とし永続権限も返す（NonCancellable で保護）。
+                    // pending_jobs の記帳を落とす。永続 URI 権限は返さない（ADR 0043＝PendingJobStore.settleJob
+                    // の why。同内容の本が既に蔵書に在る＝その本の取込元権限を巻き添えで失いうる）。
+                    // NonCancellable で保護するのは記帳の確定を中断されないため。
                     withContext(NonCancellable) { pendingJobs.settleJob(pdfUri) }
                     extractionScope.ensureActive()
                     // try 内から return しても finally（tempFile.delete）は走る＝一時ファイルはリークしない。
@@ -142,7 +149,7 @@ internal class PdfBookImporter(
                 // 抽出は分オーダーで一時展開＋出力HTMLを filesDir へ書くため、逼迫時は変換の終盤で ENOSPC
                 // 失敗し、時間と cache を浪費する。重い抽出に入る前に filesDir の空きと概算所要を比べ、不足なら
                 // 既存の容量不足エラー経路（InsufficientStorage の固定文言）へ落として無駄な変換を回避する。
-                // outputDir はまだ mkdirs していないので掃除不要。settlePendingJob もしない＝容量が空けば
+                // outputDir はまだ mkdirs していないので掃除不要。settleJob もしない＝容量が空けば
                 // 再試行で成功しうる一過性失敗として、外側 fold の失敗経路（pending 行だけ落とし権限は残す）に委ねる。
                 val pdfSizeBytes = tempFile.length()
                 if (!hasEnoughStorageFor(context.filesDir.usableSpace, pdfSizeBytes)) {
@@ -187,6 +194,21 @@ internal class PdfBookImporter(
                     throw e
                 }
 
+                // ③' 章0件ゲート（監査 A3: import-commits-without-integrity-check）: 確定（④以降の
+                // Duplicate/復元/insert いずれか）の前に、生成物に章本文（chap_N.html）が1枚も無い取込を
+                // 失敗で弾く。総ページ数4以下の PDF は TextProcessor の固定トリム（先頭3＋末尾1除外）で
+                // 全ページが落ち、index.html だけの「開けない本」が成功として棚に残っていた（hasContent は
+                // リンク0本を torn と見なさないため復旧導線も出ない＝削除以外に回復不能）。Web 経路の
+                // ScrapeIntegrity.verify（空 TOC は ScrapeStructureException）と同じ「確定前の構造検査」を
+                // PDF 側にも置く。判定は生成物の実枚数（chapterFileCount）＝Web/PDF 上書き clamp と同じ正。
+                if (chapterFileCount(outputDir) == 0) {
+                    // 上の catch(Throwable) は extractBook だけを包むため、ここでは自前で書きかけを消す。
+                    outputDir.deleteRecursively()
+                    throw EmptyExtractionError(
+                        "章が1件も抽出できない（総ページ数不足 or 対応外レイアウトの疑い）",
+                    )
+                }
+
                 // ④ べき等ガード（UX監査 F-G 公理3）: 抽出後のタイトル＋著者で既存蔵書を照合する。
                 // 既に同じ本があれば二重登録しない。この段階で書きかけ HTML を破棄する（本棚に孤立本を残さない）。
                 // 多層防御の最終層: ①Service のキュー重複ガード（同一 URI の連続投入を変換前に弾く）→
@@ -202,8 +224,8 @@ internal class PdfBookImporter(
                 // この1条件が「上書きしますか」確認後の PDF 差し替えの実体になる。
                 if (existing != null && existing.hasContent(context.filesDir) && !overwrite) {
                     outputDir.deleteRecursively()
-                    // 変換の成否が確定した（＝重複と判明）ので pending_jobs を落とす。DB 書き込みを伴わない
-                    // が settlePendingJob は権限解放も行うため、登録成功時と同じく NonCancellable で保護する。
+                    // 変換の成否が確定した（＝重複と判明）ので pending_jobs を落とす（永続 URI 権限は
+                    // 保持＝ADR 0043）。登録成功時と同じく NonCancellable で確定を保護する。
                     withContext(NonCancellable) { pendingJobs.settleJob(pdfUri) }
                     extractionScope.ensureActive()
                     AddBookResult.Duplicate(existing)
@@ -304,14 +326,13 @@ internal class PdfBookImporter(
                 // 失敗が確定した本は再開対象から外す（破損PDF等は再試行しても失敗を繰り返すだけで、
                 // 起動のたびに同じエラーが再走するループになる）。キャンセルは上で rethrow 済み＝対象外で、
                 // 停止操作時の扱いは Service の ACTION_STOP（全消し）が決める。
-                // なぜ settlePendingJob ではなく pending_jobs 行の削除のみか（M7 再試行の成立）:
-                // settlePendingJob は永続 URI 権限も返すが、それだと失敗 Snackbar の「再試行」が
-                // 同一 URI を再投入したとき openInputStream が権限喪失で必ず再失敗する（＝再試行が形骸化）。
-                // 権限を残せばユーザー起点の再試行が機能する。再試行しない場合に権限が1件残るのは
-                // 端末上限内の軽微なコストで、権限リーク回避より再試行の成立を優先する。
-                // （成功/重複/停止時は従来どおり settlePendingJob で権限も返す＝ここだけの例外扱い。）
+                // 永続 URI 権限は返さない（M7 再試行の成立）: 返すと失敗 Snackbar の「再試行」が同一 URI を
+                // 再投入したとき openInputStream が権限喪失で必ず再失敗する（＝再試行が形骸化）。
+                // ⚠ かつてはこれが失敗経路だけの例外扱いだったが、ADR 0043 で「取込の確定では解放しない」が
+                // 全経路の既定になったため、成功・重複と同じ settleJob で足りる（記帳削除のみ）。
+                // 再試行されずに終わった分は次回起動の releaseOrphanedPermissions が回収する。
                 withContext(NonCancellable) {
-                    pendingJobs.deleteRowKeepingPermission(pdfUri.toString())
+                    pendingJobs.settleJob(pdfUri)
                 }
                 Result.failure(classifyError(e))
             },
@@ -347,8 +368,9 @@ internal fun hasEnoughStorageFor(usableBytes: Long, pdfSizeBytes: Long): Boolean
  * contentSha256 は変換が成功して BookEntity を insert する時にしか books へ書かれない（addBook ⑤ の
  * NonCancellable 内で insertBook と一緒に確定）。未完了のまま kill されたジョブは自分のハッシュを
  * まだ books に持たないため、リカバリ再投入時に findExistingBookByHash は null を返し、自分自身を
- * 誤って遮断することはない。逆に「insert 済みだが settlePendingJob 直前に kill」された極小窓
- * （BookRepository ④/⑤ のコメント参照）では、リカバリ再投入がこのハッシュ照合でヒットして
+ * 誤って遮断することはない。逆に「insert 済みだが settleJob 直前に kill」された極小窓
+ * （本ファイル ④＝:210・⑤＝:267 のコメント参照。旧記述の「BookRepository」は誤称で、そんなクラスは無い）では、
+ * リカバリ再投入がこのハッシュ照合でヒットして
  * 変換前に Duplicate 確定する＝旧実装（抽出後に title＋author で弾く）より二重変換窓が縮む改善であり、
  * 誤ブロックではない。よって「自分のジョブを除外」する防御は追加しない。
  */

@@ -1,6 +1,8 @@
 # なろうAPI 発見・検索の実装パターン（なぜこう作ったか）  ★★
 
 > 旧台帳 `STATUS-api-lab`（削除済み）§2「実装知見」から集約（2026-07-08 の解体で移設）。
+> 正本コード: `android/app/src/main/java/com/novelreader/narou/`・`android/app/src/main/java/com/novelreader/ui/discovery/`
+> （いずれもディレクトリ一式。VM 等の個別ファイルは末尾「コード:」行を参照）
 > ここは **コードが正本**（`com.novelreader.narou` 一式・`ui/discovery/`）。実装の詳細はコードを読めば分かるので、各項は「**なぜこのパターンか**」に絞る。
 > なろうAPI の外部事実（サーバ挙動・パラメータの落とし穴）は `task_diary.md`「なろう小説API（検索パラメータ）」節が正本（本ファイルはアプリ側の設計選択に限る）。
 

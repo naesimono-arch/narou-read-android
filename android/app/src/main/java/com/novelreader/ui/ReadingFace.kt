@@ -93,8 +93,13 @@ internal data class NcodeLink(
  * @property chapterNumber スキンM（星図）の章扉・上端結線進捗、スキンP のセーブバー/チップの材料
  *   （ADR 0022 §1 の部品分岐）。null＝目次未ロード等で不明。M/P 以外のスキンでは未使用。
  * @property totalChapters 同上（総章数）。null または 0 以下なら進捗表示を出さない。
- * @property onNavigateTo 章/目次へ「進む」。"index.html" を渡すと目次を開く。
- * @property onNavigateToBookshelf 本棚へ直行（章パース失敗時のエラー画面が使う）。
+ * @property onNavigateTo 章/目次へ「進む」。"index.html" を渡すと目次を開く（下端「目次」ボタン・前後章）。
+ * @property onBack 上端 ←（と没入時 a11y「戻る」）＝一つ上の階層へ（章の親＝目次・ADR 0047）。
+ *   システム Back と同一実装（ReadingScreen の performBack → [ReadingBackStack.back]）を受け取ること
+ *   ＝ボタン側で「章なら目次へ」と**再実装**しない。着地が同じでも実装が2本に割れると、片方だけが
+ *   後から書き換わって操作で行き先が割れる（3 度の反転の真因はまさにこれ）。
+ * @property onNavigateToBookshelf 本棚へ直行（章パース失敗時のエラー画面「本棚に戻る」だけが使う）。
+ *   ⚠️ [onBack] とは別物＝こちらは入場元に依らず本棚へ落ちる（ボタン文言どおりの行き先）。
  */
 @Immutable
 internal data class ChapterNav(
@@ -105,6 +110,7 @@ internal data class ChapterNav(
     val chapterNumber: Int?,
     val totalChapters: Int?,
     val onNavigateTo: (String) -> Unit,
+    val onBack: () -> Unit,
     val onNavigateToBookshelf: () -> Unit,
 )
 
@@ -124,6 +130,12 @@ internal data class ChapterNav(
  *   隠す（route が算出）。M3 の不変式（layout 高 = 実高 + heightOffset）に縛られ state 側で先に畳めないため、
  *   退避完了までの見た目は描画側の alpha ゲートで隠す。
  * @property showChromeHint 没入クローム復帰ヒント（アプリ通算初回の消灯時に数秒だけ出す一過性ラベル）。
+ * @property topPillLabelShown 「最上部へ」ピルのラベルを通算初回に見せ切ったか（true＝以後アイコンのみ）。
+ *   2026-09-05 裁定（案S4）でピルはアイコンのみへ縮んだので、「一度は語で見せてある」をこの pref が担う。
+ *   ⚠️ prefs の読み書きは route（[ChapterScreen]）が持つ＝復帰ヒント（[showChromeHint]）と同じ所有の型。
+ * @property onTopPillLabelShown ラベルを見せ切ったことを route へ伝える（route が prefs へ焼く）。
+ *   ⚠️ 呼ぶのは**ピルが出きって、そのあと画面から消えた**時点。表示中に呼ぶと pref の反転がそのまま
+ *   画面に出て、読者の目の前で語が消え器が縮む（呼び出し側の why を参照）。
  */
 @Stable
 @OptIn(ExperimentalMaterial3Api::class)
@@ -133,6 +145,8 @@ internal data class ReadingChrome(
     val scrollBehavior: TopAppBarScrollBehavior,
     val barsVisualReady: Boolean,
     val showChromeHint: Boolean,
+    val topPillLabelShown: Boolean,
+    val onTopPillLabelShown: () -> Unit,
 )
 
 /**

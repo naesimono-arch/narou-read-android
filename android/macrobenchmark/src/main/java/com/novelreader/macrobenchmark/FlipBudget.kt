@@ -66,7 +66,7 @@ object FlipBudget {
      * @param notBeforeEpochMs 今回の measureRepeated 開始時刻（epoch ms）。採用した JSON の
      *   lastModified がこれ未満なら「今回の走行で書き出されていない残骸 JSON」と判断して fail する。
      */
-    fun assertFlipWithinBudget(notBeforeEpochMs: Long) {
+    fun assertFlipWithinBudget(testName: String, notBeforeEpochMs: Long) {
         val roots = collectSearchRoots()
         val json = roots.asSequence()
             .filter { it.exists() }
@@ -95,17 +95,20 @@ object FlipBudget {
         val benchmarks = JSONObject(json.readText()).optJSONArray("benchmarks")
             ?: throw AssertionError("benchmarkData.json に benchmarks 配列がない: ${json.absolutePath}")
 
-        // flipChapters を名前に含むテストエントリを採用（クラス名の違い等に頑健にするため部分一致）。
+        // 該当テストのエントリを採用（クラス名の違い等に頑健にするため部分一致だが、素の contains は使わない）。
+        // なぜ境界チェック付きか（2026-08-21・縦書き軸の追加で顕在化）: 素の contains("flipChapters") は
+        // "flipChaptersVertical" にも当たり、JSON 内の並び順しだいで**横書きの判定が縦書きの数値を読む**。
+        // [TabSwipeBudget.matchesTestName] と同じ「直後の文字が英数字でない」条件で兄弟テストを弾く。
         var entry: JSONObject? = null
         for (i in 0 until benchmarks.length()) {
             val b = benchmarks.getJSONObject(i)
-            if (b.optString("name").contains("flipChapters")) {
+            if (matchesTestName(b.optString("name"), testName)) {
                 entry = b
                 break
             }
         }
         val benchmark = entry
-            ?: throw AssertionError("flipChapters を名前に含むエントリが無い: ${json.absolutePath}")
+            ?: throw AssertionError("$testName に一致するエントリが無い: ${json.absolutePath}")
 
         val metric = benchmark.optJSONObject("sampledMetrics")?.optJSONObject(METRIC_KEY)
             ?: throw AssertionError("sampledMetrics.$METRIC_KEY メトリクスが無い: ${json.absolutePath}")
@@ -125,7 +128,7 @@ object FlipBudget {
         }
         if (violations.isNotEmpty()) {
             throw AssertionError(
-                "章送り(flipChapters)が jank 予算を超過: ${violations.joinToString("; ")} " +
+                "章送り($testName)が jank 予算を超過: ${violations.joinToString("; ")} " +
                     "(JSON: ${json.absolutePath})"
             )
         }
@@ -134,9 +137,20 @@ object FlipBudget {
         // ScrollBudget の同名コメント参照）。
         android.util.Log.i(
             "FlipBudget",
-            "PASS flipChapters $METRIC_KEY P50=${p50}ms P90=${p90}ms P99=${p99}ms " +
+            "PASS $testName $METRIC_KEY P50=${p50}ms P90=${p90}ms P99=${p99}ms " +
                 "(適用予算 P50<=${budgetP50}ms P90<=${budgetP90}ms P99<=${budgetP99}ms)"
         )
+    }
+
+    /**
+     * テスト名の一致判定（[TabSwipeBudget.matchesTestName] と同一規則）。部分一致を許しつつ、
+     * 直後の文字が英数字なら別テスト（例 flipChapters ⊂ flipChaptersVertical）として弾く。
+     */
+    private fun matchesTestName(name: String, testName: String): Boolean {
+        val at = name.indexOf(testName)
+        if (at < 0) return false
+        val after = at + testName.length
+        return after >= name.length || !name[after].isLetterOrDigit()
     }
 
     /**

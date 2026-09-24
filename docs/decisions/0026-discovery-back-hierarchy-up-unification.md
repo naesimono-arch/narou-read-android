@@ -64,3 +64,76 @@
   リテラル pop 黙殺の機序・[tabs, result] 畳み）。
 - 実機目視: 検索→結果一覧→詳細で〈←・横スワイプ Back〉とも 詳細→結果一覧→ホーム→（タブ既定）の順に上がること／
   ホーム直行の詳細から一発でホームへ戻ること／「条件を変更」だけが検索画面へ戻ること。
+
+## 追記（2026-08-14）: タブ間の Back も「階層 up」＝設定タブ等から本棚へ戻す（実機バグ①②の真因対処）
+
+本 ADR は発見サブツリーを階層 up へ統一したが、**その延長にあるタブ層の Back が実機で効いていなかった**。
+2026-08-14 の実機（PGEM10 / ColorOS / Android 16）で2症状を確認:
+
+- **①設定タブでシステム Back → アプリが終了**（本棚タブへ戻らない）
+- **②装いの間で装着した後の Back → アプリが終了**
+
+### 決定（2026-08-14 ユーザー裁定）
+
+**タブ間の移動も「階層 up」として扱う**＝設定タブ等でのシステム Back は**本棚タブ（page 0）へ戻る**。
+page 0 での Back はアプリ終了（従来どおり＝ここが本アプリで唯一の退出点）。
+規則としては ADR 0022 追記 2026-07-24 のタブ層 Back 契約と同じで、**実機で効いていなかったのを効くようにした**のが今回である。
+
+### 真因（記録の主眼）— 当初の疑い2つはいずれも否定された
+
+- **疑い①「マニフェストのコメントと実装がズレている」→ 否定**。
+  当時の実装 `BackHandler(enabled = pagerState.currentPage != 0)` はコメントどおりで、ズレていない。
+- **疑い②「装着時の画面再生成でバックスタックがリセットされる」→ 否定**。**再生成は起きていない**——
+  `onSkinChange` は Compose 状態と prefs を書くだけ・`NovelReaderTheme` に `key()` 無し・
+  `MainActivity` に `configChanges` も `recreate()` 無し・`navController` / タブの `PagerState` は `remember` のまま生存する。
+
+**確定した真因＝Back を受け取る形が、タブ層だけ他と違っていた。**
+
+Predictive Back 下（`AndroidManifest` の `enableOnBackInvokedCallback` opt-in・targetSdk 36 の Android 16 実機では OS が常時 ON 扱い）では、
+**「アプリが Back を受けるか」は OnBackInvokedDispatcher への*登録の有無*で決まる**（`enabled` フラグを読みに行くのではない）。
+登録は `hasEnabledCallbacks` の変化に追随して行われる。
+
+- **旧タブ層**＝起動時 page 0＝`enabled=false` で生まれた**1個のコールバックを使い回し**、以後は `isEnabled` の
+  **false→true 反転だけ**に依存していた。
+- **実機で正しく効いている Back**（読書・目次・装いの間・発見の結果一覧・作品詳細・WebView 2種）は**全て**
+  「必要になった時点で `enabled=true` のコールバックが**新規に追加される**」形＝追加のたびに登録が走り、**反転に依存しない**。
+- **タブ層だけがこの形から外れていた**のが①②に共通する構造上の真因。
+  **②は別のバグではない**——装いの間の入口が設定タブ（page 2）であるため、pop 後の着地が page 2 になり、①と同じ穴に落ちていただけである。
+
+対処は同じ形へ揃えること＝**`enabled` を反転させる常設コールバックをやめ、page 0 以外のときだけ `BackHandler` を置く**
+（`ui/tabs/TabPagerHost.kt`）。page 0 ではコールバックが存在しない＝旧 `enabled=false` と同値で登録も外れるため、
+page 0 のシステム「ホームへ戻る」プレビューは従来どおり効く。**撤去したのではなく、登録の作り方だけを変えた。**
+page 1⇄2 の移動では条件が真のまま＝同じコールバックが登録されたまま残る（再登録は起きない）。
+
+### 未確定として残るもの
+
+**どの層で反映が落ちているかは確定していない。** androidx activity 1.8.2 の bytecode には
+反転→再登録の経路が**存在する**（`OnBackPressedCallback.setEnabled` → `updateEnabledCallbacks` → `updateBackInvokedCallbackState`）ことは確認済みで、
+経路が無いわけではない。しかし**端末を跨いだ再現・計測なしにはどこで落ちているか特定できない**。
+よって本件は「反転が効かない原因を突き止めて直した」ではなく、**反転に依存しない構造へ変えた**という対処である。
+
+**同型の穴は全数で洗い、実害のあるものだけ直した。** 反転形は3つ——①タブ枠②`BookshelfScreen` の選択モード離脱
+（`BackHandler(enabled = selectionMode && isFrontTab)`）③NavController 内蔵。②は本棚が前面のとき他に有効な
+コールバックが無く、**反転の瞬間に集約 `hasEnabledCallbacks` が false→true になる**＝①と同じ穴で、選択モード中の
+Back が OS へ抜け選択が解除されずアプリが終了していた（全スキン共通・release 到達）。①②とも同じコミットで直してある。
+
+**「反転形かどうか」だけで判定してはいけない**というのが、ここで得た手順上の教訓である。決め手は形ではなく
+**反転の瞬間に集約が false→true になるか**で、他に有効なコールバックが居れば登録は既に済んでいて実害は出ない。
+③はその例＝依存する経路（`discovery/search`・`discovery/genre`）が born-enabled のハンドラを追加する側でもあるため
+**前進経路では**無害。⚠️ **ただし復帰経路は別で、ここは実際に穴だった**——`<activity>` に `configChanges` が無く
+回転・ダークモード切替で再生成される。`NavHost` の合成順（`setOnBackPressedDispatcher` → `graph`）と、`setContent` の
+合成が ON_START/ON_RESUME より**後**（ComposeView の attach 時）に走ることから、復帰時は内蔵 cb が
+`OnBackPressedCallback(false)` のまま deque へ入り、その後のバックスタック復元で `setEnabled(true)`＝
+**集約が反転だけで立つ**。この2ルートは自前 `BackHandler` を持たず tabs も非コンポーズ＝反転を補う「追加」経路がゼロだった
+（他ルートは復帰直後に born-enabled を追加するので無害）。→ ③もこの2ルートへ born-enabled 形を置いて揃えた。
+**教訓の核はここ**＝「実害なし」の判定は前進経路だけでは足りず、**復元経路まで見ないと穴を見落とす**。
+手順の詳細と見分け方＝`docs/knowledge/predictive-back-enabled-flip-not-registered.md`。
+
+### テストが捕まえられなかった理由（再発防止）
+
+既存の Back 契約テスト3本（`KTabNavigationTest` の `backOnDiscoverPage_…`・`backOnSettingsPage_…`・`backHandlerEnabled_onNonHomePages`）は
+**全て `initialPage` で「最初から page 0 以外」の状態を作っており、反転経路を1本も踏んでいなかった**。
+実アプリで唯一起きる経路＝「起動＝page 0 →タブ移動」がテストに存在しなかった
+＝**緑のまま実機だけ落ちる**という観測結果と整合する。
+再発防止として、page 0 から移動した後に契約が成り立つことを見る4本目
+（`backAfterMovingAwayFromHomePage_isConsumedAndReturnsHome`）を追加した。

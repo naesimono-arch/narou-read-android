@@ -70,7 +70,7 @@ class TransitionSkeletonTest {
         setToc(defer = true)
         // クローム（題字・戻る）は実描画＝案A「軽量部は本物・重い可変部だけ骨」の分担。
         composeTestRule.onNodeWithText("目次").assertIsDisplayed()
-        composeTestRule.onNodeWithContentDescription("本棚に戻る").assertIsDisplayed()
+        composeTestRule.onNodeWithContentDescription("戻る").assertIsDisplayed()
         // 章リスト（重い実内容）は窓中コンポーズされない＝Content を渡していても章題は存在しない。
         composeTestRule.onNodeWithText("第一章 出会い").assertDoesNotExist()
     }
@@ -126,6 +126,9 @@ class TransitionSkeletonTest {
                     scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior(topAppBarState),
                     barsVisualReady = true,
                     showChromeHint = false,
+                    // 初回ラベルは既定（未消費＝語つき）で置く。本テストの関心事ではない。
+                    topPillLabelShown = false,
+                    onTopPillLabelShown = {},
                 ),
                 nav = ChapterNav(
                     prevFile = "c0002.html",
@@ -135,6 +138,7 @@ class TransitionSkeletonTest {
                     chapterNumber = null,
                     totalChapters = null,
                     onNavigateTo = {},
+                    onBack = {},
                     onNavigateToBookshelf = {},
                 ),
                 ncodeLink = NcodeLink(

@@ -134,6 +134,7 @@ class DefaultBookRepository(
     override suspend fun addPendingJob(uri: String, displayName: String) = pendingJobs.add(uri, displayName)
     override suspend fun getPendingJobs(): List<PendingJobEntity> = pendingJobs.getAll()
     override suspend fun removePendingJob(uri: String) = pendingJobs.remove(uri)
+    override suspend fun markResumeAttempt(uri: String) = pendingJobs.markResumeAttempt(uri)
     override suspend fun clearPendingJobs() = pendingJobs.clearAll()
     override suspend fun releaseOrphanedPermissions(keepUris: Set<String>) =
         pendingJobs.releaseOrphanedPermissions(keepUris)

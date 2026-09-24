@@ -12,7 +12,16 @@
   検索フィールド地 --field は実装 surfaceVariant #F1F0EC。
   golden との既知乖離（構造・文言＝ここでは直さない）: 気分カードの題と説明の文言・初期アクティブページ
   （実装 P1〈そのまま〉・ドット1番）・日替わり注記の短文化（「日替わり・きょうは「そのまま」から」）・
-  ページャ構図（実装は左寄せ＋右覗きのみ）・ランキングタブ（実装 日間/週間/月間/四半期/累計/新着 の6本）。
+  ページャ構図（実装は左寄せ＋右覗きのみ）。
+  【2026-08-14 逆同期（実装が一次ソース）】ランキングタブを実装へ合わせた＝本数 3本→**6本**・順序は
+  `NarouOrder.entries` 順（日間/週間/月間/四半期/累計/新着）・選択初期値は WEEKLY（`DiscoveryQuery.order` の既定）。
+  この行は上の「既知乖離」に「6本」と書きながら本文は3本のままで**自己矛盾**していた（2026-08-13 のモック委譲で発覚）。
+  【2026-08-20 逆同期（実装が一次ソース）】一覧行のメタを実装 `NovelListRow` と同じ**3段**へ揃えた＝
+  ①題名（明朝・2行まで）②作者＋詳細ジャンル（青磁）③状態〔連載中N話／完結N話／短編〕・読了目安・期間pt（藍）。
+  段の中は区切り文字を持たず間隔だけで分ける（実装は Arrangement.spacedBy＝②8dp・③12dp）。作者は可変幅で詰めて
+  ジャンルの幅を守る（実装の weight(1f, fill=false)＋省略記号＝長い作者名でタグが1文字ずつ縦積みになる実機バグの対処）。
+  ③の期間pt は選択中の期間タブに追従する（新着タブだけ pt でなく更新日時。ここは週間タブ表示）。
+  前提＝sticky は A 案据え置き（ADR 0033）で pt は行メタに残る・横向きは T1（横一列化）確定＝T4（行メタを2段へ畳む）は不採用。
   UIラベル=ゴシック・気分見出し/作品名/順位数字=明朝（既存 Typography 踏襲）。単一画面モック・ライトのみ。
   【2026-07-24 更新】「きょうの気分」を横スワイプのページャ（1ページ4枚・左右に隣ページの覗き・下に3点ドット＋
   日替わり注記の一行）へ更新（candidates/ui-round-20260724-draft/discovery-mood-pager-K.html で確定・表示は P2 気分転換）。
@@ -34,6 +43,7 @@
     --ai:#1C3D5A;        /* 藍アクセント（D踏襲） */
     --ai-pill:rgba(28,61,90,.10); /* 藍10%＝選択ピル/現在地チップ地 */
     --field:#F1F0EC;     /* 検索フィールド地（実装 SurfaceVariantLight＝薄地の沈めた面） */
+    --seiji:#9CB3A8;     /* 青磁（SecondaryLight 実値。一覧行のジャンルタグ＝実装 secondary） */
     --mincho:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
     --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
   }
@@ -85,9 +95,11 @@
   .chip{flex-shrink:0;font-size:12.5px;color:var(--ink);border:1px solid var(--line);border-radius:999px;padding:8px 16px;cursor:pointer}
   .chip.all{color:var(--ai);border-color:var(--ai)}
 
-  /* ランキング: タブ＋順位リスト */
-  .rtabs{display:flex;gap:18px;border-bottom:1px solid var(--line);margin-bottom:2px}
-  .rtab{font-size:13px;color:var(--info);padding:10px 0;cursor:pointer;position:relative}
+  /* ランキング: タブ＋順位リスト。
+     タブは6本＝画面幅に収まらないので行自体が横スクロールする（実装 OrderTabsK も同じ .chips 型の横スクロール行） */
+  .rtabs{display:flex;gap:18px;border-bottom:1px solid var(--line);margin-bottom:2px;overflow-x:auto;scrollbar-width:none}
+  .rtabs::-webkit-scrollbar{display:none}
+  .rtab{flex-shrink:0;font-size:13px;color:var(--info);padding:10px 0;cursor:pointer;position:relative}
   .rtab.on{color:var(--ai);font-weight:700}
   .rtab.on::after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--ai)}
   .rk{display:flex;gap:14px;align-items:baseline;padding:14px 0;border-bottom:1px solid var(--line);cursor:pointer}
@@ -96,7 +108,13 @@
   .rk .bd{flex:1;min-width:0}
   .rk .t{font-family:var(--mincho);font-size:14.5px;color:var(--ink);line-height:1.5;
     display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-  .rk .a{font-size:12px;color:var(--info);margin-top:4px}
+  /* 2段目: 作者＋ジャンルタグ。作者を可変幅で詰め、タグの幅を必ず残す（実装の weight+省略記号と同じ意図） */
+  .rk .a{display:flex;align-items:baseline;gap:8px;margin-top:4px;font-size:12px}
+  .rk .a .au{color:var(--info);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+  .rk .a .gn{flex-shrink:0;white-space:nowrap;color:var(--seiji);letter-spacing:.04em}
+  /* 3段目: 状態・読了目安・その並び順を決めた指標（期間pt のみ藍＋中太＝順位の根拠だけを立てる） */
+  .rk .m{display:flex;align-items:baseline;gap:12px;margin-top:8px;font-size:11px;color:var(--info)}
+  .rk .m .pt{color:var(--ai);font-weight:600}
 
   /* 公式サイトへの逃げ道（handover ★A 要件）: ヘアラインで区切った外部リンク行 */
   .official{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:8px;padding:16px 2px 4px;
@@ -162,23 +180,28 @@
 
       <div class="sec">ランキング</div>
       <div class="rtabs">
-        <span class="rtab on">週間</span><span class="rtab">日間</span><span class="rtab">月間</span>
+        <span class="rtab">日間</span><span class="rtab on">週間</span><span class="rtab">月間</span><span class="rtab">四半期</span><span class="rtab">累計</span><span class="rtab">新着</span>
       </div>
       <div class="rk top3"><span class="no">1</span><div class="bd">
         <div class="t">追放された万能薬師、辺境でスローライフを始める</div>
-        <div class="a">霧島あおい・連載中 127話</div></div></div>
+        <div class="a"><span class="au">霧島あおい</span><span class="gn">ハイファンタジー</span></div>
+        <div class="m"><span>連載中 127話</span><span>約9時間</span><span class="pt">週間 12,480pt</span></div></div></div>
       <div class="rk top3"><span class="no">2</span><div class="bd">
         <div class="t">黒の魔王と契約した俺、気づけば最強の従者に</div>
-        <div class="a">夜灯すばる・連載中 43話</div></div></div>
+        <div class="a"><span class="au">夜灯すばる</span><span class="gn">ローファンタジー</span></div>
+        <div class="m"><span>連載中 43話</span><span>約3時間</span><span class="pt">週間 9,207pt</span></div></div></div>
       <div class="rk top3"><span class="no">3</span><div class="bd">
         <div class="t">公爵令嬢の嗜み 〜隣国で薬草園を開きます〜</div>
-        <div class="a">白河すずら・完結 88話</div></div></div>
+        <div class="a"><span class="au">白河すずら</span><span class="gn">異世界〔恋愛〕</span></div>
+        <div class="m"><span>完結 88話</span><span>約6時間</span><span class="pt">週間 7,650pt</span></div></div></div>
       <div class="rk"><span class="no">4</span><div class="bd">
         <div class="t">転生したら最弱スキルだったので草むしりしていた</div>
-        <div class="a">青葉みのり・連載中 210話</div></div></div>
+        <div class="a"><span class="au">青葉みのり@『草むしり』コミカライズ進行中</span><span class="gn">ハイファンタジー</span></div>
+        <div class="m"><span>連載中 210話</span><span>約14時間</span><span class="pt">週間 5,133pt</span></div></div></div>
       <div class="rk"><span class="no">5</span><div class="bd">
         <div class="t">辺境伯家の次男は今日も書庫にこもる</div>
-        <div class="a">水無月れん・短編</div></div></div>
+        <div class="a"><span class="au">水無月れん</span><span class="gn">ヒューマンドラマ</span></div>
+        <div class="m"><span>短編</span><span>約12分</span><span class="pt">週間 2,048pt</span></div></div></div>
 
       <div class="official">
         <span>小説家になろう公式サイトで探す</span>

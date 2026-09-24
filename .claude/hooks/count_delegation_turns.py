@@ -14,7 +14,8 @@
     判別には使わない）。agent_id 無し＝メインセッション＝計測しない。
   - 通告は PostToolUse の hookSpecificOutput.additionalContext（task_diary #28 実測＋公式 doc。
     「ツール結果の隣」に注入される＝子のツール呼出なら子の文脈に届く。plain stdout は不達）。
-  - 状態・記録の置き場は auto-memory と同じプロジェクト領域（ブランチ不変・リポジトリ外）。
+  - 状態・記録の置き場は `~/.claude/delegation-meter/`＝**cwd から作られる project slug に紐づけない
+    固定パス**（ブランチ不変・worktree 不変・リポジトリ外。理由と2回割れた実例は base_dir の docstring）。
     /tmp はフック実行のサンドボックスで主セッションから見えない（memory hook-tmp-writes-sandboxed）
     ため使わない。~ 配下への hook 書込みは record_hallucination.py（~/.claude/hallucination-archive）
     で実績あり。
@@ -40,16 +41,29 @@ STATE_TTL_DAYS = 7
 
 
 def base_dir():
-    """状態・記録の置き場。
+    """状態・記録の置き場（**project slug に紐づけない固定パス**）。
 
-    なぜ CLAUDE_PROJECT_DIR でなく固定 slug か: 計測はブランチ・worktree 不変の較正データで、
-    全 worktree 分を1箇所に集計したい（worktree ごとの project slug に分散すると分布にならない）。
-    auto-memory と同じ canonical スラッグ配下に置く。テストは DELEGATION_METER_DIR で差し替える。
+    要件は不変＝計測はブランチ・worktree 不変の較正データなので、全 worktree 分を1箇所に集めたい
+    （worktree ごとに分散すると分布にならない）。変えたのは実現方法（2026-09-07 裁定）。
+
+    なぜ `~/.claude/projects/<slug>/` を使わないか: slug は **cwd のパス文字列**から作られるので、
+    リポジトリの置き場所が変わるたびに別ディレクトリへ化ける。直書きした本フックは実際に2回割れた——
+      ① 2026-08-23 Windows ユーザー名移行（qingj→naesimono）
+      ② 2026-09-04 プロジェクト再編（project/novel-reader_andloid → project/android-make/novel-reader）
+    ②では再編スクリプトが `~/.claude/projects/<旧slug>` を新 slug へリネームして memory も履歴も
+    引き継いだのに、**本フックだけが旧 slug 文字列を直書きしたまま**だった。結果、消えたはずの旧 slug
+    ディレクトリを作り直してそこへ書き続け、較正データが 3,642 行（新 slug 側）と 1,067 行（旧 slug 側）に
+    分裂した。fail-open 設計なのでエラーは一切出ず、`measure_subagent_run_length.py` は片側だけを見て
+    「走行長が縮んだ」という**逆の結論**を出していた。
+
+    ∴ slug を経由しない固定パスへ置く＝cwd が何であれ移動しない。auto-memory 隣接という当初の利点は
+    「同じ場所を2つの仕組みが別々の規則で決めていた」ことが事故の本体だったので捨てる。
+    テストは DELEGATION_METER_DIR で差し替える。
     """
     env = os.environ.get("DELEGATION_METER_DIR")
     if env:
         return Path(env)
-    return Path.home() / ".claude/projects/-mnt-c-Users-qingj-Desktop-project-novel-reader-andloid"
+    return Path.home() / ".claude/delegation-meter"
 
 
 def _read_payload_utf8():

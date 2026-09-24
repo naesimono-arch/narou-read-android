@@ -12,13 +12,16 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -28,6 +31,7 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -53,7 +57,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
-import com.novelreader.ui.skins.j.PortalThemeDoorChips
+import com.novelreader.ui.skins.j.PortalThemeChoiceRows
 import com.novelreader.ui.skins.m.SeizuSheetBottom
 import com.novelreader.ui.skins.m.SeizuSheetBrush
 import com.novelreader.ui.skins.m.SeizuSliderThumb
@@ -139,8 +143,15 @@ internal fun ReadingSettingsSheet(
         isCartridge -> CartridgeSheetBottom
         else -> colors.background
     }
+    // なぜ skipPartiallyExpanded か（2026-08-20 裁定・意匠正本 settings-D.html の .sheet は bottom:0 で
+    // 内容なりの全高＝〈テーマ→本文の向き→スライダー3本〉が開いた瞬間に一望できる）:
+    // 既定（false）だと PartiallyExpanded で起動し、主役であるスライダー3本とライブプレビューが画面外に
+    // 落ちる（fontScale 1.0 でも文字サイズのつまみが 7px しか覗かない＝実測）。中間アンカーを消して
+    // 全高で開き、主役を開いた瞬間に見せる。⚠️ 高さ上限を掛けたくなっても modifier には渡さないこと
+    // （draggableAnchors が読む constraints ごと縮み上端に張り付く。機序＝SearchConditionSheet.kt の申し送り）。
     ModalBottomSheet(
         onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         // 退避割合ぶん透明化（色引数は composition 読み＝退避/復帰の短尺遷移中だけ毎フレーム再合成される。
         // graphicsLayer の deferred read が使えない引数 API のための割り切り＝尺は 160/260ms のみ）。
         containerColor = containerBase.copy(alpha = containerBase.alpha * (1f - peek.value)),
@@ -200,7 +211,8 @@ internal fun ReadingSettingsSheetContent(
     bodyMarginDp: Int,
     onBodyMarginChange: (Int) -> Unit,
     onBodyMarginPersist: () -> Unit,
-    // 縦書きモードのトグル（全書籍共通・app_prefs reading_vertical）。既定 false＝横書き。
+    // 本文の向き（全書籍共通・app_prefs reading_vertical）。既定 false＝横書き。
+    // 2026-09-04 裁定で見せ方は〔横書き〕〔縦書き〕の2択タグになったが、保存値はこの単一 Boolean のまま。
     verticalMode: Boolean = false,
     onVerticalModeChange: (Boolean) -> Unit = {},
     // 案3ライブプレビュー: 押下中スライダー行の変化通知（null=非調整）。検出はこの Content が
@@ -210,8 +222,9 @@ internal fun ReadingSettingsSheetContent(
     val isSeizu = LocalSkin.current == Skin.SEIZU_M
     val isCartridge = LocalSkin.current == Skin.CARTRIDGE_P
     // スキンJ（ポータル）＝「扉の前の身支度」。面/見出し/つまみは D 既定のまま（シート面 colors.background・明朝見出し・
-    // 金つまみ＝J の colors.accent が金）で自然に J の署名になる。J 固有はテーマ3択を「扉の向こうの光」の
-    // 小プレビュー（扉プレビューチップ）にする点のみ（settings-J）。
+    // 金つまみ＝J の colors.accent が金）で自然に J の署名になる。J 固有はテーマ択を正本 settings-J の
+    // 行方式（.group/.row/.rl/.rv・選択は金1系統）で描く点のみ
+    //（2026-09-03 に扉プレビュー式チップを廃止＝正本にセレクタが無い実装独自意匠だったため）。
     val isPortal = LocalSkin.current == Skin.PORTAL_J
 
     // ── 案3「一行残し」ライブプレビュー（2026-07-29 裁定・モック VARIANT 3）──
@@ -246,6 +259,12 @@ internal fun ReadingSettingsSheetContent(
                     else -> Modifier
                 }
             )
+            // なぜ verticalScroll か（監査 2026-08-06 G-2）: fontScale 2.0 では内容全高がシート可視域を超え、
+            // 「行間」「本文余白」の2節が画面外＝到達不能だった（文字を大きくして使う層＝行間・余白を最も
+            // 調整したい層が2項目を変更できない）。スクロールで全設定へ常に到達可能にする。
+            // なぜこの位置か: 上の drawBehind（M/P のシート面グラデ）より後段に置く＝グラデは可視域の寸法で
+            // 描かれて面に固定され、内容だけが流れる（前段に置くと内容全高で描かれ面がスクロールに追従してしまう）。
+            .verticalScroll(rememberScrollState())
             .padding(horizontal = Spacing.S24)
             .padding(bottom = Spacing.S32),
     ) {
@@ -306,6 +325,12 @@ internal fun ReadingSettingsSheetContent(
             Text(
                 text = "配色や文字の設定は、すべての本に適用されます",
                 fontSize = FontMicroLabel,
+                // 行箱を明示する理由: 未指定だと bodyLarge の 28sp を継承し、10.5sp のキャプションが
+                // 28dp の行箱で描かれる＝見出しとの間隔（Spacer S4）に約12dp の幽霊余白が加算される。
+                // 正本 reading-settings-livepreview-D `.scope-note` は line-height:1.5 の明示指定＝
+                // 実サイズ 10.5sp へ写して 15.75sp。⚠️ ゴシックの自然行高（実測 約1.48倍＝15.5sp）と
+                // ほぼ同値なので実効はほぼ自然行高だが、継承した 28sp を外す効果が本体。
+                lineHeight = 15.75.sp,
                 color = colors.infoText,
             )
             // テーマ節はスキンが複数変種を持つときだけ出す（C夜行=DARK固定の1変種では選べるものが無く、
@@ -325,15 +350,15 @@ internal fun ReadingSettingsSheetContent(
                 selectedLabelColor = colors.background,
             )
             if (skinHasThemeChoice && isPortal) {
-                // J＝テーマ3択を「扉の向こうの光」を選ぶ小プレビューにする（settings-J .chips）。ロジックは共有
-                // （supportedThemes 駆動の3択＋システムに従う）で、意匠だけ扉プレビュー化する。
+                // J＝テーマ択を正本 settings-J の行方式（.group/.row/.rl/.rv）で描く。ロジックは共有
+                // （supportedThemes 駆動の3択＋システムに従う）で、意匠だけ J の行＝金1系統の強調にする。
                 Spacer(Modifier.height(Spacing.S16))
                 Text(
                     text = "テーマ",
                     style = MaterialTheme.typography.labelMedium,
                 )
                 Spacer(Modifier.height(Spacing.S8))
-                PortalThemeDoorChips(
+                PortalThemeChoiceRows(
                     currentTheme = readingTheme,
                     followingSystem = followingSystem,
                     onThemeChange = onThemeChange,
@@ -395,34 +420,54 @@ internal fun ReadingSettingsSheetContent(
                 ThemeFixedRowM()
             }
             Spacer(Modifier.height(Spacing.S24))
-            // 縦書きトグル。テーマ3択と同じ FilterChip＋themeChipColors を流用する（新しい部品・色を作らない）。
+            // 本文の向き＝〔横書き〕〔縦書き〕の2択タグ（2026-09-04 裁定・比較モック
+            // candidates/writing-mode-binary-tag-candidates.html 案B「分離2チップ」・正本 settings-D.html）。
+            // テーマ3択と同じ FilterChip＋themeChipColors を流用する（新しい部品・色を作らない）。
             // なぜテーマ直下（チップ群のそば）に置くか（並び順の判断）: (1) テーマと同じ離散チップ選択なので
-            // 3本のスライダーの間に挟まず、チップ系設定をまとめると視覚リズムが揃う。(2) このシートの Column は
-            // スクロールを持たず、末尾に足すと縦長端末で画面外に切れて到達不能になり得るため、常時可視な上部へ
-            // 置いて確実に届かせる。見出し語（labelMedium）は他設定と同じ体裁。チップ選択(accent塗り)＝縦書きON。
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = "本文の向き",
-                    style = MaterialTheme.typography.labelMedium,
-                    modifier = Modifier.weight(1f),
+            // 3本のスライダーの間に挟まず、チップ系設定をまとめると視覚リズムが揃う。(2) シートを開いた直後に
+            // スクロールなしで見える上部は確実に目に入る＝影響の大きい組方向の切替を埋もれさせない
+            //（シートの Column は 2026-08-06 に verticalScroll を得て末尾でも到達自体は可能になったが、
+            // 「開いた瞬間に見えている」価値は変わらないため配置は維持）。
+            // なぜ単独チップ「縦書き」1個をやめたか: 状態が**その1個の塗りの有無**でしか語られず、
+            // 「縦書きという機能のオン／オフ」に見える（実際は対等な2値で、片方が「オフ」なのではない）。
+            // 2026-08-06 は節ラベル trailing に現在値を出す案C でこれを補ったが、**字で補って形は補えず**、
+            // 2026-09-04 実機（PGEM10）で実害になった＝縦書き中に開くと〈本文の向き 縦書き〉と塗りチップ
+            // 〈縦書き〉で**同じ語が2つ並び**、しかも「横書きへ戻す」という語が画面のどこにも無い
+            //（横書き中は片方しか無いので気づけない）。2個並べて常にどちらかが塗られていれば、
+            // 現在値も戻り先も**形で**読める。
+            // ⚠️ trailing の現在値はこの節だけ落とした（タグ自身が現在値を語る＝残すと上の重複がそのまま残り、
+            //    直した意味が消える）。スライダー3節の trailing 現在値は据え置き＝あちらは連続量で札にできない。
+            // ⚠️ 保存値は単一 Boolean のまま＝2つのチップが同じ1つの Boolean の true/false を指すだけ。
+            //    ただし**押した側の絶対値**を送る形へ変えた（旧 `!verticalMode` の反転送出）。選択中の札を
+            //    もう一度押しても裏返らない＝「札＝現在値」という読み方と操作の結果が食い違わない。
+            Text(
+                text = "本文の向き",
+                style = MaterialTheme.typography.labelMedium,
+            )
+            Spacer(Modifier.height(Spacing.S8))
+            // なぜ selectableGroup か: 見えでは「チップが2つ並んでいる」以上のことが伝わらず、TalkBack には
+            // 〈どちらか一方しか選べない〉が出ない（チェックボックス的に両方 on にできると誤解されうる）。
+            // 初回教示の向き選択カード（IntroOverlay の IntroChoiceRow）が同じ理由で先に採っている形に揃える。
+            // FlowRow はテーマ節と同じ理由＝フォント拡大・狭幅端末で溢れたら折り返して両チップの可視を保つ。
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(Spacing.S8),
+                verticalArrangement = Arrangement.spacedBy(Spacing.S8),
+                modifier = Modifier.selectableGroup(),
+            ) {
+                // 並び順は正本モックどおり〈横書き → 縦書き〉＝既定（false）側が先。
+                FilterChip(
+                    selected = !verticalMode,
+                    onClick = { onVerticalModeChange(false) },
+                    label = { Text("横書き") },
+                    colors = themeChipColors,
                 )
-                // trailing の現在値（モック settings-D 案C・2026-08-06 裁定）: 単独チップだけでは
-                // 「現在の状態を示す表示」か「押すと何かが起きるボタン」かが読めないため、節ラベル行の
-                // 右端へ今の組み方向を常時出す（説明文は置かない＝説明レス。押した結果は現在値の変化として
-                // ここに現れる）。色は意味を運ぶ文字＝AA を満たす infoText（スライダー3節の現在値と同色）。
-                Text(
-                    text = if (verticalMode) "縦書き" else "横書き",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = colors.infoText,
+                FilterChip(
+                    selected = verticalMode,
+                    onClick = { onVerticalModeChange(true) },
+                    label = { Text("縦書き") },
+                    colors = themeChipColors,
                 )
             }
-            Spacer(Modifier.height(Spacing.S8))
-            FilterChip(
-                selected = verticalMode,
-                onClick = { onVerticalModeChange(!verticalMode) },
-                label = { Text("縦書き") },
-                colors = themeChipColors,
-            )
         }
         // スライダー共通色。モック settings-D は目盛りドットを持たない細線＋藍フィルのため、
         // steps のスナップは維持したまま tick 色だけ透明化して視覚的に消す。

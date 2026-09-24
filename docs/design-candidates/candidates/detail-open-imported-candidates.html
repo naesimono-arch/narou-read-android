@@ -1,0 +1,1179 @@
+<!-- @dsCard group="UI-n / 候補（裁定待ち）" name="取込済みの作品詳細から蔵書へ直行する導線 ─ 3案＋対照" -->
+<!--
+  ============================================================================
+  裁定用の一時ドラフト（2026-09-04 第1便）。裁定が付いたら採用案を正本
+  `discovery/discovery-detail-D.html` へ差分反映し、このファイルは破棄する
+  （/visual-language 恒久ルール「複数案比較のみ一時ドラフト」）。
+  ⚠️ この便では正本を1行も書き換えていない。反映の手順は §12 に置いてある。
+  ============================================================================
+
+  ---- この便で決めてほしいこと ----
+  **取込済み（isImported=true）の固定バーに、蔵書をアプリで開く導線をどう置くか**。
+  振るのは取込済みの2状態だけで、**未取込（3アクション版・4アクション版）は一切動かさない**
+  （対照として現行を1枚ずつ出すが、それは取込済みの現行であって未取込ではない）。
+
+  ---- 症状（2026-09-04 実機所感・原文） ----
+  「取り込んだ後に、直接その作品にいけるボタンがありません。現状だと、取り込んだ後に2回も3回も
+    バックして本棚に戻らなければならず、手間がかかっています。取り込んだ後にアプリ内の作品ページに
+    戻り、その作品ページから直接読めるボタンが欲しい」
+
+  ---- 機序（実コードで確定・2026-09-04） ----
+  ・取り込み投入後は `MainActivity.kt:877` の `onImportStarted = { navController.popBackStack() }` が
+    取り込み画面を pop するだけ。残るのは Toast「取り込みを開始しました（本棚で進捗表示）」
+    （`PdfImportScreen.kt:153`）。
+  ・**症状は経路B固有**。入口は2つあり、pop の着地先が違う:
+      経路A＝本棚の Web由来カード ⋮ から（`MainActivity.kt:664-669`）。スタックは
+             `[tabs, …/import]` ＝ pop で**本棚へ直帰（バック0回）**。症状は出ない。
+      経路B＝さがす→結果一覧→作品詳細→主CTA（`MainActivity.kt:859`）。スタックは
+             `[tabs, discovery/result, discovery/detail/{ncode}, …/import]` ＝ pop 後は**作品詳細**に居り、
+             そこから本棚まで**バック3回**（詳細→結果一覧 `upFromDiscoveryDetail`（:1077-1083）→
+             さがす `popToTab(DISCOVER)`（:806-808・ADR 0026）→ 本棚 `onSelectTab(BOOKSHELF)`（:681））。
+  ・**さらにもう一段ある**。変換が終わると `NovelDetailViewModel.isImported`
+    （`NovelDetailViewModel.kt:82-92`＝`allBooks` を ncode 突合）が true へ反転し、固定バーが
+    「縦書きPDFを取り込む」→「なろうで読む」／「第N話のはじめから読む」へ入れ替わる
+    （`NovelDetailScreen.kt:466-489`）。⚠️ **入れ替わった先も全部なろうの WebView**（ADR 0012）で、
+    **取り込んだ蔵書をアプリで開く導線は詳細画面に1つも無い**。
+  ・直接原因＝**作品詳細は `ncode` しか持っておらず `bookId` を持っていない**。
+    アプリ内で蔵書へ直行できる唯一の道は変換完了通知のタップ（deep link・`PdfProcessingService.kt:638`
+    `.setContentIntent(openBookIntent(bookId))`）＝**画面内には存在しない**。
+
+  ---- ⚠️ 過去の裁定2件との関係（読まずに裁定しないこと） ----
+  (1) **2026-07-16 案A「完全一貫」**（`NovelDetailScreen.kt:453-457` のコメントが経緯を持つ）＝
+      アプリの主目的は「手元に本を置く」＝PDF取り込み。**未取込である限り**取込を藍の主CTA最上段に
+      固定し、既読になっても降格させない（旧 2026-07-12「既読は続きからを主」を上書き）。
+      ▶ この便との関係＝**取込済みは「未取込である限り」の外側**。裁定文が名指しで守っているのは
+        未取込の主従であって、取込済みの主従はこの裁定に含まれていない。
+  (2) **2026-08-21 案B「副アクションは1行に横並べ・総高 137dp」**（正本ヘッダ）＝3アクション版と
+      4アクション版で**バー総高が同一**になるのが採用の決め手。「片方だけ直る案は使えない」。
+      併せて **「せっかくの導線を隠すのは論外」**＝オーバーフローメニューへの退避は却下済み。
+      ▶ この便との関係＝**アクションを1つ増やすと総高固定が崩れる**。だから「ボタンを足す」では
+        済まず、モックで代償を数値にしてから裁定を取る（＝この便が起きた理由そのもの）。
+
+  ---- ⚠️ 正本モックは取込済み状態を1枚も描いていない ----
+  正本 `discovery-detail-D.html` が絵で規定しているのは **未取込の2状態だけ**（3アクション版＝
+  line 350-419／4アクション版＝line 421-493）。取込済みについては `.cap` の**1文**
+  （line 341「取込済みなら取込とその周辺は冗長で消え、主CTAは『なろうで読む』へ昇格する
+  （＝副アクション行は『本棚に置く』だけになる）」）しか無く、しかも**その1文は現状と合っていない**——
+  実装の副アクション行は既読で「最初から読み直す（目次）」・未読では**行そのものが出ない**
+  （`NovelDetailScreen.kt:530-541`）。**この便が取込済みの固定バーを絵にする最初の1枚**になる。
+
+  ---- 寸法の較正（推測ではなく正本の実測値の再利用） ----
+  端末枠は実機と同寸 **360×792dp（1px=1dp）**。システムバー合算 63dp（上39＋下24）・トップバー 64dp は
+  正本が2つの実機実測値から確定した較正値をそのまま使う。fontScale は **1.0 固定**で描く
+  （追従の規定＝帯 74·F+46・題名 46·F は 2026-08-26 に裁定済みで、この便は動かさない）。
+  ・**バー総高 = 1(上罫) + 16(上padding) + 48×n(スロット) + 8×(n−1)(スロット間) + 16(下padding)**
+    → n=1: **81dp** ／ n=2: **137dp** ／ n=3: **193dp**（193 は旧・縦3段の実測と一致＝式の検算になる）。
+  ・スクロール域 = 792 − 39 − 64 − 24 − バー総高。あらすじより上は
+    書影ブロック166 ＋ 表の上アキ16 ＋ 表(1+84+1+61+1)=148 ＋ 見出し(上アキ24＋箱28) ＋ 下アキ12 ＝ **394dp**。
+    あらすじの行送りは **26dp**（実装値 14sp/lineHeight 26sp）。
+    → n=1: (584−394)/26 = **7.3行** ／ n=2: (528−394)/26 = **5.2行**（正本の記載値と一致）／
+      n=3: (472−394)/26 = **3.0行**。
+  ・「読める体裁」の判定基準は正本から引き継ぐ＝**最低2行**（第1文32字が閉じる）・**推奨3行**
+    （第2文「追放」まで届く）。
+
+  ---- 色・プレースホルダ ----
+  アプリの色はすべて正本トークンの実値（Color.kt と同一）。
+  ⚠️ **栞書影と帯の地は静止プレースホルダ**（正本は JS で題名から導出するが、この便の裁定対象ではない）。
+  恒久ルール4に従い**実データの色域を模した対の値**を置く＝書影 #7E9AA6（h≈197°）に対して、
+  帯の地はその色相を**彩度14%・明度93%の固定窓へ圧縮した #EBEEF0**（＝正本 bandTint の規定どおりの導出）。
+  濃色板でごまかしていないので、書影と地が一体化していないことが目で確かめられる。
+-->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>取込済みの作品詳細から蔵書へ直行する導線 ─ 3案＋対照</title>
+<style>
+  /*==harness==*/
+  :root{
+    /* === アプリの正本トークン実値（Color.kt / discovery-detail-D と同一） === */
+    --base:#FBFAF8; --ink:#1C1F26; --ink-soft:#7C808B; --line:#ECEAE4;
+    --ai:#1C3D5A; --ai-tint:rgba(28,61,90,.10);
+    --seiji:#9CB3A8; --seiji-ink:#50685C;
+    --info:#5C606D;
+    --mincho:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
+    --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+    /* 栞書影と帯地のプレースホルダ（対の値＝書影 h≈197° を S14%/L93% へ圧縮すると帯地になる）。
+       ⚠️ トークンではない。正本は JS で題名から導く。 */
+    --shiori-sample:#7E9AA6; --band-tint:#EBEEF0;
+    /* 検分用の注記色（赤茶）。⚠️ アプリのトークンではない＝**モックの上に貼った注釈**の色で、
+       画面の意匠として提案しているものではない（寒色D に danger-red は無い）。 */
+    --anno:#8A4B44;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#E4E3DD;min-height:100vh;padding:30px 20px 60px;font-family:var(--gothic);
+    -webkit-font-smoothing:antialiased;color:#2A2C28}
+  .doc{max-width:1180px;margin:0 auto}
+  h1{font-size:20px;letter-spacing:.06em;margin-bottom:10px}
+  .lead{font-size:13px;line-height:1.9;color:#4A4C47;max-width:960px}
+  .lead b{color:#2A2C28}
+
+  .sec{margin-top:44px;border-top:2px solid #C9C7BE;padding-top:18px}
+  .sec h2{font-size:17px;letter-spacing:.05em;margin-bottom:8px}
+  .sec h2 .tag{font-size:11px;background:var(--ai);color:#fff;padding:2px 9px;border-radius:10px;
+    margin-left:10px;letter-spacing:.08em;vertical-align:3px;font-weight:400}
+  .sec h2 .tag.g{background:#50685C}
+  .sec h2 .tag.r{background:var(--anno)}
+  .sec p.body{font-size:13px;color:#4A4C47;line-height:1.9;max-width:960px;margin-bottom:6px}
+  .sec p.body b{color:#2A2C28}
+  .rule{font-size:12.5px;line-height:1.95;max-width:960px;margin-top:12px;
+    background:#F1EFE9;border-left:3px solid var(--ai);padding:11px 14px}
+  .rule b{color:#1C3D5A}
+  .rule.warn{border-left-color:var(--anno)}
+  .rule.warn b{color:var(--anno)}
+  .note{font-size:11.5px;color:#6A6C67;line-height:1.8;margin-top:10px;max-width:960px}
+
+  table.mx{border-collapse:collapse;margin:16px 0 6px;background:#F7F6F2;font-size:12.5px;width:100%;max-width:1160px}
+  table.mx th,table.mx td{border:1px solid #D3D1C9;padding:8px 11px;text-align:left;line-height:1.65;vertical-align:top}
+  table.mx th{background:#EDEBE4;font-weight:700;letter-spacing:.04em}
+  table.mx td.o{color:#1C3D5A;font-weight:700;white-space:nowrap}
+  table.mx td.x{color:var(--anno);font-weight:700;white-space:nowrap}
+  table.mx td.m{color:#7A7168;font-weight:700;white-space:nowrap}
+  table.mx code{font-size:11.5px;color:#4A4C47}
+
+  /* 文言を「絵ではなく文字で」裁定してもらう場所（tutorial-onboarding-K の .copy 写経） */
+  .copy{max-width:1160px;margin-top:16px;background:#F7F6F2;border:1px solid #D3D1C9;padding:16px 18px}
+  .copy h4{font-size:13px;letter-spacing:.06em;color:#1C3D5A;margin:18px 0 7px;padding-bottom:5px;
+    border-bottom:1px solid #DEDCD4}
+  .copy h4:first-child{margin-top:0}
+  .copy h4 .ch{font-size:11px;color:#6A6C67;font-weight:400;letter-spacing:.1em;margin-left:8px}
+  .copy dl{font-size:12.5px;line-height:1.85}
+  .copy dt{color:#6A6C67;letter-spacing:.05em;margin-top:8px;font-size:11.5px}
+  .copy dt:first-child{margin-top:0}
+  .copy dd{color:#2A2C28;margin-left:0}
+  .copy dd b{color:#1C3D5A}
+  .copy dd .no{color:var(--anno);font-weight:700}
+
+  .stage{display:flex;gap:26px;flex-wrap:wrap;margin-top:18px;align-items:flex-start}
+  .wrap{display:flex;flex-direction:column;align-items:center;gap:8px;width:360px}
+  .wrap .mode{font-size:12px;letter-spacing:.1em;color:#1C3D5A;font-weight:700;text-align:center}
+  .wrap .cost{font-size:11.5px;color:#4A4C47;line-height:1.75;text-align:left;width:360px;
+    background:#F1EFE9;padding:9px 11px;border-left:3px solid var(--seiji-ink)}
+  .wrap .cost.bad{border-left-color:var(--anno)}
+  .wrap .cost b{color:#1C3D5A}
+  .wrap .cost .x{color:var(--anno);font-weight:700}
+
+  /* === 端末枠（実機同寸 360×792dp・1px=1dp。システムバー合算63dp は正本の較正値） === */
+  .phone{width:360px;height:792px;background:var(--base);border-radius:34px;overflow:hidden;position:relative;
+    box-shadow:0 20px 50px rgba(0,0,0,.28);display:flex;flex-direction:column;font-family:var(--gothic)}
+  .sb{height:39px;flex-shrink:0;display:flex;align-items:center;justify-content:space-between;
+    padding:0 24px;font-size:11px;color:var(--ink-soft)}
+  .navbar{height:24px;flex-shrink:0;display:flex;align-items:center;justify-content:center}
+  .navbar i{display:block;width:108px;height:3px;border-radius:2px;background:#C9C7C0}
+  /*==/harness==*/
+
+  /* === トップバー 64dp（M3 TopAppBar） === */
+  .topbar{height:64px;flex-shrink:0;display:flex;align-items:center;padding:0 8px;gap:4px}
+  .topbar .ic{width:48px;height:48px;display:flex;align-items:center;justify-content:center;color:var(--ink)}
+  .topbar .ic svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.6}
+
+  /* === スクロール域＝固定バーに削られた残り＝これが初期ビューポート ===
+     .viewport は印（端フェード・シェブロン）の絶対配置の親を作るためだけの層で、高さも余白も足さない。 */
+  .viewport{flex:1;min-height:0;position:relative;display:flex;flex-direction:column}
+  .scroll{flex:1;min-height:0;overflow-y:auto}
+  .scroll::-webkit-scrollbar{width:0}
+  .col{display:flex;flex-direction:column}
+  .col > *{flex-shrink:0}
+  .pad{padding:0 24px;display:flex;flex-direction:column}
+  .pad > *{flex-shrink:0}
+
+  /* === 書影ブロック（案2-c・fontScale 1.0 の実値へ畳んである）===
+     ブロック 166 ＝ 帯120 ＋ 書影が越える44 ＋ 逃げ2。帯 = 74·F+46 の F=1。
+     情報列 = 76·F+22 = 98、帯の内側余白 = 12−F = 11（上下対称）。 */
+  .kaeshi{position:relative;flex-shrink:0;width:100%;height:166px}
+  .kaeshi .band{position:absolute;left:0;right:0;top:0;height:120px;background:var(--band-tint);
+    border-bottom:1px solid rgba(28,31,38,.10)}
+  .kaeshi .shiori{position:absolute;left:24px;top:12px;width:114px;height:152px;border-radius:2px;
+    background:var(--shiori-sample);box-shadow:0 3px 10px rgba(28,31,38,.22);overflow:hidden}
+  .kaeshi .shiori i{position:absolute;left:50%;top:0;bottom:0;width:0;border-left:1px dashed rgba(251,250,248,.7)}
+  .kaeshi .kmeta{position:absolute;left:154px;right:24px;top:11px;height:98px;
+    display:flex;flex-direction:column;align-items:flex-start;gap:6px}
+  .kmeta .t{font-family:var(--mincho);font-size:16px;font-weight:600;line-height:22.75px;height:46px;
+    color:var(--ink);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .kmeta .au{font-size:12.5px;line-height:16px;color:var(--ink);font-weight:500;align-self:stretch;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .kmeta .genre-label{line-height:14px;font-size:11.5px}
+  .genre-label{display:inline-block;font-size:11.5px;color:var(--seiji-ink);border:1px solid var(--seiji);
+    padding:4px 8px;border-radius:2px;font-weight:500;white-space:nowrap;flex-shrink:0}
+
+  /* === ステータス表（2×2・行高は golden 実測 84 / 61） === */
+  .status-grid{border-top:1px solid var(--line);border-bottom:1px solid var(--line);margin-top:16px;
+    display:flex;flex-direction:column}
+  .status-row{display:flex;box-sizing:content-box}
+  .status-row + .status-row{border-top:1px solid var(--line)}
+  .status-item{flex:1;min-width:0;padding:12px 0;display:flex;flex-direction:column;gap:4px}
+  .status-item:first-child{border-right:1px solid var(--line);padding-right:16px}
+  .status-item:last-child{padding-left:16px}
+  .status-item .lbl{font-size:10.5px;color:var(--ink-soft);letter-spacing:.06em}
+  .status-item .val{font-size:13px;color:var(--ink);font-weight:500;line-height:1.45}
+  .status-item .val small{font-size:11.5px;color:var(--ink-soft)}
+
+  /* 画面内のセクション見出し（正本 .sec。ドキュメント側の .sec と名前が衝突するので .dsec へ改名） */
+  .dsec{font-size:10.5px;letter-spacing:.28em;color:var(--ink-soft);font-weight:600;height:28px;
+    line-height:28px;margin-top:24px}
+  .dsec + *{margin-top:12px}
+  .summary-p{font-family:var(--mincho);font-size:14px;line-height:26px;color:var(--ink);text-align:justify}
+  .kw-chips{display:flex;flex-wrap:wrap;gap:8px}
+  .kw-chip{display:inline-block;font-size:11px;color:var(--seiji-ink);border:1px solid var(--seiji);
+    border-radius:2px;padding:4px 8px;letter-spacing:.02em}
+  .eval-grid{border-top:1px solid var(--line);border-bottom:1px solid var(--line);display:flex;flex-direction:column}
+  .eval-row{display:flex;box-sizing:content-box}
+  .eval-row + .eval-row{border-top:1px solid var(--line)}
+  .eval-item{flex:1;min-width:0;padding:12px 0;display:flex;flex-direction:column;gap:4px}
+  .eval-item:first-child{border-right:1px solid var(--line);padding-right:16px}
+  .eval-item:last-child{padding-left:16px}
+  .eval-lbl{font-size:10px;color:var(--ink-soft)}
+  .eval-val{font-size:13.5px;font-family:var(--mincho);color:var(--ink);font-weight:600}
+  .last-updated{font-size:11px;color:var(--ink-soft);margin-top:16px;margin-bottom:24px;text-align:right}
+
+  /* 印③（端フェード＋シェブロン）＝2つで1組・絶対配置で版面を1dpも食わない。 */
+  .afford{position:absolute;left:0;right:0;pointer-events:none}
+  .afford.fade{bottom:0;height:36px;background:linear-gradient(to bottom,rgba(251,250,248,0),rgba(251,250,248,.97))}
+  .afford.chev{bottom:10px;display:flex;justify-content:center;color:var(--seiji-ink);opacity:.62}
+  .afford.chev svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.6;
+    stroke-linecap:round;stroke-linejoin:round}
+
+  /* === 下端固定バー（正本の実値そのまま）===
+     総高 = 1 + 16 + 48×n + 8×(n−1) + 16 → n=1:81 / n=2:137 / n=3:193。 */
+  .fixed-bar{flex-shrink:0;background:var(--base);border-top:1px solid var(--line);padding:16px 24px;
+    display:flex;flex-direction:column}
+  .slot{height:48px;display:flex;align-items:center;flex-shrink:0}
+  .slot + .slot{margin-top:8px}
+  .slot.row{gap:8px}
+  .slot.row > *{flex:1;min-width:0}
+  .btn-primary{height:40px;width:100%;background:var(--ai);color:var(--base);border:none;border-radius:2px;
+    font-family:var(--gothic);font-size:12.5px;font-weight:600;cursor:pointer;display:flex;align-items:center;
+    justify-content:center;gap:8px;letter-spacing:.1em;white-space:nowrap}
+  .btn-ghost{height:40px;width:100%;background:transparent;color:var(--ink-soft);border:1px solid var(--line);
+    border-radius:2px;font-family:var(--gothic);font-size:12.5px;cursor:pointer;display:flex;align-items:center;
+    justify-content:center;gap:8px;letter-spacing:.1em;white-space:nowrap}
+  .btn-ghost.mini{font-size:11.5px;letter-spacing:.06em;gap:4px}
+  .fixed-bar button svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.5;flex-shrink:0}
+  /* 案の焦点を目で拾えるようにする注記（バーの外・端末枠の中には出さない）。 */
+  .barnote{position:absolute;left:0;right:0;bottom:0;height:0;pointer-events:none}
+  .barnote span{position:absolute;right:6px;bottom:6px;font-size:10px;color:var(--anno);background:#F7F6F2;
+    border:1px solid #D3D1C9;padding:1px 6px;letter-spacing:.06em}
+</style>
+</head>
+<body>
+<div class="doc">
+
+  <h1>取込済みの作品詳細 ─ 蔵書へ直行する導線　<span style="font-size:13px;color:#6A6C67;font-weight:400">対照＋3案（裁定用ドラフト・採用後に正本へ差分反映して破棄）</span></h1>
+  <p class="lead">
+    取り込んだ直後に着地する<b>作品詳細から、その蔵書をアプリで開く道が1つも無い</b>。
+    取込済みでバーが入れ替わった先も<b>全部なろうの WebView</b>（ADR 0012）で、本棚まで<b>バック3回</b>かけないと読み始められない。<br>
+    振るのは<b>取込済み（isImported=true）の固定バーだけ</b>——未取込の3アクション版・4アクション版は動かさない。
+    <b>アクションを1つ増やすと 2026-08-21 の「総高 137dp」が崩れる</b>ので、増やす案の代償を実寸で出したうえで裁定を取る。
+  </p>
+
+  <!-- ================================================================ -->
+  <div class="sec">
+    <h2>§1　症状の機序 ─ 入口2つのうち、経路Bだけが詰む　<span class="tag g">実コードで確定</span></h2>
+    <p class="body">
+      取り込み投入後は <code>onImportStarted = { navController.popBackStack() }</code>（<code>MainActivity.kt:877</code>）が
+      取り込み画面を pop するだけで、<b>pop の着地先が入口によって違う</b>。
+    </p>
+    <table class="mx">
+      <tr><th style="width:88px">入口</th><th>スタック（取り込み画面を開いた時点）</th><th style="width:150px">pop 後の着地</th><th style="width:110px">本棚まで</th></tr>
+      <tr>
+        <td>経路A<br>本棚 ⋮</td>
+        <td><code>[tabs, …/import]</code>（<code>MainActivity.kt:664-669</code>）</td>
+        <td>本棚</td>
+        <td class="o">バック0回</td>
+      </tr>
+      <tr>
+        <td>経路B<br>さがす</td>
+        <td><code>[tabs, discovery/result, discovery/detail/{ncode}, …/import]</code>（<code>:859</code>）</td>
+        <td>作品詳細</td>
+        <td class="x">バック3回</td>
+      </tr>
+    </table>
+    <p class="note">
+      バック3回の内訳＝詳細→結果一覧 <code>upFromDiscoveryDetail</code>（<code>:1077-1083</code>）→ さがす <code>popToTab(DISCOVER)</code>（<code>:806-808</code>・ADR 0026）→ 本棚 <code>onSelectTab(BOOKSHELF)</code>（<code>:681</code>）。
+    </p>
+    <div class="rule warn">
+      ⚠️ <b>着地した作品詳細にも道は無い</b>。変換が終わると <code>isImported</code>（<code>NovelDetailViewModel.kt:82-92</code>）が
+      true へ反転し、バーは「縦書きPDFを取り込む」から「なろうで読む」／「第N話のはじめから読む」へ入れ替わるが、
+      <b>入れ替わった先も全部なろうの WebView</b>。<br>
+      直接原因＝<b>作品詳細は <code>ncode</code> しか持たず <code>bookId</code> を持っていない</b>。アプリ内で蔵書へ直行できるのは
+      変換完了通知のタップ（deep link・<code>PdfProcessingService.kt:638</code>）だけで、<b>画面内には存在しない</b>。
+    </div>
+  </div>
+
+  <!-- ================================================================ -->
+  <div class="sec">
+    <h2>§2　いま取込済みの固定バーに出るもの　<span class="tag g">実コードで確定</span></h2>
+    <table class="mx">
+      <tr><th style="width:132px">状態</th><th style="width:210px">主CTA（藍）</th><th style="width:210px">副アクション行</th><th style="width:74px">総高</th><th>着地</th></tr>
+      <tr><td>未取込・未読</td><td>縦書きPDFを取り込む</td><td>なろうで読む／本棚に置く</td><td class="m">137dp</td><td>取込 WebView</td></tr>
+      <tr><td>未取込・既読</td><td>縦書きPDFを取り込む</td><td>第N話から／目次／本棚</td><td class="m">137dp</td><td>取込 WebView</td></tr>
+      <tr><td><b>取込済・未読</b></td><td>なろうで読む</td><td class="x">行そのものが出ない</td><td class="x">81dp</td><td class="x">なろう WebView</td></tr>
+      <tr><td><b>取込済・既読</b></td><td>第N話のはじめから読む</td><td>最初から読み直す（目次）</td><td class="m">137dp</td><td class="x">なろう WebView</td></tr>
+    </table>
+    <div class="rule warn">
+      ⚠️ <b>「既読」はなろうの読書位置であって、アプリの読書位置ではない</b>（<code>readingProgress</code> は
+      <code>webReadingProgress</code> 由来＝WebView で開いた話数）。つまり<b>取り込んだ本を app 内で8割読んでいても、
+      なろうを一度も開いていなければ状態は「取込済・未読」</b>で、主CTA は「なろうで読む」のまま。
+      <b>この画面の「読む」は、手元の本の存在を一切参照していない。</b>
+    </div>
+    <div class="rule warn">
+      ⚠️ <b>正本モックは取込済みを1枚も描いていない</b>。絵で規定されているのは未取込の2状態だけ
+      （<code>discovery-detail-D.html</code> line 350-419 / 421-493）で、取込済みは <code>.cap</code> の1文（line 341）のみ。
+      しかも<b>その1文は現状と合っていない</b>——「副アクション行は『本棚に置く』だけになる」と書いてあるが、
+      実装は既読で「最初から読み直す（目次）」・未読では行が出ない（<code>NovelDetailScreen.kt:530-541</code>）。
+      <b>下の8枚が、取込済みの固定バーを絵にした最初の1枚になる。</b>
+    </div>
+  </div>
+
+  <!-- ================================================================ -->
+  <div class="sec">
+    <h2>§3　バー総高の算術と、あらすじの初期可視行数　<span class="tag">この表が裁定の物差し</span></h2>
+    <p class="body">
+      総高 = <b>1</b>(上罫) + <b>16</b>(上padding) + <b>48×n</b>(スロット) + <b>8×(n−1)</b>(スロット間) + <b>16</b>(下padding)。
+      スクロール域 = 792 − 39(システム上) − 64(トップバー) − 24(システム下) − 総高。
+      あらすじより上は <b>394dp</b> 固定（書影166 ＋ 表の上アキ16 ＋ 表148 ＋ 見出し上アキ24 ＋ 見出し箱28 ＋ 下アキ12）、行送りは <b>26dp</b>。
+    </p>
+    <table class="mx">
+      <tr><th style="width:96px">スロット数</th><th style="width:250px">式</th><th style="width:84px">総高</th><th style="width:120px">スクロール域</th><th style="width:104px">あらすじ</th><th>判定基準（正本から継承）</th></tr>
+      <tr><td>n=1</td><td>1+16+48+16</td><td class="o">81dp</td><td>584dp</td><td class="o">7.3行</td><td>余裕</td></tr>
+      <tr><td>n=2</td><td>1+16+48+8+48+16</td><td class="m">137dp</td><td>528dp</td><td class="m">5.2行</td><td>正本の記載値と一致（推奨3行を満たす）</td></tr>
+      <tr><td>n=3</td><td>1+16+48+8+48+8+48+16</td><td class="x">193dp</td><td>472dp</td><td class="x">3.0行</td><td><b>推奨ライン3行にちょうど接地＝余白ゼロ</b></td></tr>
+    </table>
+    <p class="note">
+      n=3 の 193dp は「2026-08-26 の fontScale 裁定で『実装は縦3段（193dp）のままだった』と記録された実測値」と一致する＝式の検算になっている。<br>
+      判定基準＝<b>最低2行</b>（第1文32字が閉じる）・<b>推奨3行</b>（第2文の「追放」まで届く）。本文幅312dp ÷ 14sp ＝ 1行 ≒ 22字。
+    </p>
+  </div>
+
+  <!-- ================================================================ -->
+  <div class="sec">
+    <h2>§4　対照 ─ 現行の取込済みバー　<span class="tag r">蔵書へ行く道がゼロ</span></h2>
+    <p class="body">どちらのボタンも<b>なろうの WebView</b>へ出る。取り込んだ本そのものは、この画面からは触れない。</p>
+
+    <div class="stage">
+
+      <!-- ============ 対照・取込済/未読（81dp） ============ -->
+      <div class="wrap">
+        <span class="mode">対照 ─ 取込済・未読（現行）</span>
+        <div class="phone" role="img" aria-label="対照 取込済・未読">
+          <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+          <div class="topbar"><span class="ic"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></span></div>
+          <div class="viewport">
+            <div class="scroll"><div class="col">
+              <div class="kaeshi">
+                <div class="band"></div>
+                <div class="shiori"><i></i></div>
+                <div class="kmeta">
+                  <div class="t">追放された万能薬師、辺境でスローライフを始める</div>
+                  <div class="au">霧島あおい</div>
+                  <span class="genre-label">ハイファンタジー</span>
+                </div>
+              </div>
+              <div class="pad">
+                <div class="status-grid">
+                  <div class="status-row" style="height:84px">
+                    <div class="status-item"><span class="lbl">状態</span><span class="val">連載中・127話</span></div>
+                    <div class="status-item"><span class="lbl">読了目安</span><span class="val">約8時間<br><small>（24.1万字）</small></span></div>
+                  </div>
+                  <div class="status-row" style="height:61px">
+                    <div class="status-item"><span class="lbl">会話率</span><span class="val">42%</span></div>
+                    <div class="status-item"><span class="lbl">挿絵</span><span class="val">3枚</span></div>
+                  </div>
+                </div>
+                <div class="dsec">あらすじ</div>
+                <p class="summary-p">調薬の才能を見込まれ、宮廷薬師として働いていた万能薬師のアルス。しかし、無能と罵られ突如国を追放されてしまう。アルスは新天地を求め、たどり着いた世界の最果ての辺境の地で、のんびりとしたスローライフを始めることを決意する。薬草を育て、傷ついた獣を癒やし、村人の頼みごとに応えるうちに、小さな暮らしは少しずつ賑やかになっていく。宮廷が彼を手放したことの意味に、王都が気づくのはまだ先の話。</p>
+                <div class="dsec">キーワード</div>
+                <div class="kw-chips">
+                  <span class="kw-chip">異世界転生</span><span class="kw-chip">ハーレム</span><span class="kw-chip">チート</span><span class="kw-chip">成り上がり</span><span class="kw-chip">スローライフ</span>
+                </div>
+                <div class="dsec">評価</div>
+                <div class="eval-grid">
+                  <div class="eval-row">
+                    <div class="eval-item"><span class="eval-lbl">総合評価</span><span class="eval-val">123,456 pt</span></div>
+                    <div class="eval-item"><span class="eval-lbl">ブックマーク</span><span class="eval-val">45,678 件</span></div>
+                  </div>
+                  <div class="eval-row">
+                    <div class="eval-item"><span class="eval-lbl">評価者数</span><span class="eval-val">8,901 人</span></div>
+                    <div class="eval-item"><span class="eval-lbl">週間ポイント</span><span class="eval-val">12,345 pt</span></div>
+                  </div>
+                </div>
+                <div class="last-updated">2026年7月6日 更新</div>
+              </div>
+            </div></div>
+            <div class="afford fade"></div>
+            <div class="afford chev"><svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></div>
+          </div>
+          <div class="fixed-bar">
+            <div class="slot">
+              <button class="btn-primary"><svg viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>なろうで読む</button>
+            </div>
+          </div>
+          <div class="navbar"><i></i></div>
+        </div>
+        <div class="cost bad">
+          <b>1スロット＝81dp</b>／あらすじ <b>7.3行</b>（版面はいちばん広い）。<br>
+          <span class="x">蔵書への導線ゼロ。</span>本を取り込んだ直後でもこの画面が唯一差し出すのは
+          <b>なろうへ出る</b>ボタン1つで、しかも「未読」判定は<b>なろうの</b>読書位置＝アプリで読み進めていても状態は変わらない。
+        </div>
+      </div>
+
+      <!-- ============ 対照・取込済/既読（137dp） ============ -->
+      <div class="wrap">
+        <span class="mode">対照 ─ 取込済・既読（現行）</span>
+        <div class="phone" role="img" aria-label="対照 取込済・既読">
+          <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+          <div class="topbar"><span class="ic"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></span></div>
+          <div class="viewport">
+            <div class="scroll"><div class="col">
+              <div class="kaeshi">
+                <div class="band"></div>
+                <div class="shiori"><i></i></div>
+                <div class="kmeta">
+                  <div class="t">追放された万能薬師、辺境でスローライフを始める</div>
+                  <div class="au">霧島あおい</div>
+                  <span class="genre-label">ハイファンタジー</span>
+                </div>
+              </div>
+              <div class="pad">
+                <div class="status-grid">
+                  <div class="status-row" style="height:84px">
+                    <div class="status-item"><span class="lbl">状態</span><span class="val">連載中・127話</span></div>
+                    <div class="status-item"><span class="lbl">読了目安</span><span class="val">約8時間<br><small>（24.1万字）</small></span></div>
+                  </div>
+                  <div class="status-row" style="height:61px">
+                    <div class="status-item"><span class="lbl">会話率</span><span class="val">42%</span></div>
+                    <div class="status-item"><span class="lbl">挿絵</span><span class="val">3枚</span></div>
+                  </div>
+                </div>
+                <div class="dsec">あらすじ</div>
+                <p class="summary-p">調薬の才能を見込まれ、宮廷薬師として働いていた万能薬師のアルス。しかし、無能と罵られ突如国を追放されてしまう。アルスは新天地を求め、たどり着いた世界の最果ての辺境の地で、のんびりとしたスローライフを始めることを決意する。薬草を育て、傷ついた獣を癒やし、村人の頼みごとに応えるうちに、小さな暮らしは少しずつ賑やかになっていく。宮廷が彼を手放したことの意味に、王都が気づくのはまだ先の話。</p>
+                <div class="dsec">キーワード</div>
+                <div class="kw-chips">
+                  <span class="kw-chip">異世界転生</span><span class="kw-chip">ハーレム</span><span class="kw-chip">チート</span><span class="kw-chip">成り上がり</span><span class="kw-chip">スローライフ</span>
+                </div>
+                <div class="dsec">評価</div>
+                <div class="eval-grid">
+                  <div class="eval-row">
+                    <div class="eval-item"><span class="eval-lbl">総合評価</span><span class="eval-val">123,456 pt</span></div>
+                    <div class="eval-item"><span class="eval-lbl">ブックマーク</span><span class="eval-val">45,678 件</span></div>
+                  </div>
+                  <div class="eval-row">
+                    <div class="eval-item"><span class="eval-lbl">評価者数</span><span class="eval-val">8,901 人</span></div>
+                    <div class="eval-item"><span class="eval-lbl">週間ポイント</span><span class="eval-val">12,345 pt</span></div>
+                  </div>
+                </div>
+                <div class="last-updated">2026年7月6日 更新</div>
+              </div>
+            </div></div>
+            <div class="afford fade"></div>
+            <div class="afford chev"><svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></div>
+          </div>
+          <div class="fixed-bar">
+            <div class="slot">
+              <button class="btn-primary"><svg viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>第12話のはじめから読む</button>
+            </div>
+            <div class="slot row">
+              <button class="btn-ghost mini"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>最初から読み直す（目次）</button>
+            </div>
+          </div>
+          <div class="navbar"><i></i></div>
+        </div>
+        <div class="cost bad">
+          <b>2スロット＝137dp</b>／あらすじ <b>5.2行</b>。<br>
+          <span class="x">2つとも なろう WebView。</span>「第12話」も「目次」も<b>なろうの</b>話数・なろうの目次で、
+          手元の PDF とは別物。取り込んだ本を開く道はここにも無い。
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ================================================================ -->
+  <div class="sec">
+    <h2>§5　案A ─ 主CTA を蔵書へ差し替える　<span class="tag">推奨</span><span class="tag g">137dp 据え置き</span></h2>
+    <p class="body">
+      <b>アクション数を増やさず、入れ替える</b>。主CTA を「アプリで読む」にし、なろう系は副アクション行へ降ろす
+      （<b>消さない</b>＝「せっかくの導線を隠すのは論外」の筋を守る）。
+      2026-08-21 の総高 137dp は<b>侵さない</b>——それどころか、いま 81dp で浮いている取込済・未読も 137dp に揃うので、
+      <b>4状態すべてが 137dp</b>になる。
+    </p>
+
+    <div class="stage">
+
+      <!-- ============ 案A・取込済/未読（137dp） ============ -->
+      <div class="wrap">
+        <span class="mode">案A ─ 取込済・未読</span>
+        <div class="phone" role="img" aria-label="案A 取込済・未読">
+          <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+          <div class="topbar"><span class="ic"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></span></div>
+          <div class="viewport">
+            <div class="scroll"><div class="col">
+              <div class="kaeshi">
+                <div class="band"></div>
+                <div class="shiori"><i></i></div>
+                <div class="kmeta">
+                  <div class="t">追放された万能薬師、辺境でスローライフを始める</div>
+                  <div class="au">霧島あおい</div>
+                  <span class="genre-label">ハイファンタジー</span>
+                </div>
+              </div>
+              <div class="pad">
+                <div class="status-grid">
+                  <div class="status-row" style="height:84px">
+                    <div class="status-item"><span class="lbl">状態</span><span class="val">連載中・127話</span></div>
+                    <div class="status-item"><span class="lbl">読了目安</span><span class="val">約8時間<br><small>（24.1万字）</small></span></div>
+                  </div>
+                  <div class="status-row" style="height:61px">
+                    <div class="status-item"><span class="lbl">会話率</span><span class="val">42%</span></div>
+                    <div class="status-item"><span class="lbl">挿絵</span><span class="val">3枚</span></div>
+                  </div>
+                </div>
+                <div class="dsec">あらすじ</div>
+                <p class="summary-p">調薬の才能を見込まれ、宮廷薬師として働いていた万能薬師のアルス。しかし、無能と罵られ突如国を追放されてしまう。アルスは新天地を求め、たどり着いた世界の最果ての辺境の地で、のんびりとしたスローライフを始めることを決意する。薬草を育て、傷ついた獣を癒やし、村人の頼みごとに応えるうちに、小さな暮らしは少しずつ賑やかになっていく。宮廷が彼を手放したことの意味に、王都が気づくのはまだ先の話。</p>
+                <div class="dsec">キーワード</div>
+                <div class="kw-chips">
+                  <span class="kw-chip">異世界転生</span><span class="kw-chip">ハーレム</span><span class="kw-chip">チート</span><span class="kw-chip">成り上がり</span><span class="kw-chip">スローライフ</span>
+                </div>
+                <div class="dsec">評価</div>
+                <div class="eval-grid">
+                  <div class="eval-row">
+                    <div class="eval-item"><span class="eval-lbl">総合評価</span><span class="eval-val">123,456 pt</span></div>
+                    <div class="eval-item"><span class="eval-lbl">ブックマーク</span><span class="eval-val">45,678 件</span></div>
+                  </div>
+                  <div class="eval-row">
+                    <div class="eval-item"><span class="eval-lbl">評価者数</span><span class="eval-val">8,901 人</span></div>
+                    <div class="eval-item"><span class="eval-lbl">週間ポイント</span><span class="eval-val">12,345 pt</span></div>
+                  </div>
+                </div>
+                <div class="last-updated">2026年7月6日 更新</div>
+              </div>
+            </div></div>
+            <div class="afford fade"></div>
+            <div class="afford chev"><svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></div>
+          </div>
+          <div class="fixed-bar">
+            <div class="slot">
+              <button class="btn-primary"><svg viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>アプリで読む</button>
+            </div>
+            <div class="slot row">
+              <button class="btn-ghost mini"><svg viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>なろうで読む</button>
+            </div>
+          </div>
+          <div class="navbar"><i></i></div>
+        </div>
+        <div class="cost">
+          <b>2スロット＝137dp</b>（対照 81dp から <b>+56dp</b>）／あらすじ <b>7.3行 → 5.2行</b>（−2.1行）。<br>
+          <b>減った先が「137dp のときの 5.2行」ちょうど</b>＝正本が3アクション版・4アクション版で規定した行数と同値で、
+          <b>これ以下には落ちない</b>。推奨ライン3行に対して 2.2行ぶんの余裕が残る。
+        </div>
+      </div>
+
+      <!-- ============ 案A・取込済/既読（137dp） ============ -->
+      <div class="wrap">
+        <span class="mode">案A ─ 取込済・既読</span>
+        <div class="phone" role="img" aria-label="案A 取込済・既読">
+          <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+          <div class="topbar"><span class="ic"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></span></div>
+          <div class="viewport">
+            <div class="scroll"><div class="col">
+              <div class="kaeshi">
+                <div class="band"></div>
+                <div class="shiori"><i></i></div>
+                <div class="kmeta">
+                  <div class="t">追放された万能薬師、辺境でスローライフを始める</div>
+                  <div class="au">霧島あおい</div>
+                  <span class="genre-label">ハイファンタジー</span>
+                </div>
+              </div>
+              <div class="pad">
+                <div class="status-grid">
+                  <div class="status-row" style="height:84px">
+                    <div class="status-item"><span class="lbl">状態</span><span class="val">連載中・127話</span></div>
+                    <div class="status-item"><span class="lbl">読了目安</span><span class="val">約8時間<br><small>（24.1万字）</small></span></div>
+                  </div>
+                  <div class="status-row" style="height:61px">
+                    <div class="status-item"><span class="lbl">会話率</span><span class="val">42%</span></div>
+                    <div class="status-item"><span class="lbl">挿絵</span><span class="val">3枚</span></div>
+                  </div>
+                </div>
+                <div class="dsec">あらすじ</div>
+                <p class="summary-p">調薬の才能を見込まれ、宮廷薬師として働いていた万能薬師のアルス。しかし、無能と罵られ突如国を追放されてしまう。アルスは新天地を求め、たどり着いた世界の最果ての辺境の地で、のんびりとしたスローライフを始めることを決意する。薬草を育て、傷ついた獣を癒やし、村人の頼みごとに応えるうちに、小さな暮らしは少しずつ賑やかになっていく。宮廷が彼を手放したことの意味に、王都が気づくのはまだ先の話。</p>
+                <div class="dsec">キーワード</div>
+                <div class="kw-chips">
+                  <span class="kw-chip">異世界転生</span><span class="kw-chip">ハーレム</span><span class="kw-chip">チート</span><span class="kw-chip">成り上がり</span><span class="kw-chip">スローライフ</span>
+                </div>
+                <div class="dsec">評価</div>
+                <div class="eval-grid">
+                  <div class="eval-row">
+                    <div class="eval-item"><span class="eval-lbl">総合評価</span><span class="eval-val">123,456 pt</span></div>
+                    <div class="eval-item"><span class="eval-lbl">ブックマーク</span><span class="eval-val">45,678 件</span></div>
+                  </div>
+                  <div class="eval-row">
+                    <div class="eval-item"><span class="eval-lbl">評価者数</span><span class="eval-val">8,901 人</span></div>
+                    <div class="eval-item"><span class="eval-lbl">週間ポイント</span><span class="eval-val">12,345 pt</span></div>
+                  </div>
+                </div>
+                <div class="last-updated">2026年7月6日 更新</div>
+              </div>
+            </div></div>
+            <div class="afford fade"></div>
+            <div class="afford chev"><svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></div>
+          </div>
+          <div class="fixed-bar">
+            <div class="slot">
+              <button class="btn-primary"><svg viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>アプリで読む</button>
+            </div>
+            <div class="slot row">
+              <button class="btn-ghost mini"><svg viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>なろうで第12話から</button>
+              <button class="btn-ghost mini"><svg viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>なろうの目次</button>
+            </div>
+          </div>
+          <div class="navbar"><i></i></div>
+        </div>
+        <div class="cost">
+          <b>2スロット＝137dp（対照と同値・±0dp）</b>／あらすじ <b>5.2行</b>（変化なし）。<br>
+          副が2つになるので幅は 152dp／個、字に使えるのは <b>124dp</b>。<b>「なろうで第12話から」＝103.5dp</b>、
+          4桁話数「第1234話」でも 115dp で<b>1行に収まる</b>（11.5sp・全角11.5dp／半角5.75dp・アイコン16＋アキ4＋内側padding8 を引いた実効幅）。
+        </div>
+      </div>
+
+    </div>
+
+    <div class="rule">
+      <b>アイコンで「よそへ出る」を運ぶ</b>——藍の主CTA だけ MenuBook（手元の本）、なろう系は<b>すべて外部リンク記号</b>で揃える。
+      ⚠️ いまは<b>正本もコードも揃っていない</b>: 正本は「なろうで読む」に外部リンク記号（line 413）・「第13話から」に MenuBook（line 486）を当てており、
+      Compose は「なろうで読む」にも MenuBook を当てている（<code>NovelDetailScreen.kt:521-524</code>）。
+      主CTA が蔵書側へ移る案A では、<b>同じ MenuBook が2つ並ぶと「どちらが手元の本か」が絵で見分けられなくなる</b>ので、この揃え直しは案Aとセットで要る。
+    </div>
+  </div>
+
+  <!-- ================================================================ -->
+  <div class="sec">
+    <h2>§6　案B ─ なろう系を残したまま1つ増やす　<span class="tag r">137dp 固定が崩れる</span></h2>
+    <p class="body">
+      主従を動かさず、<b>「アプリで読む」を新しいスロットとして足す</b>案。既存の並びに一切手を入れないぶん、
+      過去裁定との衝突が「総高」1点に集約される——代わりに<b>その1点が正面衝突になる</b>。
+    </p>
+
+    <div class="stage">
+
+      <!-- ============ 案B・取込済/未読（137dp） ============ -->
+      <div class="wrap">
+        <span class="mode">案B ─ 取込済・未読</span>
+        <div class="phone" role="img" aria-label="案B 取込済・未読">
+          <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+          <div class="topbar"><span class="ic"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></span></div>
+          <div class="viewport">
+            <div class="scroll"><div class="col">
+              <div class="kaeshi">
+                <div class="band"></div>
+                <div class="shiori"><i></i></div>
+                <div class="kmeta">
+                  <div class="t">追放された万能薬師、辺境でスローライフを始める</div>
+                  <div class="au">霧島あおい</div>
+                  <span class="genre-label">ハイファンタジー</span>
+                </div>
+              </div>
+              <div class="pad">
+                <div class="status-grid">
+                  <div class="status-row" style="height:84px">
+                    <div class="status-item"><span class="lbl">状態</span><span class="val">連載中・127話</span></div>
+                    <div class="status-item"><span class="lbl">読了目安</span><span class="val">約8時間<br><small>（24.1万字）</small></span></div>
+                  </div>
+                  <div class="status-row" style="height:61px">
+                    <div class="status-item"><span class="lbl">会話率</span><span class="val">42%</span></div>
+                    <div class="status-item"><span class="lbl">挿絵</span><span class="val">3枚</span></div>
+                  </div>
+                </div>
+                <div class="dsec">あらすじ</div>
+                <p class="summary-p">調薬の才能を見込まれ、宮廷薬師として働いていた万能薬師のアルス。しかし、無能と罵られ突如国を追放されてしまう。アルスは新天地を求め、たどり着いた世界の最果ての辺境の地で、のんびりとしたスローライフを始めることを決意する。薬草を育て、傷ついた獣を癒やし、村人の頼みごとに応えるうちに、小さな暮らしは少しずつ賑やかになっていく。宮廷が彼を手放したことの意味に、王都が気づくのはまだ先の話。</p>
+                <div class="dsec">キーワード</div>
+                <div class="kw-chips">
+                  <span class="kw-chip">異世界転生</span><span class="kw-chip">ハーレム</span><span class="kw-chip">チート</span><span class="kw-chip">成り上がり</span><span class="kw-chip">スローライフ</span>
+                </div>
+                <div class="dsec">評価</div>
+                <div class="eval-grid">
+                  <div class="eval-row">
+                    <div class="eval-item"><span class="eval-lbl">総合評価</span><span class="eval-val">123,456 pt</span></div>
+                    <div class="eval-item"><span class="eval-lbl">ブックマーク</span><span class="eval-val">45,678 件</span></div>
+                  </div>
+                  <div class="eval-row">
+                    <div class="eval-item"><span class="eval-lbl">評価者数</span><span class="eval-val">8,901 人</span></div>
+                    <div class="eval-item"><span class="eval-lbl">週間ポイント</span><span class="eval-val">12,345 pt</span></div>
+                  </div>
+                </div>
+                <div class="last-updated">2026年7月6日 更新</div>
+              </div>
+            </div></div>
+            <div class="afford fade"></div>
+            <div class="afford chev"><svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></div>
+          </div>
+          <div class="fixed-bar">
+            <div class="slot">
+              <button class="btn-primary"><svg viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>アプリで読む</button>
+            </div>
+            <div class="slot">
+              <button class="btn-ghost"><svg viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>なろうで読む</button>
+            </div>
+          </div>
+          <div class="navbar"><i></i></div>
+        </div>
+        <div class="cost">
+          <b>2スロット＝137dp</b>／あらすじ <b>5.2行</b>。<br>
+          この状態は現行が 81dp で1スロットしか無かったので、足しても 137dp に収まる。<b>問題は隣（既読）で起きる。</b>
+        </div>
+      </div>
+
+      <!-- ============ 案B・取込済/既読（193dp） ============ -->
+      <div class="wrap">
+        <span class="mode">案B ─ 取込済・既読</span>
+        <div class="phone" role="img" aria-label="案B 取込済・既読">
+          <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+          <div class="topbar"><span class="ic"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></span></div>
+          <div class="viewport">
+            <div class="scroll"><div class="col">
+              <div class="kaeshi">
+                <div class="band"></div>
+                <div class="shiori"><i></i></div>
+                <div class="kmeta">
+                  <div class="t">追放された万能薬師、辺境でスローライフを始める</div>
+                  <div class="au">霧島あおい</div>
+                  <span class="genre-label">ハイファンタジー</span>
+                </div>
+              </div>
+              <div class="pad">
+                <div class="status-grid">
+                  <div class="status-row" style="height:84px">
+                    <div class="status-item"><span class="lbl">状態</span><span class="val">連載中・127話</span></div>
+                    <div class="status-item"><span class="lbl">読了目安</span><span class="val">約8時間<br><small>（24.1万字）</small></span></div>
+                  </div>
+                  <div class="status-row" style="height:61px">
+                    <div class="status-item"><span class="lbl">会話率</span><span class="val">42%</span></div>
+                    <div class="status-item"><span class="lbl">挿絵</span><span class="val">3枚</span></div>
+                  </div>
+                </div>
+                <div class="dsec">あらすじ</div>
+                <p class="summary-p">調薬の才能を見込まれ、宮廷薬師として働いていた万能薬師のアルス。しかし、無能と罵られ突如国を追放されてしまう。アルスは新天地を求め、たどり着いた世界の最果ての辺境の地で、のんびりとしたスローライフを始めることを決意する。薬草を育て、傷ついた獣を癒やし、村人の頼みごとに応えるうちに、小さな暮らしは少しずつ賑やかになっていく。宮廷が彼を手放したことの意味に、王都が気づくのはまだ先の話。</p>
+                <div class="dsec">キーワード</div>
+                <div class="kw-chips">
+                  <span class="kw-chip">異世界転生</span><span class="kw-chip">ハーレム</span><span class="kw-chip">チート</span><span class="kw-chip">成り上がり</span><span class="kw-chip">スローライフ</span>
+                </div>
+                <div class="dsec">評価</div>
+                <div class="eval-grid">
+                  <div class="eval-row">
+                    <div class="eval-item"><span class="eval-lbl">総合評価</span><span class="eval-val">123,456 pt</span></div>
+                    <div class="eval-item"><span class="eval-lbl">ブックマーク</span><span class="eval-val">45,678 件</span></div>
+                  </div>
+                  <div class="eval-row">
+                    <div class="eval-item"><span class="eval-lbl">評価者数</span><span class="eval-val">8,901 人</span></div>
+                    <div class="eval-item"><span class="eval-lbl">週間ポイント</span><span class="eval-val">12,345 pt</span></div>
+                  </div>
+                </div>
+                <div class="last-updated">2026年7月6日 更新</div>
+              </div>
+            </div></div>
+            <div class="afford fade"></div>
+            <div class="afford chev"><svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></div>
+          </div>
+          <div class="fixed-bar">
+            <div class="slot">
+              <button class="btn-primary"><svg viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>アプリで読む</button>
+            </div>
+            <div class="slot">
+              <button class="btn-ghost"><svg viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>第12話のはじめから読む</button>
+            </div>
+            <div class="slot row">
+              <button class="btn-ghost mini"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>最初から読み直す（目次）</button>
+            </div>
+          </div>
+          <div class="navbar"><i></i></div>
+        </div>
+        <div class="cost bad">
+          <span class="x">3スロット＝193dp</span>（対照 137dp から <b>+56dp</b>）／あらすじ <b>5.2行 → 3.0行</b>（−2.2行）。<br>
+          <span class="x">2026-08-21 の「総高137dp」を明示的に更新することになる。</span>
+          しかも取込済みの2状態で <b>137dp / 193dp と 56dp 差</b>が付く＝案B採用の決め手だった
+          「片方だけ直る案は使えない」に、今度は<b>こちらが当たる</b>。<br>
+          さらに <b>3.0行は推奨ラインへの接地＝余白ゼロ</b>。fontScale を1段上げるか、副ラベルが折り返した瞬間に<b>推奨ラインを割る</b>。
+        </div>
+      </div>
+
+    </div>
+
+    <div class="rule warn">
+      ⚠️ <b>案B の代償（明記）</b>: ①総高 137dp 固定の破棄（193dp への更新）②取込済みの2状態で総高が
+      56dp 食い違う（＝2026-08-21 の採用理由そのものの否定）③あらすじが推奨3行に接地して余白を失う
+      ④「アプリで読む」と「第12話のはじめから読む」が縦に並び、<b>どちらも「読む」で場所が書かれていない</b>——
+      藍とゴーストの差だけで「手元／なろう」を読み取らせることになる。
+    </div>
+  </div>
+
+  <!-- ================================================================ -->
+  <div class="sec">
+    <h2>§7　案C ─ 副アクション行に差し込む（最小改変）　<span class="tag g">137dp 据え置き</span><span class="tag r">主従が逆</span></h2>
+    <p class="body">
+      主CTA は現行のまま触らず、<b>「アプリで読む」を副アクション行へ入れる</b>。総高は 137dp に収まり、
+      過去裁定に一切触れない——その代わり<b>意味の側が破綻する</b>。
+    </p>
+
+    <div class="stage">
+
+      <!-- ============ 案C・取込済/未読（137dp） ============ -->
+      <div class="wrap">
+        <span class="mode">案C ─ 取込済・未読</span>
+        <div class="phone" role="img" aria-label="案C 取込済・未読">
+          <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+          <div class="topbar"><span class="ic"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></span></div>
+          <div class="viewport">
+            <div class="scroll"><div class="col">
+              <div class="kaeshi">
+                <div class="band"></div>
+                <div class="shiori"><i></i></div>
+                <div class="kmeta">
+                  <div class="t">追放された万能薬師、辺境でスローライフを始める</div>
+                  <div class="au">霧島あおい</div>
+                  <span class="genre-label">ハイファンタジー</span>
+                </div>
+              </div>
+              <div class="pad">
+                <div class="status-grid">
+                  <div class="status-row" style="height:84px">
+                    <div class="status-item"><span class="lbl">状態</span><span class="val">連載中・127話</span></div>
+                    <div class="status-item"><span class="lbl">読了目安</span><span class="val">約8時間<br><small>（24.1万字）</small></span></div>
+                  </div>
+                  <div class="status-row" style="height:61px">
+                    <div class="status-item"><span class="lbl">会話率</span><span class="val">42%</span></div>
+                    <div class="status-item"><span class="lbl">挿絵</span><span class="val">3枚</span></div>
+                  </div>
+                </div>
+                <div class="dsec">あらすじ</div>
+                <p class="summary-p">調薬の才能を見込まれ、宮廷薬師として働いていた万能薬師のアルス。しかし、無能と罵られ突如国を追放されてしまう。アルスは新天地を求め、たどり着いた世界の最果ての辺境の地で、のんびりとしたスローライフを始めることを決意する。薬草を育て、傷ついた獣を癒やし、村人の頼みごとに応えるうちに、小さな暮らしは少しずつ賑やかになっていく。宮廷が彼を手放したことの意味に、王都が気づくのはまだ先の話。</p>
+                <div class="dsec">キーワード</div>
+                <div class="kw-chips">
+                  <span class="kw-chip">異世界転生</span><span class="kw-chip">ハーレム</span><span class="kw-chip">チート</span><span class="kw-chip">成り上がり</span><span class="kw-chip">スローライフ</span>
+                </div>
+                <div class="dsec">評価</div>
+                <div class="eval-grid">
+                  <div class="eval-row">
+                    <div class="eval-item"><span class="eval-lbl">総合評価</span><span class="eval-val">123,456 pt</span></div>
+                    <div class="eval-item"><span class="eval-lbl">ブックマーク</span><span class="eval-val">45,678 件</span></div>
+                  </div>
+                  <div class="eval-row">
+                    <div class="eval-item"><span class="eval-lbl">評価者数</span><span class="eval-val">8,901 人</span></div>
+                    <div class="eval-item"><span class="eval-lbl">週間ポイント</span><span class="eval-val">12,345 pt</span></div>
+                  </div>
+                </div>
+                <div class="last-updated">2026年7月6日 更新</div>
+              </div>
+            </div></div>
+            <div class="afford fade"></div>
+            <div class="afford chev"><svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></div>
+          </div>
+          <div class="fixed-bar">
+            <div class="slot">
+              <button class="btn-primary"><svg viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>なろうで読む</button>
+            </div>
+            <div class="slot row">
+              <button class="btn-ghost mini"><svg viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>アプリで読む</button>
+            </div>
+          </div>
+          <div class="navbar"><i></i></div>
+        </div>
+        <div class="cost bad">
+          <b>2スロット＝137dp</b>／あらすじ <b>7.3行 → 5.2行</b>（案Aと同じ −2.1行）。<br>
+          <span class="x">版面の代償は案Aと同額なのに、得られるものが小さい</span>——
+          数分かけて変換した<b>手元の本が枠線のゴースト</b>で、外部サイトが藍のまま。
+        </div>
+      </div>
+
+      <!-- ============ 案C・取込済/既読（137dp） ============ -->
+      <div class="wrap">
+        <span class="mode">案C ─ 取込済・既読</span>
+        <div class="phone" role="img" aria-label="案C 取込済・既読">
+          <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+          <div class="topbar"><span class="ic"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></span></div>
+          <div class="viewport">
+            <div class="scroll"><div class="col">
+              <div class="kaeshi">
+                <div class="band"></div>
+                <div class="shiori"><i></i></div>
+                <div class="kmeta">
+                  <div class="t">追放された万能薬師、辺境でスローライフを始める</div>
+                  <div class="au">霧島あおい</div>
+                  <span class="genre-label">ハイファンタジー</span>
+                </div>
+              </div>
+              <div class="pad">
+                <div class="status-grid">
+                  <div class="status-row" style="height:84px">
+                    <div class="status-item"><span class="lbl">状態</span><span class="val">連載中・127話</span></div>
+                    <div class="status-item"><span class="lbl">読了目安</span><span class="val">約8時間<br><small>（24.1万字）</small></span></div>
+                  </div>
+                  <div class="status-row" style="height:61px">
+                    <div class="status-item"><span class="lbl">会話率</span><span class="val">42%</span></div>
+                    <div class="status-item"><span class="lbl">挿絵</span><span class="val">3枚</span></div>
+                  </div>
+                </div>
+                <div class="dsec">あらすじ</div>
+                <p class="summary-p">調薬の才能を見込まれ、宮廷薬師として働いていた万能薬師のアルス。しかし、無能と罵られ突如国を追放されてしまう。アルスは新天地を求め、たどり着いた世界の最果ての辺境の地で、のんびりとしたスローライフを始めることを決意する。薬草を育て、傷ついた獣を癒やし、村人の頼みごとに応えるうちに、小さな暮らしは少しずつ賑やかになっていく。宮廷が彼を手放したことの意味に、王都が気づくのはまだ先の話。</p>
+                <div class="dsec">キーワード</div>
+                <div class="kw-chips">
+                  <span class="kw-chip">異世界転生</span><span class="kw-chip">ハーレム</span><span class="kw-chip">チート</span><span class="kw-chip">成り上がり</span><span class="kw-chip">スローライフ</span>
+                </div>
+                <div class="dsec">評価</div>
+                <div class="eval-grid">
+                  <div class="eval-row">
+                    <div class="eval-item"><span class="eval-lbl">総合評価</span><span class="eval-val">123,456 pt</span></div>
+                    <div class="eval-item"><span class="eval-lbl">ブックマーク</span><span class="eval-val">45,678 件</span></div>
+                  </div>
+                  <div class="eval-row">
+                    <div class="eval-item"><span class="eval-lbl">評価者数</span><span class="eval-val">8,901 人</span></div>
+                    <div class="eval-item"><span class="eval-lbl">週間ポイント</span><span class="eval-val">12,345 pt</span></div>
+                  </div>
+                </div>
+                <div class="last-updated">2026年7月6日 更新</div>
+              </div>
+            </div></div>
+            <div class="afford fade"></div>
+            <div class="afford chev"><svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></div>
+          </div>
+          <div class="fixed-bar">
+            <div class="slot">
+              <button class="btn-primary"><svg viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>第12話のはじめから読む</button>
+            </div>
+            <div class="slot row">
+              <button class="btn-ghost mini"><svg viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>アプリで読む</button>
+              <button class="btn-ghost mini"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>目次</button>
+            </div>
+          </div>
+          <div class="navbar"><i></i></div>
+        </div>
+        <div class="cost bad">
+          <b>2スロット＝137dp</b>／あらすじ <b>5.2行</b>（対照と同値）。<br>
+          <span class="x">「第12話のはじめから読む」（藍・なろう）と「アプリで読む」（ゴースト・手元）が同居する。</span>
+          どちらも「読む」で、<b>主CTA 側には場所が書かれていない</b>——藍のほうが外部サイトへ出る、という読み違いが最も起きやすい形。
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ================================================================ -->
+  <div class="sec">
+    <h2>§8　文言　<span class="tag g">絵ではなく文字で裁定する</span></h2>
+    <div class="copy">
+      <h4>採る<span class="ch">主CTA・取込済みの2状態で共通</span></h4>
+      <dl>
+        <dt>藍の主CTA（案A）</dt>
+        <dd><b>アプリで読む</b></dd>
+        <dt>なぜこれか</dt>
+        <dd>①既存の<b>「なろうで読む」と1軸で対になる</b>——〈どこで読むか〉という1つの問いの2択に見え、
+          このアプリが「なろうを見る器」でなく「なろうから本を作る器」であることが<b>ボタン名2つだけで伝わる</b>
+          （/visual-language の最上位判定①「一目で分かるか」）。
+          ②初回教示（<code>IntroDeck.kt:74</code>）が既に<b>「アプリの操作も効きません」</b>という言い方で
+          〈アプリ／なろう〉の対比語彙を使っており、<b>新しい語を発明していない</b>。
+          ③<b>未読・既読どちらでも嘘にならない</b>——蔵書を開く実装は
+          <code>getLastRead(BookId) ?: "index.html"</code>（<code>BookshelfScreen.kt:366</code>）で、
+          <b>続きがあれば続き・無ければ最初</b>に着地する1つの動作。だから語を状態で振り分ける必要がない。</dd>
+      </dl>
+
+      <h4>採る<span class="ch">副アクション（なろう系）</span></h4>
+      <dl>
+        <dt>取込済・未読（副1つ・全幅312dp）</dt>
+        <dd><b>なろうで読む</b>　<span style="color:#6A6C67">← 現行の文字列と1字同一（<code>NovelDetailScreen.kt:487</code>・WebReaderScreen のタイトル・IntroDeck と揃う）</span></dd>
+        <dt>取込済・既読（副2つ・各152dp／字に使えるのは124dp）</dt>
+        <dd><b>なろうで第12話から</b>（103.5dp・4桁話数でも115dp）／<b>なろうの目次</b>（69dp）</dd>
+        <dt>なぜ「なろうで」を頭に付けるか</dt>
+        <dd>主CTA が蔵書側へ移った瞬間、副の「第12話から」「目次」は<b>何の第12話・何の目次か</b>を自力で言えなくなる
+          （手元の本にも話数と目次がある）。現行の 4アクション版で prefix が無くて済んでいたのは、
+          <b>バーの全部がなろう向きだったから</b>で、案Aではその前提が消える。</dd>
+        <dt>幅が足りるかの計算</dt>
+        <dd>副2つのボタン幅 = (360 − 24 − 24 − 8)/2 = <b>152dp</b>。字に使えるのは 152 − 内側padding8 − アイコン16 − アキ4 = <b>124dp</b>。
+          11.5sp は全角11.5dp・半角5.75dp なので「なろうで第12話から」= 46+11.5+11.5+11.5+23 = <b>103.5dp</b>。
+          <span style="color:#6A6C67">（この計算式は正本が3つ横並びで「第123話から」が収まる根拠に使った 70.7dp と同じもの＝検算になっている）</span></dd>
+      </dl>
+
+      <h4>採らない<span class="ch">検討して落とした語</span></h4>
+      <dl>
+        <dt>続きから読む</dt>
+        <dd><span class="no">×</span> 取り込んだ直後（進捗ゼロ）に<b>「続き」が無いのに続きと言う</b>。
+          状態で語を振り分ければ直るが、そのためには<b>アプリ側の読書位置まで詳細画面へ引く</b>ことになり、
+          <code>bookId</code> を1つ足すだけの実装が「進捗の取得と表示」まで膨らむ。<b>この便では採らない</b>（§13 に保留として記す）。</dd>
+        <dt>この本を読む</dt>
+        <dd><span class="no">×</span> 場所を言っていない。<b>隣の「なろうで読む」も同じ本</b>なので、2つの差が名前から消える。</dd>
+        <dt>本棚で読む</dt>
+        <dd><span class="no">×</span> 事実と違う。着地は本棚ではなく読書画面（<code>reading/{bookId}/{startFile}</code>）。</dd>
+        <dt>取り込んだ本を読む</dt>
+        <dd><span class="no">×</span> 9字で主CTA には収まるが、<b>取込直後にしか意味が立たない語</b>
+          （3か月後に開いた人には「取り込んだ」が現在の状態でなく過去の出来事に読める）。固定バーは常設なので不適。</dd>
+      </dl>
+    </div>
+  </div>
+
+  <!-- ================================================================ -->
+  <div class="sec">
+    <h2>§9　なろう系（「なろうで読む」）を残すか・降ろすか・消すか　<span class="tag g">結論＝降ろす／消さない</span></h2>
+    <table class="mx">
+      <tr><th style="width:130px">扱い</th><th style="width:80px">判定</th><th>理由</th></tr>
+      <tr>
+        <td>主CTA のまま残す</td><td class="x">不可</td>
+        <td>取り込みを終えた作品の画面で、いちばん強い1点が<b>外部サイト</b>を指し続ける。ユーザーが数分かけて作った成果物が画面から見えない（＝今回の実機所感そのもの）。</td>
+      </tr>
+      <tr>
+        <td><b>副アクションへ降ろす</b></td><td class="o">採用</td>
+        <td>主従だけを入れ替え、<b>導線は1つも減らさない</b>。2026-08-21「せっかくの導線を隠すのは論外」は<b>オーバーフローへの退避</b>を却下したもので、<b>同じバーの中で格を下げること</b>は却下対象に含まれていない（現に未取込・既読では「第N話から」「目次」が副に居る）。</td>
+      </tr>
+      <tr>
+        <td>消す</td><td class="x">不可</td>
+        <td>下の3点。<b>「隠す」より強い操作</b>なので、却下された案Aよりさらに踏み込むことになる。</td>
+      </tr>
+    </table>
+    <div class="rule">
+      <b>「消せない」決定打＝取り込んだ PDF は取り込んだ時点のスナップショットで、連載は続く。</b><br>
+      ・アプリ自身が <code>NewEpisodeCheckWorker</code> で<b>「続きが N 話更新されています（全M話）」</b>と通知している（<code>:164</code>）。
+        <b>その通知を受け取った人が続きを読める唯一の面がなろう WebView</b>——ここを消すと、自分が出した通知の行き先を自分で塞ぐ。<br>
+      ・感想・評価・作者の近況など、<b>PDF に写らないもの</b>はなろう側にしかない。<br>
+      ・ADR 0011 の守り（公式ページを無加工・広告込みで表示し、DL 押下は毎回ユーザー）は<b>導線が在ることを前提</b>にしている。
+    </div>
+  </div>
+
+  <!-- ================================================================ -->
+  <div class="sec">
+    <h2>§10　2026-08-21「総高137dp」への当たり方　<span class="tag">裁定の核</span></h2>
+    <table class="mx">
+      <tr><th style="width:66px">案</th><th style="width:96px">取込済・未読</th><th style="width:96px">取込済・既読</th><th style="width:120px">状態間の差</th><th>2026-08-21 裁定への当たり方</th></tr>
+      <tr>
+        <td>対照</td><td>81dp / 7.3行</td><td>137dp / 5.2行</td><td class="x">56dp</td>
+        <td><b>今も揃っていない</b>。裁定文が「総高が同一」と言っているのは未取込の2状態だけで、取込済みは絵にも無く、実装は 81/137 に割れている。</td>
+      </tr>
+      <tr>
+        <td><b>案A</b></td><td class="o">137dp / 5.2行</td><td class="o">137dp / 5.2行</td><td class="o">0dp</td>
+        <td><b>侵さない</b>。スロット数を増やさず入れ替えるだけ。むしろ<b>4状態すべてが 137dp / 5.2行</b>に揃い、裁定の趣旨（状態で総高が動かない）を取込済みへ<b>拡張して満たす</b>。追加で要る裁定文は「取込済みでは主CTA が蔵書側へ移る」の一文だけ。</td>
+      </tr>
+      <tr>
+        <td>案B</td><td>137dp / 5.2行</td><td class="x">193dp / 3.0行</td><td class="x">56dp</td>
+        <td><b>正面から更新が要る</b>。①137dp 固定を 193dp へ書き換える ②状態間 56dp 差を再び容認する（＝案B採用の決め手「片方だけ直る案は使えない」の否定）③あらすじが推奨3行に接地して余白ゼロ。</td>
+      </tr>
+      <tr>
+        <td>案C</td><td class="o">137dp / 5.2行</td><td class="o">137dp / 5.2行</td><td class="o">0dp</td>
+        <td><b>侵さない</b>（寸法上は案Aと同一）。衝突するのは寸法でなく<b>主従の意味</b>＝手元の本が枠線のゴースト・外部サイトが藍。</td>
+      </tr>
+    </table>
+  </div>
+
+  <!-- ================================================================ -->
+  <div class="sec">
+    <h2>§11　推奨　<span class="tag">案A（主CTA 差し替え）</span></h2>
+    <p class="body">4つの理由で案A。</p>
+    <div class="rule">
+      <b>1. 既存裁定を1つも侵さない。</b> 2026-08-21 の 137dp はスロット数を増やさないので保たれ、
+      「導線を隠すな」はなろう系をバー内に残すので守られる。2026-07-16「完全一貫」が名指しで守っているのは
+      <b>「未取込である限り」</b>の主従で、取込済みはその外側＝<b>上書きではなく空白の充填</b>になる。<br>
+      <b>2. むしろ既存裁定を完成させる。</b> 「完全一貫」の中身は〈アプリの主目的＝手元に本を置く〉。
+      取込済みとは<b>その目的が達成された状態</b>なので、主CTA が「置いた本を読む」へ移るのは同じ原則の続きであって、方向転換ではない。
+      副産物として取込済・未読の 81dp が 137dp へ揃い、<b>4状態すべて同高</b>になる。<br>
+      <b>3. 版面の代償が最小で、しかも既知の値で止まる。</b> 減るのは取込済・未読の 7.3→5.2行 だけで、
+      減った先は<b>正本が既に規定している 5.2行</b>。案B のように未規定の 3.0行へ落ちない。<br>
+      <b>4. 文言が1軸2択になる。</b>「アプリで読む」／「なろうで読む」で〈どこで読むか〉に揃い、
+      案B・案C が抱える「読む」ボタン2つの区別不能が起きない。
+    </div>
+    <p class="note">
+      ⚠️ 案Aの弱点も書いておく: <b>なろうを主に使っていた人にとっては、慣れた主CTA の位置が入れ替わる</b>。
+      ただし降ろした先は同じバーの中で1タップのままなので、失うのは<b>位置の記憶</b>だけ（機能は失わない）。
+    </p>
+  </div>
+
+  <!-- ================================================================ -->
+  <div class="sec">
+    <h2>§12　裁定後、正本モックのどこをどう直すか　<span class="tag r">この便では正本を1行も触っていない</span></h2>
+    <p class="body">
+      対象＝<code>docs/design-candidates/discovery/discovery-detail-D.html</code>（行番号は 2026-09-04 時点）。
+      <b>案A が通った場合</b>の反映手順:
+    </p>
+    <table class="mx">
+      <tr><th style="width:120px">場所</th><th style="width:150px">いまの中身</th><th>どう直すか</th></tr>
+      <tr>
+        <td>line 113 の直前<br>（ヘッダ注釈の末尾）</td>
+        <td>2026-08-26 fontScale 裁定の節で終わっている</td>
+        <td><b>新しい節を1つ追記</b>「---- 決着: 取込済みの主CTA は蔵書へ（2026-09-XX 裁定）----」。<b>既存の節は1行も消さない</b>（2026-07-16 / 2026-08-21 の記録は残す＝規約「旧裁定は消さず書き換える」）。新節に書く内容＝症状の機序（バック3回・経路B固有）・案B/案C を落とした理由・4状態が137dpへ揃うこと。</td>
+      </tr>
+      <tr>
+        <td>line 278 付近<br>（固定バー CSS のコメント）</td>
+        <td>「3アクション版と4アクション版で総高が変わらないのが案Bの要点」</td>
+        <td><b>追記</b>「取込済みの2状態も 137dp へ揃う（案A採用後は4状態すべて同高・取込済・未読は 81→137dp）」。既存文は残す。</td>
+      </tr>
+      <tr>
+        <td>line 336（<code>.cap</code>）</td>
+        <td>「主CTA『縦書きPDFを取り込む』を全幅で最上段に固定（…未取込である限り既読でも降格させない）」</td>
+        <td><b>そのまま残す</b>。この文は未取込の規定で、案Aは触らない。</td>
+      </tr>
+      <tr>
+        <td>line 341（<code>.cap</code>）</td>
+        <td>「取込済みなら取込とその周辺は冗長で消え、主CTA は『なろうで読む』へ昇格する（＝副アクション行は『本棚に置く』だけになる）」</td>
+        <td class="x"><b>書き換える（唯一の書き換え）</b>。この1文は①案Aで無効になり②<b>そもそも現状とも合っていない</b>（実装の副行は既読で「最初から読み直す（目次）」・未読では行が出ない）。新文＝「取込済みなら取込とその周辺は冗長で消え、<b>主CTA は蔵書を開く『アプリで読む』へ移り、なろう系は副アクション行へ降りる</b>（消さない）」。旧文は削除でなく<b>直上に「⚠️ 旧記載（2026-08-21 まで）」として残す</b>。</td>
+      </tr>
+      <tr>
+        <td>line 493 の直後<br>（<code>.stage</code> は line 495 で閉じる）</td>
+        <td>4アクション版の端末枠で終わっている</td>
+        <td><b>端末枠を2枚追加</b>——「取込済・未読」「取込済・既読」。中身はこのドラフトの §5 の2枚をそのまま移す（<code>.dsec</code> は正本の <code>.sec</code> に戻す）。これで<b>正本が4状態すべてを絵で規定する</b>ようになる。</td>
+      </tr>
+    </table>
+    <p class="note">
+      ⚠️ <b>案B が通った場合</b>は上記に加えて、line 278 付近の「案Bの要点＝総高が同一」と、ヘッダの
+      「3アクション版と4アクション版でバー高が同一になるのが決め手」（採用理由の記述）の<b>両方に例外の追記</b>が要る
+      （取込済・既読だけ 193dp／あらすじ 3.0行）。<b>案C が通った場合</b>は寸法の記述は無変更で、line 341 の書き換えと端末枠2枚の追加だけ。
+    </p>
+    <p class="note">
+      ⚠️ この便で見つかった<b>案とは独立の逆同期</b>2件（正本の直しはこの便では行わない・裁定便で一緒に拾うか別便で）:
+      ①正本 line 435 の <code>.au</code> は「霧島あおい ／ 第12話まで読了」だが、実装は
+      <code>novel.summary.author</code> だけ（<code>NovelDetailScreen.kt:1033-1046</code>）＝読了表記は未翻訳。
+      ②「なろうで読む」のアイコンが正本＝外部リンク記号（line 413）／実装＝MenuBook（<code>:521-524</code>）で食い違う。
+    </p>
+  </div>
+
+  <!-- ================================================================ -->
+  <div class="sec">
+    <h2>§13　実装便への申し送り　<span class="tag r">この便では Compose を1行も触っていない</span></h2>
+    <div class="rule warn">
+      ⚠️ <b>本番の public シグネチャが変わる</b>。<code>NovelDetailViewModel.isImported: StateFlow&lt;Boolean&gt;</code> を
+      <code>importedBookId: StateFlow&lt;String?&gt;</code> へ広げる形になる見込み（同じ <code>allBooks</code> 突合で
+      <code>Ncode.sameWorkAs</code> の一致した本の <code>id</code> を取るだけ・<code>isImported</code> は <code>!= null</code> で導出）。
+      <code>NovelDetailScreen</code> の <code>isImported: Boolean</code> パラメータも同様。<br>
+      ⇒ 既定ゲート（<code>testDebugUnitTest</code>）は androidTest をコンパイルしないので、
+      <b><code>:app:assembleDebugAndroidTest</code> も回すこと</b>（追従漏れが緑のまま潜伏する。過去に2回発生）。
+    </div>
+    <div class="rule warn">
+      ⚠️ <b>未裁定項目との接触</b>: <code>awaiting-human.md</code> の「本棚→本文の『戻る』を前画面遷移へ倒すとき ← をどうするか」が通ると、
+      <b>作品詳細から入場した読書画面</b>という呼び出し元が1つ増える。<b>この便をブロックはしない</b>が、
+      あの裁定を出すときに<b>勘定へ入れる必要がある</b>（読書画面の戻り先が「本棚」と「作品詳細」の2種になる）。
+    </div>
+    <div class="rule">
+      <b>保留（この便では採らない・裁定が要るなら別便で）</b>: 主CTA を「続きから読む（○%）」にしてアプリ側の進捗を出す案。
+      進捗の取得は <code>getLastRead(BookId)</code>＝suspend の DB 参照で、詳細 ViewModel へ新しい依存が増える。
+      <b>「アプリで読む」なら bookId 1つで足りる</b>ので、まずそこで止める。<br>
+      <b>もう1つの保留</b>: なろうの読書位置が取り込んだ PDF より先まで進んでいる場合、
+      「アプリで読む」の着地は<b>手元の本の位置</b>（なろうより手前）になる。別の本の別の栞なので事実としては正しいが、
+      実機で違和感が出るか<b>二段検分の実機側で見る</b>。
+    </div>
+  </div>
+
+  <!-- ================================================================ -->
+  <div class="sec">
+    <h2>§14　人間に裁定してほしい点　<span class="tag r">この4つが決まれば実装へ出せる</span></h2>
+    <table class="mx">
+      <tr><th style="width:40px">#</th><th style="width:250px">問い</th><th>推奨</th></tr>
+      <tr><td>1</td><td>案A／案B／案C のどれか</td><td class="o">案A（主CTA 差し替え）＝§11 の4理由。既存裁定を侵さず、むしろ4状態を 137dp へ揃える。</td></tr>
+      <tr><td>2</td><td>主CTA の文言</td><td class="o"><b>アプリで読む</b>（「なろうで読む」と1軸2択・未読/既読どちらでも嘘にならない）</td></tr>
+      <tr><td>3</td><td>副アクションに「なろうで」の prefix を付けるか</td><td class="o">付ける（<b>なろうで第12話から</b>／<b>なろうの目次</b>）。124dp の実効幅に4桁話数でも収まる。付けないと「何の第12話か」が言えない。</td></tr>
+      <tr><td>4</td><td>アイコンを〈手元＝MenuBook／なろう＝外部リンク〉で揃え直すか</td><td class="o">揃える。案Aでは MenuBook が2つ並ぶと絵で区別できない。正本・実装とも現状バラバラ（§12 末尾）。</td></tr>
+    </table>
+    <p class="note">
+      裁定後の順序＝①この結果で正本 <code>discovery-detail-D.html</code> を §12 のとおり更新（このドラフトは破棄）
+      ②Compose 翻訳（<code>importedBookId</code> ＋ バー分岐 ＋ <code>reading/{bookId}/{startFile}</code> への遷移）
+      ③<b>実機で二段検分の2段目</b>（モックは構図の裁定・実機は実データ衝突の検出＝役割が別）。
+    </p>
+  </div>
+
+</div>
+</body>
+</html>

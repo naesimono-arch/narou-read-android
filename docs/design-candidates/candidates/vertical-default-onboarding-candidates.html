@@ -1,0 +1,701 @@
+<!-- @dsCard group="UI-n / 一時ドラフト（裁定用）" name="縦書きの既定を初回に選ばせる — 4案＋対照（2026-08-26）" -->
+<!--
+  ==============================================================================
+  ✅ 2026-09-03 裁定 ── **案1 を採用**（組A に選択カードを 1 枚差す／列は 6 枚になる）。
+     §5 の 4 点への回答は〈1: 見る前〉〈1 以外はここでは決めない〉。
+     採用案は正本 docs/design-candidates/tutorial-onboarding-K.html へ差し戻し済み
+     （§3＝列の構造とカード現物・§4＝文言フル記載・§8＝Compose 翻訳の申し送り）。
+     ⚠️ **この頁はもう正本ではない**＝以後の改稿は正本側で行うこと。
+     残っている用は「**なぜ案2〜4 と対照を採らなかったか**」の記録だけなので、
+     ADR へ Why-not を書き出した時点でこの頁は削除してよい（削除は監督の裁量）。
+  ==============================================================================
+
+  ⚠️ 一時ドラフト（複数案比較）＝正本ではない。裁定が付いたら**採用案だけ**を正本
+     docs/design-candidates/tutorial-onboarding-K.html §3/§4/§8 へ差し戻し、この頁は削除する
+     （CLAUDE.md「一時ファイルは抽出→集約→削除まで1セット」／visual-language「複数案比較のみ一時ドラフト」）。
+
+  ── 動機（handover.md「縦書きの既定＝初回起動で選ばせる」2026-08-26 裁定）────────────────
+  現在の既定は**横書き**だが、アプリ名も短い説明も**縦書きを看板にしている**＝初見の体験と看板が反転している。
+
+  ── 裁定済み＝この頁で議論しないこと ────────────────────────────────────────
+  ・「教示『はじめに』の流れに乗せて選ばせる」で確定。**設定画面だけに置く案は主軸にしない**
+    （設定へ行くかどうか任せ＝正本 §3 が「案A の死因」として名指しで捨てた形）。
+  ・カード列は**1 本のまま・描画コンポーネントも 1 つ**（正本 §3/§8）。2 本目の列は作らない。
+  ・点は「その回に出す枚数」ぶんだけ打つ。列全体の 5 個は絶対に打たない（正本 §3）。
+
+  ── 写経元（新意匠を発明しない）────────────────────────────────────────────
+  カード・扉・空棚・タブバー・読書本文（横）  = docs/design-candidates/tutorial-onboarding-K.html
+  縦書き本文（writing-mode:vertical-rl の実値）= docs/design-candidates/reading-vertical-scroll-D.html
+  2択チップ（.chip / .chip.on＝藍塗り）        = docs/design-candidates/settings-D.html:64-67
+  ⚠️ --seiji（青磁）系は**蔵書側＝Web作品マークの語彙**なので教示カードへは持ち込まない（混同を避ける）。
+
+  ── 実装の現在値（2026-08-26 実測。この頁の見積もりの根拠）──────────────────────────
+  ・キー      PrefKeys.kt:62  READING_VERTICAL = "reading_vertical"（app_prefs・全書籍共通の単一 Boolean）
+  ・既定      false＝**横書き**
+  ・参照は 2 箇所だけ  NativeReadingScreen.kt:407（読み・`remember { mutableStateOf(prefs.getBoolean(...)) }`）
+                       NativeReadingScreen.kt:411（書き・onVerticalModeChange）
+  ・教示の実装 ui/intro/IntroDeck.kt（列＝5枚の不変リスト）／IntroFlow.kt（進みかた）／
+                IntroController.kt（消費フラグ）／IntroOverlay.kt（描画）／IntroFigure.kt（図）
+  ・ホスト    MainActivity.kt:974 の IntroOverlayHost()＝**アプリ全体の最上位に 1 つ**
+  ・出す口    BookshelfScreen.kt:339（組A・空棚）／ChapterScreen.kt:404（組B・本文初回）／
+                MainActivity.kt:750（組C・検索初回）
+-->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>縦書きの既定を初回に選ばせる — 4案＋対照</title>
+<style>
+  /*==harness==*/
+  :root{
+    /* === K/D トークン実値（tutorial-onboarding-K.html と 1 文字も違えない） === */
+    --base:#FBFAF8; --ink:#1C1F26; --ink-soft:#7C808B; --line:#ECEAE4;
+    --ai:#1C3D5A; --ai-tint:rgba(28,61,90,.10);
+    --info:#5C606D; --dot-off:#D0D2D4;
+    /* 読書ライトテーマ（reading-D .t-light と同値） */
+    --bg:#FBFAF8; --soft:#7C808B; --ruby:#616C77; --rule:#1C3D5A;
+    --blk-bg:#F1F0EC; --blk-bd:#E4E2DB; --bar:#FBFAF8; --bar-line:#ECEAE4; --accent:#1C3D5A;
+    --mincho:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
+    --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#E4E3DD;min-height:100vh;padding:30px 20px 60px;font-family:var(--gothic);
+    -webkit-font-smoothing:antialiased;color:#2A2C28}
+  .doc{max-width:1240px;margin:0 auto}
+  h1{font-size:20px;letter-spacing:.06em;margin-bottom:10px}
+  .lead{font-size:13px;line-height:1.9;color:#4A4C47;max-width:960px}
+  .lead b{color:#2A2C28}
+
+  .sec{margin-top:44px;border-top:2px solid #C9C7BE;padding-top:18px}
+  .sec h2{font-size:17px;letter-spacing:.05em;margin-bottom:8px}
+  .sec h2 .tag{font-size:11px;background:var(--ai);color:#fff;padding:2px 9px;border-radius:10px;
+    margin-left:10px;letter-spacing:.08em;vertical-align:3px;font-weight:400}
+  .sec h2 .tag.g{background:#50685C}
+  .sec h2 .tag.r{background:#8A4B44}
+  .sec h2 .tag.n{background:#7A7168}
+  .sec p.body{font-size:13px;color:#4A4C47;line-height:1.9;max-width:960px;margin-bottom:6px}
+  .sec p.body b{color:#2A2C28}
+  .rule{font-size:12.5px;line-height:1.95;max-width:960px;margin-top:12px;
+    background:#F1EFE9;border-left:3px solid var(--ai);padding:11px 14px}
+  .rule b{color:#1C3D5A}
+  .rule.risk{border-left-color:#8A4B44}
+  .rule.risk b{color:#8A4B44}
+  .rule.cost{border-left-color:#50685C}
+  .rule.cost b{color:#3D5647}
+  .note{font-size:11.5px;color:#6A6C67;line-height:1.8;margin-top:10px;max-width:980px}
+  .note b{color:#2A2C28}
+
+  table.mx{border-collapse:collapse;margin:16px 0 6px;background:#F7F6F2;font-size:12.5px;width:100%;max-width:1180px}
+  table.mx th,table.mx td{border:1px solid #D3D1C9;padding:8px 11px;text-align:left;line-height:1.65;vertical-align:top}
+  table.mx th{background:#EDEBE4;font-weight:700;letter-spacing:.04em}
+  table.mx td.o{color:#1C3D5A;font-weight:700;white-space:nowrap}
+  table.mx td.x{color:#7A7168;font-weight:700;white-space:nowrap}
+  table.mx code{font-size:11.5px;background:#EDEBE4;padding:1px 4px}
+
+  .stage{display:flex;gap:26px;flex-wrap:wrap;margin-top:18px}
+  .wrap{display:flex;flex-direction:column;align-items:center;gap:8px}
+  .wrap .mode{font-size:11.5px;letter-spacing:.12em;color:#6A6C67;text-align:center;max-width:372px;line-height:1.65}
+  .wrap .mode b{color:#1C3D5A;letter-spacing:.06em}
+
+  /* === スマホ枠（正本と同寸） === */
+  .phone{width:372px;height:800px;background:var(--bg);border-radius:38px;overflow:hidden;position:relative;
+    display:flex;flex-direction:column;box-shadow:0 20px 50px rgba(0,0,0,.28);font-family:var(--mincho)}
+  .phone.k{background:var(--base);font-family:var(--gothic)}
+  .sb{height:34px;flex-shrink:0;display:flex;align-items:center;justify-content:space-between;padding:0 24px;
+    font-size:11px;color:var(--soft);font-family:var(--gothic)}
+  .phone.k .sb{height:40px;color:var(--ink-soft)}
+
+  /* === 読書本文・横書き（reading-D 実値） === */
+  .reader{flex:1;overflow:auto;position:relative;z-index:1;padding:32px 24px 40px}
+  .reader p{font-size:16.5px;line-height:2.4;color:var(--ink);text-indent:1em;margin-bottom:.3em}
+  ruby rt{font-size:.5em;color:var(--ruby);font-weight:400;letter-spacing:.04em}
+  .blank{height:1.5em}
+  .reader hr{border:none;height:1px;width:42%;margin:16px auto;background:var(--rule);opacity:.5}
+
+  /* === 読書本文・縦書き（reading-vertical-scroll-D.html の実値。行は上→下、列は右→左） ===
+     ⚠️ 縦書きは block/inline 軸が入れ替わるので、段落間は margin ではなく .blank 列で作る
+        （物理 margin を使うと横書きからの誤翻訳になる＝縦モックの注記どおり）。 */
+  .reader.v{writing-mode:vertical-rl;-webkit-writing-mode:vertical-rl;
+    overflow-x:auto;overflow-y:hidden;padding:20px 24px;direction:ltr}
+  .reader.v p{margin:0;text-indent:1em}
+  .reader.v .blank{block-size:1.4em;height:auto}
+  .reader.v hr{border:none;inline-size:42%;block-size:1px;width:auto;height:auto;
+    margin:auto 16px;background:var(--rule);opacity:.5}
+  .reader.v::-webkit-scrollbar{height:6px}
+  .reader.v::-webkit-scrollbar-thumb{background:var(--bar-line);border-radius:3px}
+
+  /* === 「はじめに」カード列（正本 .scrim/.ocard/.odots/.obtn をそのまま） === */
+  .scrim{position:absolute;inset:0;z-index:24;background:rgba(28,31,38,.74);display:flex;
+    flex-direction:column;align-items:center;justify-content:center;padding:26px}
+  .ocard{width:100%;background:var(--base);border-radius:16px;padding:26px 22px 18px;font-family:var(--gothic)}
+  .ocard .fig{height:112px;display:grid;place-items:center;margin-bottom:18px}
+  .ocard .fig svg{stroke:var(--ai);fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+  .ocard .fig svg .soft{stroke:var(--ink-soft);opacity:.55}
+  .ocard h3{font-size:17px;color:var(--ink);letter-spacing:.05em;margin-bottom:12px}
+  .ocard p{font-size:13.5px;color:var(--info);line-height:1.95}
+  .ocard p+p{margin-top:9px}
+  .ocard p b{color:var(--ink)}
+  .ocard dt{font-size:11.5px;color:var(--info);letter-spacing:.06em;margin-top:12px}
+  .ocard dt:first-child{margin-top:0}
+  .ocard dd{font-size:13.5px;color:var(--info);line-height:1.9;margin-top:2px}
+  .ocard dd em{font-style:normal;color:var(--ai);font-weight:700}
+  .ocard .later{margin-top:15px;padding-top:12px;border-top:1px solid var(--line);
+    font-size:12.5px;color:var(--info);line-height:1.7}
+  .odots{display:flex;gap:7px;justify-content:center;margin:20px 0 14px}
+  .odots i{width:6px;height:6px;border-radius:50%;background:var(--dot-off)}
+  .odots i.on{background:var(--ai)}
+  .obtns{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:2px}
+  .obtns.r{justify-content:flex-end}
+  .obtn{font-family:var(--gothic);font-size:13.5px;border:none;background:transparent;color:var(--info);
+    padding:11px 10px;cursor:pointer;letter-spacing:.04em}
+  .obtn.pri{background:var(--ai);color:#fff;border-radius:10px;padding:11px 22px;font-weight:700}
+  .obtn.back{display:inline-flex;align-items:center;gap:5px}
+  .obtn.back svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:2;
+    stroke-linecap:round;stroke-linejoin:round}
+
+  /* === 2択チップ（settings-D.html:64-67 の実値をそのまま。新意匠は発明しない） === */
+  .chips{display:flex;gap:12px;flex-wrap:wrap}
+  .chip{text-align:center;padding:12px 16px;border-radius:10px;font-family:var(--gothic);font-size:13.5px;
+    border:1px solid var(--line);color:var(--ink);background:transparent;cursor:pointer}
+  .chip.on{background:var(--ai);border-color:var(--ai);color:#fff;font-weight:600}
+  .chip.wide{flex:1}
+
+  /* === 実物プレビュー・タイル（案3）===
+     枠は reading-D の StyledBlock（.block）＝1px var(--blk-bd) / 地 var(--blk-bg) を流用し、
+     選択中だけ枠を藍へ差し替える（チップの .on と同じ「藍が選択」の規則）。地色は変えない
+     ——地を藍で塗ると中の本文が読めなくなり、**実物を見せるという案の目的が壊れる**。 */
+  .pv{display:flex;gap:12px;margin-bottom:4px}
+  .pvcell{flex:1;display:flex;flex-direction:column;gap:7px;cursor:pointer}
+  .pvbox{height:150px;border:1px solid var(--blk-bd);background:var(--blk-bg);border-radius:4px;
+    overflow:hidden;padding:10px;font-family:var(--mincho);position:relative}
+  .pvcell.on .pvbox{border-color:var(--ai);box-shadow:0 0 0 1px var(--ai)}
+  .pvbox p{font-size:9.5px;line-height:2.15;color:var(--ink);text-indent:1em;margin:0}
+  .pvbox ruby rt{font-size:.5em;color:var(--ruby)}
+  .pvbox.v{writing-mode:vertical-rl;-webkit-writing-mode:vertical-rl;overflow:hidden}
+  .pvlbl{display:flex;align-items:center;justify-content:center;gap:6px;font-size:12.5px;color:var(--info);
+    font-family:var(--gothic)}
+  .pvcell.on .pvlbl{color:var(--ai);font-weight:700}
+  .pvlbl .tick{width:14px;height:14px;border-radius:50%;border:1px solid var(--dot-off);flex-shrink:0}
+  .pvcell.on .pvlbl .tick{background:var(--ai);border-color:var(--ai);position:relative}
+  .pvcell.on .pvlbl .tick::after{content:"";position:absolute;left:4px;top:2px;width:4px;height:7px;
+    border:solid #fff;border-width:0 1.5px 1.5px 0;transform:rotate(42deg)}
+
+  /* === 案4 の選択帯（カードを立てず本文の上に薄く浮く）===
+     寸法は正本の没入ヒント（丸ピル・下端 96px）と同じ帯域を使う＝新しい置き場所を発明しない。
+     地は navBackground α0.92 相当（正本 .pillhint と同値）。 */
+  .picker{position:absolute;left:16px;right:16px;bottom:24px;z-index:24;
+    background:rgba(251,250,248,.92);border:1px solid var(--line);border-radius:16px;padding:14px 16px 12px;
+    font-family:var(--gothic);backdrop-filter:blur(2px)}
+  .picker .q{font-size:13.5px;color:var(--ink);letter-spacing:.03em;margin-bottom:10px}
+  .picker .sub{font-size:11.5px;color:var(--info);line-height:1.7;margin-top:9px}
+  .picker .done{display:flex;justify-content:flex-end;margin-top:8px}
+
+  /* === 空棚（bookshelf-K 実値） === */
+  .head{flex-shrink:0;padding:6px 20px 14px}
+  .head h1{font-family:var(--gothic);font-size:22px;font-weight:700;color:var(--ink);letter-spacing:.04em}
+  .empty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    text-align:center;padding:0 40px;overflow-y:auto}
+  .empty h2{font-family:var(--gothic);font-size:22px;font-weight:600;color:var(--ink);letter-spacing:.02em}
+  .empty p{margin-top:12px;font-size:14px;line-height:1.7;color:var(--ink-soft)}
+  .empty .ctas{margin-top:32px;display:flex;flex-wrap:wrap;gap:12px;justify-content:center}
+  .btn{height:40px;padding:0 24px;border-radius:20px;font-family:var(--gothic);font-size:14px;
+    font-weight:600;letter-spacing:.02em;cursor:pointer;display:inline-flex;align-items:center;border:none}
+  .btn.fill{background:var(--ai);color:#fff}
+  .btn.out{background:transparent;color:var(--ai);border:1px solid var(--line)}
+
+  .tabbar{flex-shrink:0;height:64px;display:flex;border-top:1px solid var(--line);background:var(--base)}
+  .tab{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+    text-decoration:none;cursor:pointer;color:var(--ink-soft)}
+  .tab.on{color:var(--ai)}
+  .tab .ic{position:relative;width:56px;height:32px;display:grid;place-items:center}
+  .tab .ic .pill2{position:absolute;inset:0;border-radius:16px;background:transparent}
+  .tab.on .ic .pill2{background:var(--ai-tint)}
+  .tab .ic svg{position:relative;width:24px;height:24px;fill:none;stroke:currentColor;
+    stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+  .tab .lb{font-family:var(--gothic);font-size:11px;letter-spacing:.04em}
+  .tab.on .lb{font-weight:700}
+  /*==/harness==*/
+</style>
+</head>
+<body>
+<div class="doc">
+  <h1>縦書きの既定を「初回に選ばせる」 ─ 4 案＋対照</h1>
+  <p class="lead">
+    <b>アプリ名も短い説明も縦書きを看板にしているのに、初見は横書きで開く</b>——この反転を、
+    教示「はじめに」の流れの中で閉じる。作るのは<b>カード列 1 本のまま</b>で、
+    増やしてよいのは<b>その中の 1 枚か、1 枚の中身</b>だけ（正本 §3/§8）。<br>
+    <b>4 案は「いつ訊くか」で 2 つ・「どう見せるか」で 2 つに割れている</b>——
+    案1・案2 は<b>本文を見る前</b>（空棚の扉）に訊き、案3・案4 は<b>本文を開いた瞬間</b>に訊く。
+    案3・案4 は<b>縦書きの見えを実物で出す</b>（案3＝カード内の縮小・案4＝背後の本文そのもの）。<br>
+    <b>裁定してほしいのは §5 の 4 点</b>。各案の見出しに<b>争点を 1 行</b>で置いてある。
+  </p>
+
+  <!-- ============================================================ §1 -->
+  <div class="sec">
+    <h2>§1　実装の現在地　<span class="tag n">読み取り結果・変更していない</span></h2>
+    <table class="mx">
+      <tr><th style="width:16%">項目</th><th style="width:30%">現在値</th><th>場所</th></tr>
+      <tr><td><b>キー</b></td><td><code>READING_VERTICAL = "reading_vertical"</code><br>app_prefs の単一 Boolean（全書籍共通）</td>
+        <td><code>PrefKeys.kt:62</code></td></tr>
+      <tr><td><b>既定</b></td><td class="x">false ＝ <b>横書き</b></td>
+        <td><code>NativeReadingScreen.kt:407</code></td></tr>
+      <tr><td><b>参照</b></td><td>読み 1・書き 1 の<b>計 2 箇所だけ</b>。<br>
+        読み＝<code>remember { mutableStateOf(prefs.getBoolean(…)) }</code>／書き＝<code>onVerticalModeChange</code></td>
+        <td><code>NativeReadingScreen.kt:407 / :411</code></td></tr>
+      <tr><td><b>教示の列</b></td><td>5 枚の不変リスト（組A 2・組B 2・組C 1）。<br>
+        <code>IntroCard</code> が持てるのは figure／title／paragraphs／items／footnote／ボタン語だけ＝<b>選択肢を持つ型が無い</b></td>
+        <td><code>ui/intro/IntroDeck.kt</code></td></tr>
+      <tr><td><b>描画のホスト</b></td><td><b>アプリ全体の最上位に 1 つ</b>（読書画面の内側ではない）</td>
+        <td><code>MainActivity.kt:974</code></td></tr>
+    </table>
+    <p class="rule risk">
+      <b>⚠️ どの案でも必ず踏む罠 ── prefs へ書いても、開いている本文は横書きのまま</b><br>
+      <code>NativeReadingScreen.kt:407</code> の <code>verticalMode</code> は
+      <b><code>remember</code> で入場時に 1 度だけ prefs を読む</b>。教示カードから prefs を書いても
+      この state は false のままで、<b>本文は横書きのまま動かない</b>。<br>
+      <span style="color:#4A4C47">これは新しい発見ではなく<b>既に一度踏んだ罠</b>——
+      <code>IntroController.chromeHintSilenced</code> の KDoc が「同じセッションで prefs を書いても
+      state は false のままで、カードを閉じた直後にピルが出てくる」と同じ機序を記録している。<br>
+      ▶ よって<b>本文を開いた後に訊く案（案3・案4）は、observable な state を読書画面へ合流させる結線が必須</b>。
+      本文を見る前に訊く案（案1・案2）は<b>入場前に prefs が確定している</b>ので、この結線が要らない。</span>
+    </p>
+    <p class="rule">
+      <b>正本の規則で、改稿が縛られている 3 点</b><br>
+      <b>①</b> 点は<b>その回に出す枚数ぶんだけ</b>（列全体の 5 個は打たない）＝組A を 3 枚にすれば点も 3 個になる。<br>
+      <b>②</b> <b>1 枚 1 メッセージ</b>。カードを大きくして中身を増やす方向へ育てない（育てた瞬間に却下済みの読み物型へ退化する）。<br>
+      <b>③</b> カードの中身は実装では<b>縦スクロールする</b>——2026-08-25 に組C で
+      ［とじる］ が画面外へ落ちた実績があるので、<b>背を高くする案は「入るかどうか」を必ず見る</b>。
+    </p>
+  </div>
+
+  <!-- ============================================================ §2 案1 -->
+  <div class="sec">
+    <h2>案1　組A に選択カードを 1 枚差す（列が 6 枚になる）　<span class="tag">争点＝実感が無い場所で訊いてよいか</span></h2>
+    <p class="body">
+      扉のカード列（組A）を <b>2 枚 → 3 枚</b>にし、<b>2 枚目に「どちらで読みますか」を独立した 1 枚</b>で置く。
+      <b>1 枚 1 メッセージの原則には最も忠実</b>で、既存 2 枚の文言をまったく触らずに済む。
+    </p>
+    <div class="stage">
+      <div class="wrap"><span class="mode"><b>案1 ─ 組A 2/3</b>　扉と「読みかたは、2 通り」の間<br>背景は空棚（本文はまだ 1 文字も無い）</span>
+        <div class="phone k" role="img" aria-label="案1 選択カード">
+          <div class="sb"><span>9:41</span><span>5G ▾ ▮▮▮</span></div>
+          <div class="head"><h1>本棚</h1></div>
+          <div class="empty">
+            <h2>まだ本がありません</h2>
+            <p>読みたい作品をさがすか、お手元のPDFを追加して読み始めましょう。</p>
+            <div class="ctas">
+              <button class="btn fill">作品をさがす</button>
+              <button class="btn out">PDFを追加</button>
+            </div>
+          </div>
+          <nav class="tabbar">
+            <a class="tab on"><span class="ic"><span class="pill2"></span><svg viewBox="0 0 24 24"><path d="M6 4h11a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/><path d="M4 18a2 2 0 0 1 2-2h12"/></svg></span><span class="lb">本棚</span></a>
+            <a class="tab"><span class="ic"><span class="pill2"></span><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.4 4.4"/></svg></span><span class="lb">さがす</span></a>
+            <a class="tab"><span class="ic"><span class="pill2"></span><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M4.6 15a1.65 1.65 0 0 1 .33-1.82 1.65 1.65 0 0 0 0-2.36A1.65 1.65 0 0 1 4.6 9"/><path d="M19.4 9a1.65 1.65 0 0 0-.33 1.82 1.65 1.65 0 0 1 0 2.36A1.65 1.65 0 0 0 19.4 15"/><path d="M9 4.6a1.65 1.65 0 0 0 1.82.33 1.65 1.65 0 0 1 2.36 0A1.65 1.65 0 0 0 15 4.6"/><path d="M15 19.4a1.65 1.65 0 0 1-1.82-.33 1.65 1.65 0 0 0-2.36 0A1.65 1.65 0 0 1 9 19.4"/></svg></span><span class="lb">設定</span></a>
+          </nav>
+          <div class="scrim">
+            <div class="ocard">
+              <div class="fig">
+                <!-- 図＝横組みの紙と縦組みの紙を並べた対比。IntroFigure の語彙（1.5px 藍・soft は ink-soft α.55）に従う -->
+                <svg viewBox="0 0 120 84" width="120" height="84">
+                  <rect x="8" y="14" width="46" height="56" rx="5"/>
+                  <path class="soft" d="M16 28h30M16 38h30M16 48h22M16 58h30"/>
+                  <rect x="66" y="14" width="46" height="56" rx="5"/>
+                  <path class="soft" d="M104 22v40M96 22v40M88 22v32M80 22v40"/>
+                </svg>
+              </div>
+              <h3>どちらで読みますか</h3>
+              <p>本文を<b>縦書き</b>にも<b>横書き</b>にもできます。</p>
+              <div class="chips" style="margin-top:14px">
+                <button class="chip wide">横書き</button>
+                <button class="chip wide on">縦書き</button>
+              </div>
+              <div class="later">あとから ［表示設定］＞［本文の向き］ で変えられます。</div>
+              <div class="odots"><i></i><i class="on"></i><i></i></div>
+              <div class="obtns"><button class="obtn back"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>もどる</button><button class="obtn pri">つづける</button></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="rule">
+      <b>争点</b>　<b>本文を 1 文字も見ていない人に、本文の組みかたを訊いてよいか。</b><br>
+      正本 §3 は「読む前の説明は実感と結びつかない」を<b>案A の死因</b>と名指しし、実感を要する話は組B へ送った——
+      その規則をそのまま当てれば、<b>この 1 枚は組A に置いてはいけない</b>ことになる。<br>
+      <span style="color:#4A4C47">▶ ただし<b>説明と選択は別物</b>という反論が立つ:
+      選択は「憶えて後で使う」ものではなく<b>その場で 1 回押して終わる</b>ので、実感が無くても押せる。
+      <b>この線引きを認めるかどうかが、この案の全て</b>。</span>
+    </p>
+    <p class="rule risk">
+      <b>不採用リスク</b>　①<b>点が 3 個になる</b>——正本 §3 が「全体量を見せない要」と書いた点が 1 つ増える
+      （5 個は打たないという上限には触れないが、扉が「3 枚読む」に見える）。<br>
+      ②<b>初回の割り込みが 2 枚 → 3 枚</b>。自動で出る総量がアプリ通算 5 枚 → 6 枚になる。<br>
+      ③「あとから変えられます」を書かないと<b>取り返しがつかない選択に見える</b>が、書くと
+      <b>「じゃあ今決めなくていい」</b>と読めて選択の意味が薄まる——<b>.later の文面が効き目を左右する</b>。
+    </p>
+    <p class="rule cost">
+      <b>実装コスト＝小</b>　<code>IntroDeck</code> にカードを 1 枚足し、<code>IntroCard</code> に
+      <b>選択肢の型を 1 つ</b>（例: 2 択と現在値と onSelect）足す。描画は <code>IntroOverlay</code> に
+      チップ 2 個の行を 1 つ。<b><code>IntroFlow</code> は 1 行も触らない</b>——点の数も終端も
+      <code>IntroDeck.countIn(group)</code> から自動で追従する。<br>
+      <b>結線</b>＝空棚（<code>BookshelfScreen.kt:339</code>）で出る回なので、<b>読書画面へ入る前に prefs が確定する</b>
+      ＝§1 の <code>remember</code> の罠を<b>踏まない</b>（ここが案3・案4 との最大の差）。
+    </p>
+  </div>
+
+  <!-- ============================================================ 案2 -->
+  <div class="sec">
+    <h2>案2　組A の最後（［はじめる］ の枚）に確認ステップとして畳む　<span class="tag">争点＝1 枚 2 メッセージを許すか</span></h2>
+    <p class="body">
+      <b>枚数を増やさない</b>。既存の組A 2 枚目「読みかたは、2 通り」の<b>下</b>に、
+      ［はじめる］ を押す直前の<b>確認ステップ</b>として 2 択を差す。
+      <b>正本が「置き場所を直したら 2 枚になった」と書いた枚数を守れる</b>のが取り柄。
+    </p>
+    <div class="stage">
+      <div class="wrap"><span class="mode"><b>案2 ─ 組A 2/2</b>　枚数は 2 枚のまま<br>［はじめる］ の直前で 1 回だけ決める</span>
+        <div class="phone k" role="img" aria-label="案2 確認ステップ">
+          <div class="sb"><span>9:41</span><span>5G ▾ ▮▮▮</span></div>
+          <div class="head"><h1>本棚</h1></div>
+          <div class="empty">
+            <h2>まだ本がありません</h2>
+            <p>読みたい作品をさがすか、お手元のPDFを追加して読み始めましょう。</p>
+            <div class="ctas">
+              <button class="btn fill">作品をさがす</button>
+              <button class="btn out">PDFを追加</button>
+            </div>
+          </div>
+          <nav class="tabbar">
+            <a class="tab on"><span class="ic"><span class="pill2"></span><svg viewBox="0 0 24 24"><path d="M6 4h11a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/><path d="M4 18a2 2 0 0 1 2-2h12"/></svg></span><span class="lb">本棚</span></a>
+            <a class="tab"><span class="ic"><span class="pill2"></span><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.4 4.4"/></svg></span><span class="lb">さがす</span></a>
+            <a class="tab"><span class="ic"><span class="pill2"></span><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M4.6 15a1.65 1.65 0 0 1 .33-1.82 1.65 1.65 0 0 0 0-2.36A1.65 1.65 0 0 1 4.6 9"/><path d="M19.4 9a1.65 1.65 0 0 0-.33 1.82 1.65 1.65 0 0 1 0 2.36A1.65 1.65 0 0 0 19.4 15"/><path d="M9 4.6a1.65 1.65 0 0 0 1.82.33 1.65 1.65 0 0 1 2.36 0A1.65 1.65 0 0 0 15 4.6"/><path d="M15 19.4a1.65 1.65 0 0 1-1.82-.33 1.65 1.65 0 0 0-2.36 0A1.65 1.65 0 0 1 9 19.4"/></svg></span><span class="lb">設定</span></a>
+          </nav>
+          <div class="scrim">
+            <div class="ocard">
+              <div class="fig">
+                <svg viewBox="0 0 120 84" width="120" height="84">
+                  <rect x="8" y="14" width="46" height="56" rx="5"/>
+                  <path class="soft" d="M16 28h30M16 38h30M16 48h20"/>
+                  <path d="M22 60h18"/>
+                  <rect x="66" y="14" width="46" height="56" rx="5" stroke-dasharray="5 4"/>
+                  <path class="soft" d="M74 24h30" stroke-dasharray="4 3"/>
+                  <path class="soft" d="M74 34h30M74 44h18" stroke-dasharray="5 4"/>
+                  <path class="soft" d="M86 60h14" stroke-dasharray="4 3"/>
+                </svg>
+              </div>
+              <h3>読みかたは、2 通り</h3>
+              <p><b>アプリで読む</b>　ふりがな付き。文字の大きさや向きを変えられます。</p>
+              <p><b>なろうで読む</b>　なろうのページをそのまま表示。アプリの操作・表示設定・ふりがな機能は効きません。</p>
+              <!-- 確認ステップ。.later と同じ区切り線を使い「カードの本題ではない」ことを寸法で示す -->
+              <div class="later" style="padding-top:14px">
+                <div style="color:var(--ink);font-size:13px;margin-bottom:10px">はじめの本文の向き</div>
+                <div class="chips">
+                  <button class="chip wide">横書き</button>
+                  <button class="chip wide on">縦書き</button>
+                </div>
+                <div style="margin-top:10px;font-size:11.5px">あとから ［表示設定］ で変えられます。</div>
+              </div>
+              <div class="odots"><i></i><i class="on"></i></div>
+              <div class="obtns"><button class="obtn back"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>もどる</button><button class="obtn pri">はじめる</button></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="rule">
+      <b>争点</b>　<b>1 枚 1 メッセージを崩してでも、枚数を増やさないほうを採るか。</b><br>
+      このカードは元から「読みかたは<b>2 通り</b>（アプリ／なろう）」を言っており、
+      そこへ「向きも<b>2 通り</b>（縦／横）」が乗る＝<b>同じ枚に「2 通り」が二重に立つ</b>。<br>
+      <span style="color:#4A4C47">▶ 図（点線の紙＝なろう側）も<b>アプリ／なろうの対比</b>を描いており、
+      向きの対比は図が助けてくれない。<b>この 1 枚は絵で説明できない</b>のが構造的な弱点。</span>
+    </p>
+    <p class="rule risk">
+      <b>不採用リスク</b>　①<b>カードが最も高くなる案</b>——段落 2 本＋確認ステップ＋点＋ボタン。
+      §1③ のとおり<b>組C で ［とじる］ が画面外へ落ちた実績</b>があるので、
+      <b>fontScale を上げた端末で ［はじめる］ が落ちないか</b>を実機で見るまで安全とは言えない。<br>
+      ②本題（読みかたは 2 通り）を読んでいる最中に選択が視界へ入る＝<b>どちらも半端に読まれる</b>。<br>
+      ③「はじめの本文の向き」という語を新しく作る必要がある——
+      正本の語は <b>［本文の向き］</b>（表示設定シート）なので、<b>語が 2 つに割れる</b>。
+    </p>
+    <p class="rule cost">
+      <b>実装コスト＝最小</b>　カードは増えないので <code>IntroFlow</code>・点・終端はまったく不変。
+      <code>IntroCard</code> への選択肢の型と <code>IntroOverlay</code> の描画は案1 と同じものが要る。
+      <b>案1 との差は「カード 1 枚ぶんの文言と図」だけ</b>。<code>remember</code> の罠は案1 同様<b>踏まない</b>。
+    </p>
+  </div>
+
+  <!-- ============================================================ 案3 -->
+  <div class="sec">
+    <h2>案3　組B の頭で、実物の縮小を並べて選ばせる　<span class="tag r">縦書きの見えを実物で出す案 ①</span></h2>
+    <p class="body">
+      訊く場所を<b>本文を初めて開いた瞬間（組B）</b>へ移す。カードの中に
+      <b>本文そのものを縮小した 2 枚</b>を並べ、<b>見比べて押す</b>。
+      背景には<b>本人が今から読む本文</b>が見えている＝正本 §3 が組B に与えた「実感と説明が同時に来る」がそのまま効く。
+    </p>
+    <div class="stage">
+      <div class="wrap"><span class="mode"><b>案3 ─ 組B 1/3</b>　本文を開いた直後<br>プレビューは<b>実際の組みかた</b>（絵ではない）</span>
+        <div class="phone" role="img" aria-label="案3 実物プレビュー選択">
+          <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+          <div class="reader">
+            <p><ruby>辺境<rt>へんきょう</rt></ruby>の<ruby>城門<rt>じょうもん</rt></ruby>に<ruby>辿<rt>たど</rt></ruby>り<ruby>着<rt>つ</rt></ruby>いたのは、<ruby>長<rt>なが</rt></ruby>い<ruby>雨<rt>あめ</rt></ruby>がようやく<ruby>上<rt>あ</rt></ruby>がった<ruby>頃<rt>ころ</rt></ruby>だった。<ruby>濡<rt>ぬ</rt></ruby>れた<ruby>石畳<rt>いしだたみ</rt></ruby>が<ruby>夕陽<rt>ゆうひ</rt></ruby>を<ruby>照<rt>て</rt></ruby>り<ruby>返<rt>かえ</rt></ruby>している。</p>
+            <p>「——ここまで、よく<ruby>付<rt>つ</rt></ruby>いてきてくれた」</p>
+            <div class="blank"></div><hr><div class="blank"></div>
+            <p><ruby>翌朝<rt>よくあさ</rt></ruby>、<ruby>鳥<rt>とり</rt></ruby>の<ruby>声<rt>こえ</rt></ruby>で<ruby>目<rt>め</rt></ruby>を<ruby>覚<rt>さ</rt></ruby>ますと、<ruby>窓辺<rt>まどべ</rt></ruby>には<ruby>昨夜<rt>ゆうべ</rt></ruby>の<ruby>雨<rt>あめ</rt></ruby>の<ruby>名残<rt>なごり</rt></ruby>が<ruby>雫<rt>しずく</rt></ruby>となって<ruby>光<rt>ひか</rt></ruby>っていた。</p>
+          </div>
+          <div class="scrim">
+            <div class="ocard">
+              <h3 style="margin-bottom:14px">どちらで読みますか</h3>
+              <div class="pv">
+                <div class="pvcell">
+                  <div class="pvbox">
+                    <p><ruby>辺境<rt>へんきょう</rt></ruby>の<ruby>城門<rt>じょうもん</rt></ruby>に<ruby>辿<rt>たど</rt></ruby>り<ruby>着<rt>つ</rt></ruby>いたのは、<ruby>長<rt>なが</rt></ruby>い<ruby>雨<rt>あめ</rt></ruby>がようやく<ruby>上<rt>あ</rt></ruby>がった<ruby>頃<rt>ころ</rt></ruby>だった。<ruby>濡<rt>ぬ</rt></ruby>れた<ruby>石畳<rt>いしだたみ</rt></ruby>が<ruby>夕陽<rt>ゆうひ</rt></ruby>を<ruby>照<rt>て</rt></ruby>り<ruby>返<rt>かえ</rt></ruby>している。</p>
+                  </div>
+                  <div class="pvlbl"><span class="tick"></span>横書き</div>
+                </div>
+                <div class="pvcell on">
+                  <div class="pvbox v">
+                    <p><ruby>辺境<rt>へんきょう</rt></ruby>の<ruby>城門<rt>じょうもん</rt></ruby>に<ruby>辿<rt>たど</rt></ruby>り<ruby>着<rt>つ</rt></ruby>いたのは、<ruby>長<rt>なが</rt></ruby>い<ruby>雨<rt>あめ</rt></ruby>がようやく<ruby>上<rt>あ</rt></ruby>がった<ruby>頃<rt>ころ</rt></ruby>だった。<ruby>濡<rt>ぬ</rt></ruby>れた<ruby>石畳<rt>いしだたみ</rt></ruby>が<ruby>夕陽<rt>ゆうひ</rt></ruby>を<ruby>照<rt>て</rt></ruby>り<ruby>返<rt>かえ</rt></ruby>している。</p>
+                  </div>
+                  <div class="pvlbl"><span class="tick"></span>縦書き</div>
+                </div>
+              </div>
+              <div class="later">あとから ［表示設定］＞［本文の向き］ で変えられます。</div>
+              <div class="odots"><i class="on"></i><i></i><i></i></div>
+              <div class="obtns"><button class="obtn">あとで</button><button class="obtn pri">つぎへ</button></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="rule">
+      <b>争点</b>　<b>「初回起動で選ばせる」を、初回起動そのものではなく〈本文を初めて開いた瞬間〉と読んでよいか。</b><br>
+      利点は決定的で、<b>縦書きを見たことがない人が見比べて選べる</b>——
+      案1・案2 は「縦書き」という<b>語</b>で選ばせているだけで、実物は出していない。<br>
+      <span style="color:#8A4B44">▶ 代償: <b>看板の反転は「最初の 1 画面ぶん」だけ残る</b>——
+      本文は<b>まず横書きで開いてから</b>この問いが出る（開く前に訊く手段が組B には無い）。
+      <b>この一瞬を許容できるかが裁定の核</b>。</span>
+    </p>
+    <p class="rule risk">
+      <b>不採用リスク</b>　①<b>組B が 2 枚 → 3 枚</b>になり、読書中の割り込みが増える。
+      正本 §2 は「読書中は割り込みのコストが最も高い面」と書いている。<br>
+      ②<b>プレビューが小さすぎると、ただの模様に見える</b>——縦書きの価値は行の流れと<ruby>行間<rt>ぎょうかん</rt></ruby>で、
+      150px 角では判別できない可能性がある。<b>この頁で実際に潰れて見えないかを目視すること</b>（絵で誤魔化していない）。<br>
+      ③既存の組B 2 枚目「縦書きで読む」が<b>「縦書きにする＝表示設定＞本文の向き」を教えている</b>——
+      直前に選ばせた後で同じことを教えるので、<b>2 枚目の文言を書き直さないと重複する</b>。
+    </p>
+    <p class="rule cost">
+      <b>実装コスト＝中〜大</b>　案1 の一式に加えて<b>2 つの新規</b>が要る。<br>
+      <b>(a) 縮小プレビューの描画</b>——縦書きの組版は <code>VerticalChapterContent</code> の重い経路で、
+      <b>handover に「組版が composition 段で走る」性能の宿題が立っている当のもの</b>。
+      プレビュー用に軽い描画を別途起こすか、本経路を縮小して使うかの<b>設計判断が 1 つ増える</b>。<br>
+      <b>(b) <code>remember</code> の罠の解決（§1）</b>——教示は <code>MainActivity.kt:974</code> の
+      <b>最上位ホスト</b>に居るので、<code>NativeReadingScreen</code> 内の <code>verticalMode</code> を
+      そこから動かすには<b>層をまたぐ結線</b>が要る（<code>chromeHintSilenced</code> と同型の observable state を 1 本足す）。
+    </p>
+  </div>
+
+  <!-- ============================================================ 案4 -->
+  <div class="sec">
+    <h2>案4　背後の本文そのものを入れ替えて見せる（ライブ）　<span class="tag r">縦書きの見えを実物で出す案 ②</span></h2>
+    <p class="body">
+      カードを立てず、<b>本文の上に細い選択帯だけ</b>を浮かせる。押した瞬間に
+      <b>背後の本文が実際に縦横入れ替わる</b>——縮小でも絵でもなく<b>原寸の実物</b>を見て決める。
+      置き場所は正本の没入ヒント（丸ピル）と<b>同じ下端の帯域</b>で、新しい場所を発明していない。
+    </p>
+    <div class="stage">
+      <div class="wrap"><span class="mode"><b>案4 ─ 横書きを選んでいる間</b><br>本文は原寸のまま・帯だけが浮く</span>
+        <div class="phone" role="img" aria-label="案4 横書き選択中">
+          <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+          <div class="reader">
+            <p><ruby>辺境<rt>へんきょう</rt></ruby>の<ruby>城門<rt>じょうもん</rt></ruby>に<ruby>辿<rt>たど</rt></ruby>り<ruby>着<rt>つ</rt></ruby>いたのは、<ruby>長<rt>なが</rt></ruby>い<ruby>雨<rt>あめ</rt></ruby>がようやく<ruby>上<rt>あ</rt></ruby>がった<ruby>頃<rt>ころ</rt></ruby>だった。<ruby>濡<rt>ぬ</rt></ruby>れた<ruby>石畳<rt>いしだたみ</rt></ruby>が<ruby>夕陽<rt>ゆうひ</rt></ruby>を<ruby>照<rt>て</rt></ruby>り<ruby>返<rt>かえ</rt></ruby>している。</p>
+            <p>「——ここまで、よく<ruby>付<rt>つ</rt></ruby>いてきてくれた」</p>
+            <div class="blank"></div><hr><div class="blank"></div>
+            <p><ruby>翌朝<rt>よくあさ</rt></ruby>、<ruby>鳥<rt>とり</rt></ruby>の<ruby>声<rt>こえ</rt></ruby>で<ruby>目<rt>め</rt></ruby>を<ruby>覚<rt>さ</rt></ruby>ますと、<ruby>窓辺<rt>まどべ</rt></ruby>には<ruby>昨夜<rt>ゆうべ</rt></ruby>の<ruby>雨<rt>あめ</rt></ruby>の<ruby>名残<rt>なごり</rt></ruby>が<ruby>雫<rt>しずく</rt></ruby>となって<ruby>光<rt>ひか</rt></ruby>っていた。</p>
+          </div>
+          <div class="picker">
+            <div class="q">どちらで読みますか</div>
+            <div class="chips">
+              <button class="chip wide on">横書き</button>
+              <button class="chip wide">縦書き</button>
+            </div>
+            <div class="sub">押すと、この本文がその場で切り替わります。あとから ［表示設定］ でも変えられます。</div>
+            <div class="done"><button class="obtn pri">これで読む</button></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="wrap"><span class="mode"><b>案4 ─ 縦書きを選んだ瞬間</b><br><b>同じ本文が原寸で縦組みになる</b>（行は右→左）</span>
+        <div class="phone" role="img" aria-label="案4 縦書き選択中">
+          <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+          <div class="reader v">
+            <p><ruby>辺境<rt>へんきょう</rt></ruby>の<ruby>城門<rt>じょうもん</rt></ruby>に<ruby>辿<rt>たど</rt></ruby>り<ruby>着<rt>つ</rt></ruby>いたのは、<ruby>長<rt>なが</rt></ruby>い<ruby>雨<rt>あめ</rt></ruby>がようやく<ruby>上<rt>あ</rt></ruby>がった<ruby>頃<rt>ころ</rt></ruby>だった。<ruby>濡<rt>ぬ</rt></ruby>れた<ruby>石畳<rt>いしだたみ</rt></ruby>が<ruby>夕陽<rt>ゆうひ</rt></ruby>を<ruby>照<rt>て</rt></ruby>り<ruby>返<rt>かえ</rt></ruby>している。</p>
+            <p>「——ここまで、よく<ruby>付<rt>つ</rt></ruby>いてきてくれた」</p>
+            <div class="blank"></div><hr><div class="blank"></div>
+            <p><ruby>翌朝<rt>よくあさ</rt></ruby>、<ruby>鳥<rt>とり</rt></ruby>の<ruby>声<rt>こえ</rt></ruby>で<ruby>目<rt>め</rt></ruby>を<ruby>覚<rt>さ</rt></ruby>ますと、<ruby>窓辺<rt>まどべ</rt></ruby>には<ruby>昨夜<rt>ゆうべ</rt></ruby>の<ruby>雨<rt>あめ</rt></ruby>の<ruby>名残<rt>なごり</rt></ruby>が<ruby>雫<rt>しずく</rt></ruby>となって<ruby>光<rt>ひか</rt></ruby>っていた。</p>
+            <p><ruby>街道<rt>かいどう</rt></ruby>を<ruby>南<rt>みなみ</rt></ruby>へ<ruby>下<rt>くだ</rt></ruby>れば、<ruby>三日<rt>みっか</rt></ruby>で<ruby>港<rt>みなと</rt></ruby>に<ruby>着<rt>つ</rt></ruby>く。そこから<ruby>先<rt>さき</rt></ruby>は<ruby>船<rt>ふね</rt></ruby>の<ruby>都合<rt>つごう</rt></ruby>しだいだ。</p>
+          </div>
+          <div class="picker">
+            <div class="q">どちらで読みますか</div>
+            <div class="chips">
+              <button class="chip wide">横書き</button>
+              <button class="chip wide on">縦書き</button>
+            </div>
+            <div class="sub">押すと、この本文がその場で切り替わります。あとから ［表示設定］ でも変えられます。</div>
+            <div class="done"><button class="obtn pri">これで読む</button></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="note">
+      <b>検分の観点</b>　右の枠で<b>本文の先頭が右端から始まっている</b>か（縦書きは右→左に列が積む）、
+      <b>ルビが親文字の右</b>に付いているか、シーン区切りの藍ルールが<b>短い縦線</b>になっているかを見る。
+      これは <code>reading-vertical-scroll-D.html</code> の実値をそのまま持ってきた見えで、
+      <b>実装（<code>VerticalChapterContent</code>）が出す姿と同じもの</b>。
+    </p>
+    <p class="rule">
+      <b>争点</b>　<b>教示（カード）の枠組みから外れることを許すか。</b><br>
+      この案は<b>カードでも点でもない</b>——正本 §1 の層でいえば層①（教示）ではなく、
+      <b>層② の手がかり</b>に近い新しい部品になる。<b>「カード列 1 本」の外に部品が 1 つ生えるのは初めて</b>。<br>
+      <span style="color:#4A4C47">▶ 見返りは大きい: <b>読む姿勢のまま、原寸で、比較でなく体験して決められる</b>。
+      説明を 1 行も読ませずに済むのはこの案だけ。</span>
+    </p>
+    <p class="rule risk">
+      <b>不採用リスク</b>　①<b>切り替えるたびに全列が再組版される</b>——
+      handover の性能の宿題（縦書きの組版が composition 段で走る）に<b>正面から当たる</b>。
+      迷って何度も押す人ほど重い。<br>
+      ②<b>組B のカードといつ同居するのか</b>が決まっていない——帯とカードが同時に出れば二重の割り込み、
+      順に出せば結局 2 回割り込む。<b>組B の 2 枚をどうするかまで含めて設計しないと成立しない</b>。<br>
+      ③<b>［これで読む］ を押さずに本文をタップした人</b>の扱い（決めたのか、まだなのか）が要る。
+      帯はタップを奪わない純表示（正本のピルと同じ）にすると、<b>触っても消えない帯</b>が読書を邪魔する。<br>
+      ④<b>golden への影響が最も大きい</b>——読書画面の初回に新しい常設部品が乗る。
+    </p>
+    <p class="rule cost">
+      <b>実装コスト＝大</b>　案3 の (b)（層をまたぐ結線）に加え、<b>新しい部品を 1 つ起こす</b>
+      （カード列の外＝<code>IntroDeck</code>／<code>IntroFlow</code> の枠に載らない）。
+      さらに<b>組B のカード 2 枚の再設計</b>が付いてくる（リスク②）。<br>
+      <span style="color:#4A4C47">▶ <b>これだけは「モックを裁定して即実装」に乗らない</b>——
+      採るなら性能の宿題（組版を composition から外す A+C）と<b>順序を決める</b>必要がある。</span>
+    </p>
+  </div>
+
+  <!-- ============================================================ 対照 -->
+  <div class="sec">
+    <h2>対照　選ばせず、既定を縦書きへ倒すだけ　<span class="tag n">主軸にしない・下限として置く</span></h2>
+    <p class="body">
+      <b>裁定は「選ばせる」で確定している</b>ので、これは案ではなく<b>比較の下限</b>。
+      <code>READING_VERTICAL</code> の既定を <code>true</code> にし、
+      教示は既存の組B 2 枚目（「縦書きで読む」＝表示設定への案内）を<b>1 文字も変えずに</b>そのまま使う。
+    </p>
+    <p class="rule cost">
+      <b>実装コスト＝極小</b>　<code>NativeReadingScreen.kt:407</code> の既定値 1 箇所。
+      教示・カード列・prefs の型はいずれも不変。golden は縦書きの本文が入る枚だけ再記録。
+    </p>
+    <p class="rule risk">
+      <b>これを下限として置く理由</b>　4 案はすべて<b>この 1 行より高い代償</b>を払う。
+      <b>「選ばせる」が本当に必要か</b>——つまり<b>初見が縦書きで開くだけでは足りず、
+      選択という体験そのものに価値があるのか</b>——を、案を見ながら確かめてほしい。<br>
+      <span style="color:#4A4C47">▶ ⚠️ ただしこの下限には<b>既存ユーザーへの副作用</b>がある:
+      既定値を変えると、<b>まだ一度も向きを触っていない既存ユーザーの本文が次回起動で縦書きに変わる</b>
+      （prefs にキーが無い＝既定値が読まれるため）。4 案はいずれも新規の人にだけ問うので、この副作用が無い。</span>
+    </p>
+  </div>
+
+  <!-- ============================================================ §5 -->
+  <div class="sec">
+    <h2>§5　裁定してほしい 4 点　<span class="tag">ここが人間の判断</span></h2>
+    <table class="mx">
+      <tr><th style="width:6%">#</th><th style="width:30%">問い</th><th>どちらへ転ぶと、どの案になるか</th></tr>
+      <tr><td><b>1</b></td>
+        <td><b>いつ訊くか</b>——本文を見る前（空棚の扉）か、本文を開いた瞬間か。</td>
+        <td><b>見る前</b>＝案1・案2。看板の反転が<b>1 画面も残らない</b>が、<b>語だけで選ばせる</b>。<br>
+          <b>開いた瞬間</b>＝案3・案4。<b>実物で選べる</b>が、<b>最初の 1 画面は横書きで開く</b>。<br>
+          <span style="color:#4A4C47">▶ 正本 §3 の「実感が要る話は組B へ」をそのまま当てると開いた瞬間だが、
+          <b>選択は説明ではない</b>という線引きを認めれば見る前も立つ（案1 の争点）。</span></td></tr>
+      <tr><td><b>2</b></td>
+        <td><b>実物を見せる必要があるか</b>——「縦書き」という語だけで人は選べるか。</td>
+        <td><b>語で足りる</b>＝案1・案2（コスト小）。<br>
+          <b>実物が要る</b>＝案3（縮小）・案4（原寸）。<b>この頁の案3 の 150px プレビューが判別できるかを実際に見て決める</b>
+          ——潰れて見えるなら案3 は落ちて案4 しか残らない。</td></tr>
+      <tr><td><b>3</b></td>
+        <td><b>枚数を増やしてよいか</b>——初回の割り込みが 1 枚増えることを許すか。</td>
+        <td><b>増やしてよい</b>＝案1（組A 3 枚・点 3 個）・案3（組B 3 枚）。<br>
+          <b>増やさない</b>＝案2（1 枚 2 メッセージを許す）・案4（カードでない部品にする）。</td></tr>
+      <tr><td><b>4</b></td>
+        <td><b>カード列の外に部品を出してよいか</b>（案4 だけの問い）。</td>
+        <td><b>よい</b>＝案4 が生きる。ただし<b>性能の宿題（組版を composition から外す）との順序を決める</b>必要がある。<br>
+          <b>だめ</b>＝案4 は落ち、案1〜3 の 3 択になる。</td></tr>
+    </table>
+  </div>
+
+  <!-- ============================================================ §6 -->
+  <div class="sec">
+    <h2>§6　実装コストの見積もり　<span class="tag g">§1 の実測に基づく</span></h2>
+    <table class="mx">
+      <tr>
+        <th style="width:8%">案</th><th style="width:10%">規模</th>
+        <th style="width:26%">触るファイル</th><th style="width:14%">§1 の <code>remember</code> の罠</th><th>いちばん重い部分</th>
+      </tr>
+      <tr>
+        <td><b>案1</b></td><td class="o">小</td>
+        <td><code>IntroDeck</code>（カード＋型）<br><code>IntroOverlay</code>（チップ行）<br>呼び出し側で prefs 書込</td>
+        <td class="o">踏まない</td>
+        <td>無し。<code>IntroFlow</code> は 1 行も触らず、点も終端も自動で追従する。</td>
+      </tr>
+      <tr>
+        <td><b>案2</b></td><td class="o">最小</td>
+        <td>案1 と同じ（カード追加が無いぶんだけ小さい）</td>
+        <td class="o">踏まない</td>
+        <td>カードの背が最も高くなる＝<b>fontScale を上げた実機で ［はじめる］ が落ちないか</b>の確認。</td>
+      </tr>
+      <tr>
+        <td><b>案3</b></td><td class="x">中〜大</td>
+        <td>案1 一式＋<b>縮小プレビューの描画</b>＋<b>読書画面への state 結線</b>＋組B 2 枚目の文言改稿</td>
+        <td class="x">踏む</td>
+        <td>縦書きプレビューをどう描くか（重い本経路を縮小するか、専用の軽い描画を起こすか）の設計判断。</td>
+      </tr>
+      <tr>
+        <td><b>案4</b></td><td class="x">大</td>
+        <td>案3 の結線＋<b>カード列の外の新部品</b>＋<b>組B 2 枚の再設計</b></td>
+        <td class="x">踏む</td>
+        <td>押すたびに全列が再組版される＝<b>性能の宿題に正面から当たる</b>。順序の裁定が要る。</td>
+      </tr>
+      <tr>
+        <td><b>対照</b></td><td class="o">極小</td>
+        <td><code>NativeReadingScreen.kt:407</code> の既定値 1 箇所</td>
+        <td class="o">踏まない</td>
+        <td><b>既存ユーザーの本文が次回起動で縦書きに変わる</b>副作用（4 案には無い）。</td>
+      </tr>
+    </table>
+    <p class="rule">
+      <b>どの案でも共通で要る後始末</b><br>
+      <b>①</b> <b>ストア詳細説明 §3 の書き換え</b>——いまは事実どおり「初期設定は横書き」と書いてある
+      （handover に⚠️ 付きで明記）。<b>実装が入った便で必ず同じコミットに同梱する</b>。<br>
+      <b>②</b> <b>正本モックへの差し戻し</b>——採用案を <code>tutorial-onboarding-K.html</code> の §3（列の構造）・
+      §4（文言フル記載）・§8（Compose 翻訳への申し送り）へ書き戻し、<b>この頁を削除する</b>。<br>
+      <b>③</b> <b>golden の再記録</b>（<code>recordRoborazziDebug</code>）——見た目が変わるコミットに同梱する。
+      案4 は読書画面の初回に常設部品が乗るので影響が最も広い。<br>
+      <b>④</b> <b>実機の二段検分</b>——モックは構図の裁定、実機は実データ衝突の検出で役割が別。
+      とくに<b>カードが入りきるか</b>（§1③）は実機でしか分からない。
+    </p>
+  </div>
+</div>
+
+<script>
+/* ===== モック専用スクリプト（実装には持ち込まない）=====
+   縦書き(vertical-rl)の本文を「先頭＝右端」から始めて見せる。
+   reading-vertical-scroll-D.html の同名スクリプトと同じ意図・同じ式で、
+   横スクロール要素の初期位置を右端（＝行頭）へ寄せるだけ。
+   ⚠️ これを外すと縦書き枠が「文章の途中」から描かれ、
+      縦書きの見えを実物で裁定するというこの頁の目的が壊れる。 */
+document.querySelectorAll('.reader.v').forEach(function(r){
+  requestAnimationFrame(function(){ r.scrollLeft = r.scrollWidth; });
+  /* PC のホイールは縦回転しか無いので、触感確認用に横スクロールへ変換（下回し＝左へ＝読み進め）。 */
+  r.addEventListener('wheel', function(e){
+    if(Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
+    e.preventDefault();
+    r.scrollLeft -= e.deltaY;
+  }, {passive:false});
+});
+</script>
+</body>
+</html>

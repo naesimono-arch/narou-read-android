@@ -19,9 +19,13 @@ import com.novelreader.discovery.model.workSummary
 import com.novelreader.narou.model.NarouOrder
 import com.novelreader.narou.model.Ncode
 import com.novelreader.repository.BookRepository
+import com.novelreader.repository.FakeBookRepository
 import com.novelreader.repository.SourceDeleteOutcome
+import com.novelreader.repository.WebImportInFlightException
 import com.novelreader.scrape.ScrapeStructureException
 import com.novelreader.scrape.SiteAdapterRegistry
+// golden の写しと実行時の文字列を突き合わせるため screenshot 側の定数を引く（狙いは下の失敗経路テストの KDoc）。
+import com.novelreader.ui.screenshot.BookshelfDialogFixtures as Fx
 import io.mockk.*
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
@@ -147,6 +151,51 @@ class BookshelfViewModelTest {
         testDispatcher.scheduler.advanceUntilIdle()
 
         verify(exactly = 0) { mockApp.emitError(any(), any()) }
+    }
+
+    /**
+     * 取込元PDF削除の**失敗経路を文言まで**縛る（awaiting-human §1-6 (c) の決着）。
+     *
+     * ## なぜ実機を待たなくてよいか
+     * 失敗要因は権限失効・移動/削除済み・削除非対応プロバイダで、いずれも Repository の `runCatching` が
+     * 同じ [SourceDeleteOutcome.Failed] へ畳む。VM から見える入力は「その本が失敗したか」だけなので、
+     * [FakeBookRepository.failingSourceUris] で作れる＝実機で権限が切れる機会を待つ理由が無い
+     * （台帳に「人間待ち」として置かれていた唯一の根拠がこれだった）。
+     *
+     * ## 何を縛るか（既存の `emitError で通知する` テストとの差）
+     * 既存テストは `emitError(any(), any())` ＝**呼ばれたこと**しか見ておらず、件数も文言も自由だった。
+     * ここは (1) 件数が**失敗した本だけ**を数えること（成功1冊を混ぜて総数と区別する）、
+     * (2) 出る文字列が golden の写し [Fx.SNACKBAR_DELETE_FAIL] と**完全一致**すること、を見る。
+     * (2) の効き目: `ShelfSnackbarScreenshotTest` が撮っているのはテスト内の写しの版面で、写しが本番と
+     * ずれても絵は緑のまま通る（`BookshelfDialogTextFidelityTest` は素片が本番ソースに在るかしか見ない）。
+     * 実行時に組み上がる文字列と突き合わせて初めて、あの golden が「実際に出る Snackbar の版面」になる。
+     */
+    @Test
+    fun `deleteBooks - 取込元PDFの削除に失敗した件数だけを Snackbar の文言に載せる`() = runTest {
+        val fake = FakeBookRepository()
+        // 失敗3冊＋成功1冊。3 は golden の写し（Fx.SNACKBAR_DELETE_FAIL）が撮っている件数と同じ値に揃えてある。
+        val revoked = (1..3).map { BookEntity("id0$it", "本$it", "/p$it", sourceUri = "content://docs/revoked$it") }
+        val alive = BookEntity("id04", "本4", "/p4", sourceUri = "content://docs/alive")
+        fake.setBooks(revoked + alive)
+        fake.failingSourceUris += revoked.mapNotNull { it.sourceUri }
+
+        val fakeApp = mockk<NovelReaderApplication>(relaxed = true)
+        every { fakeApp.repository } returns fake
+        every { fakeApp.novelApiRepository } returns mockNovelApiRepository
+        every { fakeApp.processingState } returns MutableStateFlow<ProcessingState?>(null).asStateFlow()
+        every { fakeApp.errorEvents } returns emptyFlow()
+        // init が collect する搬送路（setUp と同じ理由で空 Flow を明示）。
+        every { fakeApp.overwritePrompts } returns emptyFlow()
+
+        val vm = BookshelfViewModel(fakeApp, testDispatcher)
+        vm.deleteBooks(revoked + alive, deleteSource = true)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val message = slot<String>()
+        verify { fakeApp.emitError(capture(message), any()) }
+        assertEquals(Fx.SNACKBAR_DELETE_FAIL, message.captured)
+        // 取込元の削除に失敗しても**本の削除自体は成立**させる（握り潰さず通知に留める設計）。
+        assertTrue("取込元削除の失敗で蔵書の削除まで巻き戻っている", fake.getPersistedSourceUris().isEmpty())
     }
 
     // ── Fake 実装での結線確認 ────────────────────────────────────────────
@@ -416,6 +465,45 @@ class BookshelfViewModelTest {
             )
         }
         verify(exactly = 0) { mockApp.emitError("取り込みに失敗しました") }
+    }
+
+    // in-flight 遮断（監査 A2）: 同一作品が取得中の後着は「失敗」ではなく「待てば済む」情報通知にする。
+    // 一般失敗文言・構造疑いの逃げ道が出ないこと（＝深刻さの誤伝達をしないこと）まで固定する。
+    @Test
+    fun `importWebNovel - in-flight 遮断は専用の情報通知で告げ一般失敗文言を出さない`() = runTest {
+        coEvery { mockRepository.addWebBook(any(), any(), any()) } returns
+            Result.failure(WebImportInFlightException())
+
+        viewModel.importWebNovel("https://kakuyomu.jp/works/123")
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        verify {
+            mockApp.emitError(
+                "この作品はすでに取得中です。完了までお待ちください",
+                transient = true,
+            )
+        }
+        verify(exactly = 0) { mockApp.emitError("取り込みに失敗しました") }
+    }
+
+    // 再取得ボタンの実行中ガード（監査 A2）の観測点。UI は activeWebImports>0 で確定ボタンを無効化するため、
+    // 走行中に 1 が観測でき、完了で 0 へ戻ること（＝押せない状態が残らないこと）を固定する。
+    @Test
+    fun `activeWebImports - 取込中は1で完了後は0へ戻る`() = runTest {
+        val gate = CompletableDeferred<Unit>()
+        coEvery { mockRepository.addWebBook(any(), any(), any()) } coAnswers {
+            gate.await() // 走行中を決定論的に作る（sleep 待ち合わせにしない）
+            Result.success(BookRepository.AddBookResult.Added(BookEntity("id01", "テスト作品", "/p/a")))
+        }
+
+        assertEquals(0, viewModel.activeWebImports.value)
+        viewModel.importWebNovel("https://kakuyomu.jp/works/123")
+        testDispatcher.scheduler.runCurrent()
+        assertEquals("取込中は実行中1本が観測できる", 1, viewModel.activeWebImports.value)
+
+        gate.complete(Unit)
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals("完了で0へ戻る（押せない状態が残らない）", 0, viewModel.activeWebImports.value)
     }
 
     // ── 停止の Web 実効化（2026-07-29 裁定①）＋供給元分離（裁定③）＋同型集約（裁定④）──────────

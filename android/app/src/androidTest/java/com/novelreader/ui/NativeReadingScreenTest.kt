@@ -75,6 +75,7 @@ class NativeReadingScreenTest {
                 followingSystem = false,
                 onFollowSystem = {},
                 onNavigateToBookshelf = {},
+                onExitReading = {},
             )
         }
         // 非同期パース完了を待機
@@ -108,6 +109,7 @@ class NativeReadingScreenTest {
                 followingSystem = false,
                 onFollowSystem = {},
                 onNavigateToBookshelf = {},
+                onExitReading = {},
             )
         }
         composeTestRule.waitUntil(timeoutMillis = 5_000) {
@@ -140,6 +142,7 @@ class NativeReadingScreenTest {
                 followingSystem = false,
                 onFollowSystem = {},
                 onNavigateToBookshelf = {},
+                onExitReading = {},
             )
         }
         composeTestRule.waitUntil(timeoutMillis = 5_000) {
@@ -172,6 +175,7 @@ class NativeReadingScreenTest {
                 followingSystem = false,
                 onFollowSystem = {},
                 onNavigateToBookshelf = {},
+                onExitReading = {},
             )
         }
         composeTestRule.waitUntil(timeoutMillis = 5_000) {
@@ -204,6 +208,7 @@ class NativeReadingScreenTest {
                 followingSystem = false,
                 onFollowSystem = {},
                 onNavigateToBookshelf = {},
+                onExitReading = {},
             )
         }
         // index.html へフォールバック → 目次画面が表示される
@@ -234,6 +239,7 @@ class NativeReadingScreenTest {
                 followingSystem = false,
                 onFollowSystem = {},
                 onNavigateToBookshelf = {},
+                onExitReading = {},
             )
         }
         // resolvedFile == null → 即時エラーUI（非同期処理なし）
@@ -265,6 +271,7 @@ class NativeReadingScreenTest {
                 followingSystem = false,
                 onFollowSystem = {},
                 onNavigateToBookshelf = {},
+                onExitReading = {},
             )
         }
         composeTestRule.waitUntil(timeoutMillis = 5_000) {
@@ -294,6 +301,7 @@ class NativeReadingScreenTest {
                 followingSystem = false,
                 onFollowSystem = {},
                 onNavigateToBookshelf = {},
+                onExitReading = {},
             )
         }
         // 第一章を表示後、次へで第二章に遷移（下端バーは可視ラベル Text で指す＝C①案A）

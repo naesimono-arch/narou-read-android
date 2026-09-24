@@ -67,6 +67,8 @@ import androidx.compose.ui.unit.sp
 import com.novelreader.data.BookEntity
 import com.novelreader.data.ProgressEntity
 import com.novelreader.discovery.model.WorkSummary
+import com.novelreader.ui.ReimportScanBanner
+import com.novelreader.ui.ReimportSweepBanner
 import com.novelreader.ui.newEpisodeCountFor
 import com.novelreader.ui.skins.ShelfActions
 import com.novelreader.ui.skins.ShelfChrome
@@ -103,8 +105,10 @@ import com.novelreader.ui.theme.ResumeInkPortal
 import com.novelreader.ui.theme.ResumeSurfacePortal
 import com.novelreader.ui.theme.SoftPortal
 import com.novelreader.ui.theme.Spacing
+import com.novelreader.viewmodel.ProcessingSource
 import com.novelreader.viewmodel.ProcessingState
 import com.novelreader.domain.ReadingStatus
+import com.novelreader.domain.ScanProgress
 import com.novelreader.domain.chapterNumberOf
 import com.novelreader.domain.progressFractionFor
 import com.novelreader.domain.readingStatusFor
@@ -321,6 +325,18 @@ internal fun BookshelfPortalJ(
     val onOpenWardrobe = actions.onOpenWardrobe
     val onFabClick = actions.onFabClick
     val onCancelProcessing = actions.onCancelProcessing
+
+    // cold start は必ず Loading（books=空）で初回コンポーズされる（VM の初期値が Loading・ルーターは uiState を
+    // 見ずに委譲する）ため、ここで pager を組むと rememberPagerState の initialPage が「空デッキの 0」で確定し、
+    // データ確定後も hero（読みかけ先頭作）へ着地しない＝isLoading を読み捨てていたのが真因（監査 2026-08-06 B5）。
+    // 他 6 面と同じく isLoading を空状態の門として使い、Content 確定後に初めてデッキを組む＝初期ページが正しい
+    // heroIndex で決まる。Loading 中は外殻の地（PagePortal）だけ描く＝偽の発見扉（「新しい物語を見つける」）の
+    // 空フラッシュも同時に消える（数フレームの帯なのでバナー類の欠けは実害なし）。
+    if (isLoading) {
+        Box(modifier = Modifier.fillMaxSize().background(PagePortal))
+        return
+    }
+
     // 状態フィルタ適用後の可視作品（チップは D と同じ readingStatusFor を単一真実源に使う＝M/P と同型）。
     val visible = remember(books, progressMap, chapterCountMap, selectedStatus) {
         if (selectedStatus == null) books
@@ -354,6 +370,10 @@ internal fun BookshelfPortalJ(
         HorizontalPager(
             state = pagerState,
             modifier = Modifier.fillMaxSize(),
+            // ページ同一性キー（PagerState は key でページを再対応付けする）。供給元 visible は取込完了の新刊が
+            // 先頭へ挿入される二層ソートのため、key 無しだと index 追跡のまま「見ていた扉」が別作品へ差し替わり
+            // 主導線「続きから読む」が別の本を開く（監査 2026-08-06 B4）。最後尾の発見扉は固定キー "find"。
+            key = { page -> visible.getOrNull(page)?.id ?: "find" },
         ) { page ->
             // ページの左右に隣扉の覗き（peek）。左＝前扉あり・右＝次扉あり（最後尾扉は右 peek なし＝モック実態）。
             val hasPrev = page > 0
@@ -406,6 +426,39 @@ internal fun BookshelfPortalJ(
                 exit = fadeOut(tween(MotionDurationDismiss)),
             ) {
                 PortalProcessingBanner(processingState, onCancelProcessing)
+            }
+            // 本文欠落の一括検出バナー（案C）と PDF フォルダ走査バナー（案X）。この面は従来 chrome の
+            // sweepBannerVisible/folderScan/onScanStop を受け取って捨てており、route 層で起動した走査に
+            // 進捗表示も停止手段も無かった（束の必須引数化は「受け取って捨てる」を止められない＝監査 2026-08-06 B1）。
+            // 意匠はトークン経由でスキン色に染まる共有部品をそのまま使う＝K 面と同型の最小配線（J 意匠版は未裁定）。
+            AnimatedVisibility(
+                visible = chrome.sweepBannerVisible,
+                enter = fadeIn(tween(MotionDurationReveal)),
+                exit = fadeOut(tween(MotionDurationDismiss)),
+            ) {
+                ReimportSweepBanner(
+                    missingCount = data.reimportPlans.size,
+                    onLater = chrome.onSweepLater,
+                    onReimport = chrome.onSweepConfirm,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            // 退場アニメの間 folderScan は既に null になっているため直前の非 null 値を保持して描く
+            //（保持箱をスナップショット状態にしない理由＝BookshelfScreen の同処理コメント参照）。
+            val lastScan = remember { arrayOfNulls<ScanProgress>(1) }
+            chrome.folderScan?.let { lastScan[0] = it }
+            AnimatedVisibility(
+                visible = chrome.folderScan != null,
+                enter = fadeIn(tween(MotionDurationReveal)),
+                exit = fadeOut(tween(MotionDurationDismiss)),
+            ) {
+                lastScan[0]?.let { progress ->
+                    ReimportScanBanner(
+                        progress = progress,
+                        onStop = chrome.onScanStop,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
             }
         }
 
@@ -481,13 +534,18 @@ private fun PortalPage(
             verticalArrangement = Arrangement.Bottom,
         ) {
             // .arc「辺境編 · 第127話」→ 章位置のみ（arc 名＝データ無し。未読は「全N話」）。
-            Text(
-                text = if (isUnread) "全${totalChaps}話" else "第${chapNum ?: 1}話",
-                fontSize = 11.sp,               // .arc 11px
-                letterSpacing = 0.3.em,
-                color = GoldPortal,
-                modifier = Modifier.padding(bottom = Spacing.S12),
-            )
+            // 章数不明（chapterCountMap 欠落＝0）は数を描かない: 0 は「章数不明／本文実体なし」の意味しか持たず、
+            // 「全0話」は実在しない事実の捏造になる（DB だけ Auto Backup 復元された端末で全冊該当・監査 2026-08-06 B6。
+            // D 共通 BookProgressRow は progressFractionFor が totalChaps<=0 で null の枝＝「未読」語のみで数を出さない）。
+            if (!isUnread || totalChaps > 0) {
+                Text(
+                    text = if (isUnread) "全${totalChaps}話" else "第${chapNum ?: 1}話",
+                    fontSize = 11.sp,               // .arc 11px
+                    letterSpacing = 0.3.em,
+                    color = GoldPortal,
+                    modifier = Modifier.padding(bottom = Spacing.S12),
+                )
+            }
             // .update「更新 · 続き N話」＝扉の奥で物語が進んだ印（森緑ドット＋金文字）。続きありのみ。
             if (newCount != null) {
                 Row(
@@ -752,51 +810,64 @@ private fun PortalTopBar(
     onToggleList: () -> Unit,
     onFabClick: () -> Unit,
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = Spacing.S16, vertical = Spacing.S8), // .topbar padding 0 18px→S16
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        // メニュー⋮（左）＝テーマ3択＋新着通知（J は3変種）。
-        Box {
-            var menuOpen by remember { mutableStateOf(false) }
+    // ⋮ の開閉状態は topbar の行より外側に持つ＝メニュー本体を行の外（下のアンカー）へ出すため。
+    var menuOpen by remember { mutableStateOf(false) }
+    Box(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = Spacing.S16, vertical = Spacing.S8), // .topbar padding 0 18px→S16
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            // メニュー⋮（左）＝テーマ3択＋新着通知（J は3変種）。
             PortalIconButton(onClick = { menuOpen = true }) {
                 Icon(Icons.Filled.MoreVert, contentDescription = "メニュー", tint = InkPortal, modifier = Modifier.size(19.dp))
             }
-            DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                // テーマ・新着通知は設定タブ（SettingsScreenK）へ移行済みのため⋮から撤去（系2）。非設定項目の「PDFを追加」は残す。
-                // PDF追加＝モックは扉クロームに追加導線を持たない（発見扉は発見専用）。メニュー導線へ移植して全数担保（M の SkyHorizon・P の SlotAdd と同趣旨）。
-                DropdownMenuItem(
-                    text = { Text("PDFを追加") },
-                    onClick = { menuOpen = false; onFabClick() },
-                    leadingIcon = { Icon(Icons.Filled.Add, contentDescription = null) },
-                )
+            // 位置 idx「n / N」（中央・明朝・字間広め。発見扉では空）。
+            Text(
+                text = indexLabel,
+                fontFamily = MinchoFamily,
+                fontSize = 13.sp,                   // .topbar .idx 13px
+                letterSpacing = 0.12.em,
+                color = IdxInk,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.weight(1f).padding(horizontal = Spacing.S8),
+            )
+            // 見つける（🔍）。
+            PortalIconButton(onClick = onOpenDiscovery) {
+                Icon(Icons.Filled.Search, contentDescription = "見つける", tint = InkPortal, modifier = Modifier.size(19.dp))
+            }
+            Spacer(Modifier.width(Spacing.S4))
+            // 装いの間（金縁でほのめかす＝スキン切替入口・ADR 0021 決定7）。
+            PortalIconButton(onClick = onOpenWardrobe, ward = true) {
+                Icon(Icons.Filled.Checkroom, contentDescription = "着せ替え", tint = GoldPortal, modifier = Modifier.size(19.dp))
+            }
+            Spacer(Modifier.width(Spacing.S4))
+            // 全体をグリッドで見る＝一覧＝D 構造フォールバックへ（デッキ⇄一覧トグルの機能維持）。
+            PortalIconButton(onClick = onToggleList) {
+                Icon(Icons.Filled.GridView, contentDescription = "一覧表示に切替", tint = InkPortal, modifier = Modifier.size(19.dp))
             }
         }
-        // 位置 idx「n / N」（中央・明朝・字間広め。発見扉では空）。
-        Text(
-            text = indexLabel,
-            fontFamily = MinchoFamily,
-            fontSize = 13.sp,                   // .topbar .idx 13px
-            letterSpacing = 0.12.em,
-            color = IdxInk,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.weight(1f).padding(horizontal = Spacing.S8),
-        )
-        // 見つける（🔍）。
-        PortalIconButton(onClick = onOpenDiscovery) {
-            Icon(Icons.Filled.Search, contentDescription = "見つける", tint = InkPortal, modifier = Modifier.size(19.dp))
-        }
-        Spacer(Modifier.width(Spacing.S4))
-        // 装いの間（金縁でほのめかす＝スキン切替入口・ADR 0021 決定7）。
-        PortalIconButton(onClick = onOpenWardrobe, ward = true) {
-            Icon(Icons.Filled.Checkroom, contentDescription = "着せ替え", tint = GoldPortal, modifier = Modifier.size(19.dp))
-        }
-        Spacer(Modifier.width(Spacing.S4))
-        // 全体をグリッドで見る＝一覧＝D 構造フォールバックへ（デッキ⇄一覧トグルの機能維持）。
-        PortalIconButton(onClick = onToggleList) {
-            Icon(Icons.Filled.GridView, contentDescription = "一覧表示に切替", tint = InkPortal, modifier = Modifier.size(19.dp))
+        // なぜ ⋮ ボタンを包む Box ではなく「topbar の行の外」をメニューのアンカーにするか:
+        // DropdownMenu は直近の親レイアウトの下端に上端を合わせて開く。⋮ を包む Box を親にすると
+        // アンカー下端＝アイコンの下端（＝行の上下余白の内側）で、ヘッダ全体の下端より上に来るため、
+        // メニューはヘッダの途中に開き、その差ぶんの帯（M では2行目の副題の上半分）が外に残って覗く
+        //（M で 2026-08-17 実機再現。docs/knowledge/dropdown-anchor-aligned-to-header-first-line.md）。
+        // offset で押し下げるのは端末・インセット・フォントスケール毎に合わせ直す当て推量になるので採らない。
+        // ここでは topbar と同じ左右余白の帯を敷き、その左下＝「⋮ の左端 × ヘッダ全体の下端」を
+        // 0 サイズのアンカーにする（⋮ は左端なので BottomStart＝横位置は従来どおり ⋮ の直下）。
+        Box(modifier = Modifier.matchParentSize().padding(horizontal = Spacing.S16)) {
+            Box(modifier = Modifier.align(Alignment.BottomStart)) {
+                DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                    // テーマ・新着通知は設定タブ（SettingsScreenK）へ移行済みのため⋮から撤去（系2）。非設定項目の「PDFを追加」は残す。
+                    // PDF追加＝モックは扉クロームに追加導線を持たない（発見扉は発見専用）。メニュー導線へ移植して全数担保（M の SkyHorizon・P の SlotAdd と同趣旨）。
+                    DropdownMenuItem(
+                        text = { Text("PDFを追加") },
+                        onClick = { menuOpen = false; onFabClick() },
+                        leadingIcon = { Icon(Icons.Filled.Add, contentDescription = null) },
+                    )
+                }
+            }
         }
     }
 }
@@ -984,13 +1055,18 @@ internal fun PortalProcessingBanner(state: ProcessingState, onStop: () -> Unit) 
                 )
             }
         }
-        // 4段ステッパー（.steps/.labels＝stepIndex/stepTotal 駆動＝実パイプラインの進捗）。
-        PortalSteps(
-            stepIndex = state.stepIndex,
-            stepTotal = state.stepTotal,
-            labels = stepLabels,
-            modifier = Modifier.padding(top = Spacing.S12),
-        )
+        // 4段ステッパー（.steps/.labels＝stepIndex/stepTotal 駆動）は PDF 供給元専用の器。Web 取込は
+        // phase しか更新しない（章単位取得＝ステップ概念なし・stepIndex は 0 固定）ため、無条件に描くと
+        // 「題名」段で凍結したステッパーになり処理停止と誤認させる（共有 ui/ProcessingBanner の
+        // 2026-07-29 裁定②と同機序＝監査 2026-08-06 B3）。Web は phase 行「章 i/N 取得中」へ一本化する。
+        if (state.source == ProcessingSource.PDF) {
+            PortalSteps(
+                stepIndex = state.stepIndex,
+                stepTotal = state.stepTotal,
+                labels = stepLabels,
+                modifier = Modifier.padding(top = Spacing.S12),
+            )
+        }
     }
 }
 

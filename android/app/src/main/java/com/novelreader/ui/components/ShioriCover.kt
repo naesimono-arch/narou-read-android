@@ -2,7 +2,6 @@ package com.novelreader.ui.components
 
 import android.graphics.Paint
 import android.graphics.Typeface
-import android.provider.Settings
 import androidx.compose.animation.core.withInfiniteAnimationFrameMillis
 import androidx.compose.foundation.Canvas
 import androidx.compose.runtime.Composable
@@ -20,12 +19,12 @@ import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import com.novelreader.typeset.CharClassifier
 import com.novelreader.typeset.render.VertGlyphRenderer
 import com.novelreader.ui.theme.LocalShioriColors
+import com.novelreader.ui.theme.rememberReduceMotion
 import kotlin.math.floor
 import kotlin.math.roundToInt
 
@@ -40,6 +39,40 @@ import kotlin.math.roundToInt
 // 先端は「配列に1つ足すだけ」で拡張できる（正本の TIPS 設計を踏襲）＝オーナー要望「都度増やす」を
 // 構造で担保。先端を足すと選択分布が変わるが「同じ本＝同じ絵」は保たれる（tipCount 依存の決定論）。
 // ============================================================
+
+/**
+ * HSL → RGB 変換（Jetpack Compose は HSL を直接持たない）。
+ *
+ * なぜここに在るか: 元は旧 BookCover.kt（D 世代の暗色スラブ書影）が持っていたが、2026-08-21 に
+ * 作品詳細が案2-c（栞書影＋淡地の帯）へ移って BookCover の最後の利用者が消えたため、残る利用者
+ * （[shioriAccentFor]・ShioriHighLoadTips・作品詳細の帯の地）の側へ引き取った。
+ */
+internal fun hslToColor(hue: Float, saturation: Float, lightness: Float): Color {
+    val h = hue / 360f
+    val s = saturation
+    val l = lightness
+
+    val q = if (l < 0.5f) l * (1f + s) else l + s - l * s
+    val p = 2f * l - q
+
+    fun hue2rgb(t: Float): Float {
+        var t2 = t
+        if (t2 < 0f) t2 += 1f
+        if (t2 > 1f) t2 -= 1f
+        return when {
+            t2 < 1f / 6f -> p + (q - p) * 6f * t2
+            t2 < 1f / 2f -> q
+            t2 < 2f / 3f -> p + (q - p) * (2f / 3f - t2) * 6f
+            else          -> p
+        }
+    }
+
+    return Color(
+        red   = hue2rgb(h + 1f / 3f),
+        green = hue2rgb(h),
+        blue  = hue2rgb(h - 1f / 3f),
+    )
+}
 
 /**
  * 栞アクセント色の共有ヘルパー（純関数）。書架の栞の棒／先端色と、目録リストの左端色帯を
@@ -84,10 +117,7 @@ internal fun ShioriCover(
     val shiori = LocalShioriColors.current
     val paper = shiori.paper
     val ink = shiori.ink
-    // 永続値も remember キーに含める（null→非 null の差し替え時に確実に再計算させる）。
-    val params = remember(title, persistedTipIndex, persistedLenFrac) {
-        shioriParams(title, SHIORI_TIPS.size, persistedTipIndex, persistedLenFrac)
-    }
+    val params = rememberShioriParams(title, persistedTipIndex, persistedLenFrac)
     // 棒・先端の識別色＝生成色。共有ヘルパー shioriAccentFor に集約し、目録リストの色帯と同一色にする
     // （S=0.48・L は現在スキン×変種の accentLightness＝D はライト0.52/セピア0.48/ダーク0.62）。
     val computedAccent = remember(params.hue, shiori.accentLightness) {
@@ -102,15 +132,9 @@ internal fun ShioriCover(
 
     // ── 高負荷アニメの合成判定（トグル OFF＝既定では一切の状態・購読を作らない） ──
     // reduce-motion はモックの @media (prefers-reduced-motion) 相当＝完全静止（ADR 0022 §3 制約②と同型）。
-    // 判定源は既存流儀（NativeReadingScreen ほか）の ANIMATOR_DURATION_SCALE==0。
-    val reduceMotion = if (highLoadAnim) {
-        val ctx = LocalContext.current
-        remember(ctx) {
-            Settings.Global.getFloat(ctx.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f
-        }
-    } else {
-        false
-    }
+    // 判定源は theme/ReduceMotion.kt の単一情報源（旧: ここで直読み＋remember＝設定変更が届かなかった・監査 C2）。
+    // トグル OFF のときに読まないのは従来どおり（既定では状態も購読も一切作らない＝golden が1pxも動かない）。
+    val reduceMotion = if (highLoadAnim) rememberReduceMotion() else false
     val animActive = shioriHighLoadActive(highLoadAnim, accentOverride != null, params.tipIndex, reduceMotion)
     // アニメ時計は合成時のみ購読（infiniteTransition 相当をトグル ON 時だけ組む＝OFF は既存 golden が1pxも変わらない）。
     val animClock: State<Long>? = if (animActive) rememberShioriHighLoadClock() else null
@@ -150,6 +174,32 @@ internal fun ShioriCover(
             drawShioriHighLoad(params.tipIndex, barX, barLen, s, accent, params.hue, shiori.accentLightness, tSec)
         }
         drawShioriTitle(title, w, h, ink)
+    }
+}
+
+/**
+ * 書影のパラメータを解決する**唯一の入口**（[ShioriCover] はここ以外から [shioriParams] を呼ばない）。
+ *
+ * ここで debug 限定の観察器 [ShioriDebugTip] の固定 tip を差し込む。なぜ本棚グリッドやカードの引数で
+ * 渡さないか＝設計の why はすべて ShioriDebugTip.kt の冒頭に置いた（要旨: 途中の画面を書き換えず、
+ * 出荷ビルドに残る恒久 API も増やさないため、生成の最終地点で上書きする）。
+ * release では [ShioriDebugTip.fixedIndex] が定数畳み込みで null に潰れる＝snapshot 購読も張られず、
+ * 既存の描画経路は1命令も変わらない。
+ *
+ * 関数として切り出しているのは、観察器の固定が「実際に描画されるパラメータ」へ載ることを
+ * JVM テスト（ShioriCoverDebugTipTest）が画素に頼らず固定できるようにするため。
+ */
+@Composable
+internal fun rememberShioriParams(
+    title: String,
+    persistedTipIndex: Int?,
+    persistedLenFrac: Float?,
+): ShioriParams {
+    val debugFixedTipIndex = ShioriDebugTip.fixedIndex
+    // 永続値も remember キーに含める（null→非 null の差し替え時に確実に再計算させる）。
+    // 固定 tip もキー＝観察器で番号を送った瞬間に全書影が引き直される。
+    return remember(title, persistedTipIndex, persistedLenFrac, debugFixedTipIndex) {
+        shioriParams(title, SHIORI_TIPS.size, persistedTipIndex, persistedLenFrac, debugFixedTipIndex)
     }
 }
 

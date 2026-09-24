@@ -1,41 +1,42 @@
-# この APK には `.so` が1本も無い＝16KB ページ要件は非該当
+# APK の `.so` は8本入っている＝16KB ページ要件は該当する（「0本＝非該当」は偽測定だった）
 
-- 重要度: ★★（依存を増やすとき・SDK を上げるときに引く。**実測せず一般論で書いた旧記述が誤っていた**実例でもある）
-- 確定日: 2026-07-30（debug/release 両ビルドの実測）
-- 1行要約: ネイティブライブラリが0本なので 16KB ページ要件の検査対象自体が存在しない。`zipalign -c -P 16` が通ることを根拠にしてはいけない。
+- 重要度: ★★★（依存バンプ・SDK 引き上げのたびに引く。**「0件」を返す測定系を疑わず結論にした偽測定**の実例でもある）
+- 確定日: 2026-08-06（監査で偽測定を特定。旧結論の確定日 2026-07-30 の「実測」自体が無効だった）
+- 1行要約: 実 APK には上流由来の `.so` が入っており 16KB ページ要件の検査対象は実在する。実測は `python3 -m zipfile -l`（`unzip` はこの環境に無い）。
 
 ## 結論
 
-**debug/release とも APK にネイティブライブラリが1本も入っていない**。
-`unzip -l <apk> | grep '\.so$'` が **0件**（両ビルドで実測）。
-したがって Android 15+ の **16KB ページサイズ要件は現状そもそも非該当**で、
-依存バンプのたびに再確認する必要はない。
+**debug/release とも APK にネイティブライブラリが入っている**。2026-08-06 の実測では8本:
+`libandroidx.graphics.path.so`（4ABI）＋ `libdatastore_shared_counter.so`（4ABI）。
+供給元は `androidx.graphics:graphics-path:1.0.1`（ui-graphics 経由）と `androidx.datastore:datastore-core-android:1.1.1`。
+release APK は8本すべて ELF `p_align = 0x4000` で現状合格（2026-07-30 実測＝`build.gradle` の手順コメント末尾）。
 
-## なぜ入らないのか
+したがって **Android 15+ の 16KB ページ要件は該当**し、依存バンプのたびに
+`android/app/build.gradle` の `packagingOptions` 内コメント（16KB ページ要件の確認手順①②）を実施する。
+本数・供給元は依存バンプで変わるので、この md の数値を信じず毎回実測する:
 
-主要依存が全て純 Kotlin/Java だから、入る道理が無い:
+```bash
+python3 -m zipfile -l <apk> | grep '\.so'
+```
 
-- Compose — 純 Kotlin
-- datastore — 純 Kotlin
-- **PDFBox-Android — 純 Java 実装**（名前に反してネイティブを持たない）
+（`unzip` 非導入環境でも動く作法＝同ディレクトリ `agp-srcdir-taskprovider-drops-builtby.md` の「検証の型」②と同じ）
 
-⚠️ **旧記述「Compose・datastore 由来の `.so` が 4ABI×2 入る」は誤り**だった。
-実測せずに「Android の依存にはネイティブが入っているはず」という一般論で書かれたもので、
-この APK の実態と合っていなかった。
+## 偽測定の機序（この知見の本体）
 
-## `zipalign -c -P 16` が通ることを根拠にしてはいけない
+旧版は「`unzip -l <apk> | grep '\.so$'` が両ビルドで0件＝ `.so` は1本も無い＝16KB 非該当」と断定していたが、
+**この環境には `unzip` が導入されていない**。`unzip -l | grep` は unzip の "command not found" が stderr へ流れ、
+stdout は空＝grep が0件を返す。この「0件」を「`.so` 無し」と読んだのが偽測定の全て
+（パイプが先頭コマンドの失敗を隠す機序は memory `bash-pipe-masks-exit-code-false-green` と同根）。
 
-`zipalign -c -P 16` は**通る**が、これは `resources.arsc` の整列を満たしているだけ。
-**要件の本体はネイティブライブラリの `p_align`** であって、この APK では**検査対象がゼロ**である。
-「zipalign が通った＝16KB 対応済み」と読むと、検査していないものを検査したことにしてしまう。
+教訓: **「0件」を結論にする測定は、先に陽性対照で測定系の生存を確認する**
+（例: `grep '\.'` など必ずヒットする検索が実際に出力を返すこと・パイプ先頭の exit code を単独で見ること）。
 
-## 将来 `.so` が入った瞬間に該当する
+## 実害の構造（なぜ★★★か）
 
-画像コーデック・暗号・DB エンジンなど**ネイティブを持つ依存を入れた瞬間に要件の対象になる**。
-そのときに見るのは2点:
-
-1. ELF の `p_align = 0x4000`
-2. `zipalign -P 16`（`-P` オプションは **build-tools 35+** が要る）
+旧版を信じると `build.gradle` の16KB整列確認（zipalign -P 16 ＋ ELF p_align 検分）を「非該当だから不要」として
+恒久的に飛ばす。現在の8本はたまたま 0x4000 で合格しているだけで、上流が非対応版に差し替わった瞬間、
+16KB ページ端末で**起動不能な APK を無検査で出荷**する。さらに `build.gradle` 側の正しい記述
+（「Compose(ui/graphics) と datastore 由来の .so が 4ABI×2＝8本入る」）を「旧記述＝誤り」として削除する二次被害もあった。
 
 ## 併記: JVM テストは targetSdk の実行時挙動を一切捕まえない
 

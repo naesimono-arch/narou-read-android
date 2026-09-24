@@ -1,0 +1,359 @@
+<!-- @dsCard group="UI-n / デフォルト（明快K）" name="K. 診断の記録（書き出し・A/B裁定用）" -->
+<!--
+  端末内診断（filesDir/diagnostics/）の**書き出し**面。スキンK「明快」。2026-09-02 新規・Compose 未実装。
+  入口の行は正本 `skins/settings-K.html` の「データ」節へ直差分済み（両案で入口の見えは同一）。
+
+  ■ この面が要る理由（実装から読んだ事実）
+    収集は実装済みで release でも走る（NovelReaderApplication.onCreate が無条件に CrashReporter.install＋
+    sessionWatch.onProcessStart）。にもかかわらず取り出す手段は `adb shell run-as`＝**debug ビルド専用**で、
+    日常利用してもらっている検証機（release）からは誰も回収できない。集めても取り出せない、が現状。
+
+  ■ 何がたまっているか（DiagnosticsStore / DiagnosticEvent / JankAggregator を読んで確定）
+    ① `diagnostics/events/event-<epochMillis>-<kind>.txt` … 1件1ファイル・**最大30件**（古い順に間引き）。
+       kind は CRASH（未捕捉例外＝スタックトレースあり）と ABNORMAL_EXIT（前面のまま消えた＝ANR/OEM kill/OOM の推定）。
+       1件の中身＝発生時刻・アプリ版・端末機種/Android版・**画面名**・スレッド名・空きメモリ・スタックトレース。
+    ② `diagnostics/jank.txt` … 前面セッションが終わるたびに1ブロック追記（画面別 frames/jank%/p90/p99/worst）。
+       **最大約256KB**で頭打ち＝溢れたら古い側から捨てる。
+    画面名は NavController の `destination.route`＝**ルートの雛形**（例 `reading/{bookId}`・`tabs/bookshelf`）で、
+    作品IDも題名も入らない。だから「作品の題名・本文は含まれません」と本文で言い切ってよい（MainActivity.kt:497 で確認）。
+
+  ■ 外部送信ゼロ（ADR 0011 の守り）を崩さないための言い回しの規則
+    「送信」「レポートを送る」「共有してレポート」の類は**置かない**。主操作は〈ファイルへ書き出す〉1つだけで、
+    保存先の選択は Android の保存ダイアログ（SAF）に委ねる＝端末外へ出すか否かは常に人間の側にある。
+    否定形で不安を煽らず「この端末の中だけに保存されています」と現在の事実を述べる形にした。
+
+  ■ 裁定してほしいこと＝**器だけ**（中身は3枚とも一字一句同じ。変数を器に絞るため）
+    案A: 設定の行 → **ボトムシート**（NavHost に触らない。route 層＝設定画面が所有）
+    案B: 設定の行 → **専用画面へ push**（← で設定へ戻る深い画面。将来 30件の一覧・1件ごとの詳細へ育てられる）
+    3枚目は案A の「まだ記録が無いとき」＝release の大多数が最初に見る状態。
+
+  ■ 実装へ渡すときの申し送り（裁定後に効く。ここで決めておかないと必ず落ちる）
+    - 案A を採るなら `skipPartiallyExpanded = true`＋中身の Column に `verticalScroll`（/new-screen シート節の2点）。
+      中身はこの高さで収まるので Expanded＝内容なりの高さになり、主操作が折り目の下へ落ちない。
+    - 案B を採るなら ←もシステム Back も「設定タブへ1段上がる」（ADR 0026）＋遷移契約テストへ追加。
+    - 〈記録を消す〉は書き出しの必須要件ではない任意要素（枠で囲って明示）。要らなければこの1行だけ落とせる。
+    - 色・寸法はすべて settings-K.html の既存トークン再利用＝新しい値は1つも足していない。
+
+  ■ 実装との対応（2026-09-03 逆同期・実装＝`ui/diagnostics/DiagnosticsExportScreen.kt`）
+    採用は**案B（専用画面）**。案A の2枚は不採用案の記録として凍結する＝以後この面の改訂に追従しない
+    （上の「中身は3枚とも一字一句同じ」は裁定を分離するための不変で、裁定の終了とともに解除）。
+    案B へ追加＝書き出しの結末1行（.result）。落とした3項目は消さず ⚠️ 宿題マーカーで所在と復活条件を持たせた。
+-->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>K 診断の記録 — 書き出し（A/B）</title>
+<style>
+  :root{
+    /* === settings-K.html と完全同一の実値（新しい色・寸法は足さない） === */
+    --base:#FBFAF8;        /* 和紙地 */
+    --ink:#1C1F26;         /* 主文字 */
+    --ink-soft:#7C808B;    /* 補助（OnSurfaceVariantLight 実値＝本画面の補助文字はすべてこの1役） */
+    --line:#ECEAE4;        /* ヘアライン */
+    --ai:#1C3D5A;          /* 藍アクセント（一画面一強調＝主操作のみ） */
+    --ai-tint:rgba(28,61,90,.10);
+    --mincho:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
+    --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#E4E3DD;min-height:100vh;padding:28px 24px 40px;
+    font-family:var(--gothic);-webkit-font-smoothing:antialiased}
+
+  /* 比較台（3枚を横に並べる。裁定用の枠であり画面の一部ではない） */
+  .board{display:flex;gap:36px;align-items:flex-start;justify-content:center;flex-wrap:wrap}
+  .stage{display:flex;flex-direction:column;align-items:center;gap:12px}
+  .cap{font-size:13px;color:#4A4D55;letter-spacing:.04em;text-align:center;line-height:1.6;max-width:412px}
+  .cap b{color:#1C1F26;font-size:14px;letter-spacing:.06em}
+
+  /* === スマホ画面枠（settings-K と同一） === */
+  .phone{width:412px;height:915px;background:var(--base);border-radius:40px;overflow:hidden;
+    position:relative;display:flex;flex-direction:column;box-shadow:0 24px 60px rgba(0,0,0,.30)}
+
+  .sb{height:40px;flex-shrink:0;display:flex;align-items:center;justify-content:space-between;
+    padding:0 24px;font-size:11px;color:var(--ink-soft);letter-spacing:.02em}
+  .sb .r{display:flex;gap:6px;align-items:center}
+
+  .head{flex-shrink:0;padding:6px 20px 14px}
+  .head h1{font-family:var(--gothic);font-size:22px;font-weight:700;color:var(--ink);letter-spacing:.04em}
+  /* 深い画面のヘッダ（案B）＝←＋題。本棚→目次と同じ「戻る矢印は題の左」の並び */
+  .head.deep{display:flex;align-items:center;gap:12px;padding:2px 20px 14px}
+  .head.deep .back{width:24px;height:24px;flex-shrink:0;color:var(--ink)}
+  .head.deep .back svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:1.8;
+    stroke-linecap:round;stroke-linejoin:round}
+
+  .scroll{flex:1;overflow-y:auto;overflow-x:hidden;padding:2px 20px 24px;scrollbar-width:none}
+  .scroll::-webkit-scrollbar{display:none}
+
+  .gh{font-size:12px;color:var(--ink-soft);letter-spacing:.14em;margin:20px 4px 8px;font-weight:600}
+  .gh:first-child{margin-top:4px}
+  .group{border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--base)}
+
+  .row{display:flex;align-items:center;gap:14px;padding:15px 16px;border-bottom:1px solid var(--line)}
+  .row:last-child{border-bottom:none}
+  .ri{width:24px;height:24px;flex-shrink:0;color:var(--ink-soft)}
+  .ri svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+  .rt{flex:1;min-width:0}
+  .rl{font-family:var(--gothic);font-size:15px;color:var(--ink);letter-spacing:.02em}
+  .rd{font-size:12.5px;color:var(--ink-soft);line-height:1.5;margin-top:4px;letter-spacing:.01em}
+  .rr{flex-shrink:0;display:flex;align-items:center;gap:8px}
+  .rv{font-size:13px;color:var(--ink-soft);letter-spacing:.02em}
+  .chev{width:18px;height:18px;fill:none;stroke:var(--ink-soft);stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+  .chev-hole{width:18px;height:18px;flex-shrink:0}
+
+  /* 件数は「意味を運ぶ値」＝ --ink（素地 15.2:1）で置く。テーマ行の「システムに従う」等の
+     単なる現在値（--ink-soft 3.79:1）と役が違い、ここは読み取れないと面の存在意義が消えるため。
+     ADR 0014-D「意味を運ぶ文字は WCAG 4.5:1 ＞ 美学」の適用。 */
+  .num{font-size:15px;color:var(--ink);letter-spacing:.02em;font-weight:600}
+  .num.none{color:var(--ink-soft);font-size:13px;font-weight:400}
+
+  /* リード文（面の冒頭・この面が何かを3秒で言い切る1文） */
+  .lead{font-size:13px;color:var(--ink);line-height:1.75;letter-spacing:.01em;margin:6px 4px 2px}
+  .lead b{font-weight:700}
+
+  /* 主操作（一画面一強調＝藍はここだけ）。白文字 on 藍＝12.1:1 */
+  .pbtn{display:block;width:100%;margin-top:20px;padding:15px 16px;border:none;border-radius:12px;
+    background:var(--ai);color:#fff;font-family:var(--gothic);font-size:15px;font-weight:700;
+    letter-spacing:.06em;cursor:pointer}
+  /* 非活性＝M3 の disabled alpha .38（新しい色を作らずに沈める。WCAG は非活性を対象外とする） */
+  .pbtn.off{opacity:.38;cursor:default}
+  .pnote{font-size:12px;color:var(--ink-soft);line-height:1.6;letter-spacing:.01em;margin:8px 4px 0}
+
+  /* 「書き出される内容」の明細（枠なし・地のまま＝読むための面で、操作は無い） */
+  .note{font-size:12.5px;color:var(--ink-soft);line-height:1.8;letter-spacing:.01em;padding:0 4px}
+  .note .strong{color:var(--ink)}
+
+  /* 副操作（任意要素）。藍を使わない＝強調は主操作に1つだけ */
+  .tbtn{display:block;margin:0 auto;padding:12px 20px;border:none;background:transparent;
+    font-family:var(--gothic);font-size:13.5px;color:var(--ink-soft);letter-spacing:.04em;cursor:pointer}
+  /* 裁定用の可視マーカー。実装には翻訳しない（この破線は画面の一部ではない） */
+  .optional{margin-top:24px;border:1px dashed #C9C6BE;border-radius:10px;padding:4px 0 2px;position:relative}
+  .optional::before{content:"任意（要らなければこの1行だけ落とせる）";position:absolute;top:-8px;left:12px;
+    background:#FBFAF8;padding:0 6px;font-size:10px;color:#9A968D;letter-spacing:.04em}
+
+  /* 書き出しの結末（成功／失敗）。2026-09-03 追加＝実装からの逆同期（この面は元々「押した後」を持たなかった）。
+     .pnote と同じ字送り・行間のまま色だけ --ink にする＝結末は「意味を運ぶ文字」で、単なる補足
+     （--ink-soft 3.79:1）とは役が違う（ADR 0014-D の適用＝件数 .num を --ink にしたのと同じ理由）。
+     新しい意匠語彙は作らない＝既存2値（--ink-soft／--ink）の使い分けだけで表す。 */
+  .result{font-size:12px;color:var(--ink);line-height:1.6;letter-spacing:.01em;margin:4px 4px 0}
+
+  /* 宿題マーカー（裁定用の可視注記。.optional と同じく**実装には翻訳しない**＝画面の一部ではない）。
+     なぜ消さずに残して注記か: 実装が落とした文言をモックからも消すと、決着していない残
+     ——出すために何が要るか——が誰の記憶にも残らない形で消える（2026-09-03 監督裁定）。
+     色は既存トークンを使わない＝「画面でない注記」を地の意匠と取り違えさせないため。 */
+  .todo-mark{background:#FBF3DE;border-bottom:1px dashed #C9A24A}
+  .todo{margin:8px 4px 0;border:1px dashed #C9A24A;border-radius:8px;padding:7px 9px;background:#FBF7EC;
+    font-size:10.5px;line-height:1.6;color:#7A6528;letter-spacing:.02em}
+  .todo b{color:#5E4D1C;font-weight:700}
+
+  /* ---- スクリム＋シート（reading-settings-livepreview-D / settings-D の実値） ---- */
+  .scrim{position:absolute;inset:0;background:rgba(20,23,28,.28);z-index:5}
+  .sheet{position:absolute;left:0;right:0;bottom:0;z-index:6;background:var(--base);
+    border-radius:20px 20px 0 0;padding:12px 20px 28px;box-shadow:0 -10px 30px rgba(0,0,0,.18)}
+  .grab{width:36px;height:4px;border-radius:2px;background:var(--line);margin:0 auto 14px}
+  .sheet h2{font-family:var(--gothic);font-size:18px;font-weight:700;color:var(--ink);
+    letter-spacing:.04em;margin:0 4px 2px}
+
+  /* ===== 共通ボトムナビ（settings-K と完全同一） ===== */
+  .tabbar{flex-shrink:0;height:64px;display:flex;border-top:1px solid var(--line);background:var(--base)}
+  .tab{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+    text-decoration:none;cursor:pointer;color:var(--ink-soft)}
+  .tab.on{color:var(--ai)}
+  .tab .ic{position:relative;width:56px;height:32px;display:grid;place-items:center}
+  .tab .ic .pill{position:absolute;inset:0;border-radius:16px;background:transparent}
+  .tab.on .ic .pill{background:var(--ai-tint)}
+  .tab .ic svg{position:relative;width:24px;height:24px;fill:none;stroke:currentColor;
+    stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+  .tab .lb{font-family:var(--gothic);font-size:11px;letter-spacing:.04em}
+  .tab.on .lb{font-weight:700}
+</style>
+</head>
+<body>
+<div class="board">
+
+  <!-- ============================================================ 案A: ボトムシート -->
+  <div class="stage">
+    <div class="cap"><b>案A｜ボトムシート</b><br>設定の行を叩くと下から出る。設定の文脈を離れない・NavHost に触らない</div>
+    <div class="phone">
+      <div class="sb"><span>9:41</span><span class="r">5G ▾ ▮▮▮</span></div>
+      <div class="head"><h1>設定</h1></div>
+
+      <!-- 背景＝設定画面（settings-K のまま。シートに隠れる下半分は描かない） -->
+      <div class="scroll">
+        <div class="gh">表示</div>
+        <div class="group">
+          <div class="row">
+            <span class="ri"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor" stroke="none"/></svg></span>
+            <div class="rt"><div class="rl">テーマ</div></div>
+            <div class="rr"><span class="rv">システムに従う</span><svg class="chev" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></div>
+          </div>
+          <div class="row">
+            <span class="ri"><svg viewBox="0 0 24 24"><path d="M12 4a8 8 0 0 0 0 16c1 0 1.5-.8 1.5-1.6 0-1 .8-1.4 1.6-1.4H17a3 3 0 0 0 3-3c0-4.4-3.6-8-8-8z"/><circle cx="8.2" cy="11" r=".9" fill="currentColor" stroke="none"/><circle cx="12" cy="8.4" r=".9" fill="currentColor" stroke="none"/><circle cx="15.6" cy="11" r=".9" fill="currentColor" stroke="none"/></svg></span>
+            <div class="rt"><div class="rl">きせかえ</div><div class="rd">本棚や画面の装いを変える</div></div>
+            <div class="rr"><span class="rv">明快</span><svg class="chev" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></div>
+          </div>
+        </div>
+      </div>
+
+      <nav class="tabbar">
+        <a class="tab"><span class="ic"><span class="pill"></span><svg viewBox="0 0 24 24"><path d="M6 4h11a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/><path d="M4 18a2 2 0 0 1 2-2h12"/></svg></span><span class="lb">本棚</span></a>
+        <a class="tab"><span class="ic"><span class="pill"></span><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.4 4.4"/></svg></span><span class="lb">さがす</span></a>
+        <a class="tab on"><span class="ic"><span class="pill"></span><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span><span class="lb">設定</span></a>
+      </nav>
+
+      <div class="scrim"></div>
+      <div class="sheet">
+        <div class="grab"></div>
+        <h2>診断の記録</h2>
+
+        <!-- ▼ ここから共通コンテンツ（案A/案B/空状態で一字一句同じ） -->
+        <p class="lead">これらの記録は<b>この端末の中だけ</b>に保存されています。ここで書き出すまで、外へは出ていきません。</p>
+
+        <div class="gh">たまっている記録</div>
+        <div class="group">
+          <div class="row">
+            <span class="ri"><svg viewBox="0 0 24 24"><path d="M12 4.6l8.4 14.8H3.6z"/><path d="M12 10v4"/><path d="M12 16.8h.01"/></svg></span>
+            <div class="rt"><div class="rl">不具合の記録</div><div class="rd">落ちた・急に終わったときの記録（最新 9月1日 22:41／30件まで）</div></div>
+            <div class="rr"><span class="num">3件</span><span class="chev-hole" aria-hidden="true"></span></div>
+          </div>
+          <div class="row">
+            <span class="ri"><svg viewBox="0 0 24 24"><path d="M3 12h4l2.5-6 4 13 2.5-7H21"/></svg></span>
+            <div class="rt"><div class="rl">動作のなめらかさ</div><div class="rd">画面ごとのカクつきの要約（直近 12 回ぶん）</div></div>
+            <div class="rr"><span class="num">48KB</span><span class="chev-hole" aria-hidden="true"></span></div>
+          </div>
+        </div>
+
+        <button class="pbtn">ファイルへ書き出す</button>
+        <p class="pnote">保存する場所はあなたが選びます。1つのテキストファイルにまとめます。</p>
+
+        <div class="gh">書き出される内容</div>
+        <div class="note">
+          発生した日時／アプリの版／端末の機種と Android の版／そのとき開いていた画面の名前／メモリの空き／エラーの詳しい内容。<br>
+          <span class="strong">作品の題名・本文・アカウントの情報は含まれません。</span>
+        </div>
+
+        <div class="optional"><button class="tbtn">記録を消す</button></div>
+        <!-- ▲ 共通コンテンツここまで -->
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================ 案A: 記録が無いとき -->
+  <div class="stage">
+    <div class="cap"><b>案A｜まだ記録が無いとき</b><br>release の大多数が最初に見る状態。器は案A と同一</div>
+    <div class="phone">
+      <div class="sb"><span>9:41</span><span class="r">5G ▾ ▮▮▮</span></div>
+      <div class="head"><h1>設定</h1></div>
+      <div class="scroll">
+        <div class="gh">表示</div>
+        <div class="group">
+          <div class="row">
+            <span class="ri"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor" stroke="none"/></svg></span>
+            <div class="rt"><div class="rl">テーマ</div></div>
+            <div class="rr"><span class="rv">システムに従う</span><svg class="chev" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></div>
+          </div>
+          <div class="row">
+            <span class="ri"><svg viewBox="0 0 24 24"><path d="M12 4a8 8 0 0 0 0 16c1 0 1.5-.8 1.5-1.6 0-1 .8-1.4 1.6-1.4H17a3 3 0 0 0 3-3c0-4.4-3.6-8-8-8z"/><circle cx="8.2" cy="11" r=".9" fill="currentColor" stroke="none"/><circle cx="12" cy="8.4" r=".9" fill="currentColor" stroke="none"/><circle cx="15.6" cy="11" r=".9" fill="currentColor" stroke="none"/></svg></span>
+            <div class="rt"><div class="rl">きせかえ</div><div class="rd">本棚や画面の装いを変える</div></div>
+            <div class="rr"><span class="rv">明快</span><svg class="chev" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></div>
+          </div>
+        </div>
+      </div>
+      <nav class="tabbar">
+        <a class="tab"><span class="ic"><span class="pill"></span><svg viewBox="0 0 24 24"><path d="M6 4h11a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/><path d="M4 18a2 2 0 0 1 2-2h12"/></svg></span><span class="lb">本棚</span></a>
+        <a class="tab"><span class="ic"><span class="pill"></span><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.4 4.4"/></svg></span><span class="lb">さがす</span></a>
+        <a class="tab on"><span class="ic"><span class="pill"></span><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span><span class="lb">設定</span></a>
+      </nav>
+
+      <div class="scrim"></div>
+      <div class="sheet">
+        <div class="grab"></div>
+        <h2>診断の記録</h2>
+        <p class="lead">これらの記録は<b>この端末の中だけ</b>に保存されています。ここで書き出すまで、外へは出ていきません。</p>
+
+        <div class="gh">たまっている記録</div>
+        <div class="group">
+          <div class="row">
+            <span class="ri"><svg viewBox="0 0 24 24"><path d="M12 4.6l8.4 14.8H3.6z"/><path d="M12 10v4"/><path d="M12 16.8h.01"/></svg></span>
+            <div class="rt"><div class="rl">不具合の記録</div><div class="rd">落ちた・急に終わったときの記録（30件まで）</div></div>
+            <div class="rr"><span class="num none">まだ無し</span><span class="chev-hole" aria-hidden="true"></span></div>
+          </div>
+          <div class="row">
+            <span class="ri"><svg viewBox="0 0 24 24"><path d="M3 12h4l2.5-6 4 13 2.5-7H21"/></svg></span>
+            <div class="rt"><div class="rl">動作のなめらかさ</div><div class="rd">画面ごとのカクつきの要約</div></div>
+            <div class="rr"><span class="num none">まだ無し</span><span class="chev-hole" aria-hidden="true"></span></div>
+          </div>
+        </div>
+
+        <button class="pbtn off">ファイルへ書き出す</button>
+        <!-- 空のとき「なぜ空なのか」を言う＝壊れていると誤読されないため（記録は異常時にしか作られない）。 -->
+        <p class="pnote">記録は、アプリが落ちたときと画面がカクついたときにだけ作られます。何も無いのは正常です。</p>
+
+        <div class="gh">書き出される内容</div>
+        <div class="note">
+          発生した日時／アプリの版／端末の機種と Android の版／そのとき開いていた画面の名前／メモリの空き／エラーの詳しい内容。<br>
+          <span class="strong">作品の題名・本文・アカウントの情報は含まれません。</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================ 案B: 専用画面 -->
+  <div class="stage">
+    <div class="cap"><b>案B｜専用画面</b><br>設定から1段深く push。ボトムナビは消える（深い画面の規約）</div>
+    <div class="phone">
+      <div class="sb"><span>9:41</span><span class="r">5G ▾ ▮▮▮</span></div>
+      <div class="head deep">
+        <span class="back"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></span>
+        <h1>診断の記録</h1>
+      </div>
+
+      <div class="scroll">
+        <p class="lead">これらの記録は<b>この端末の中だけ</b>に保存されています。ここで書き出すまで、外へは出ていきません。</p>
+
+        <div class="gh">たまっている記録</div>
+        <div class="group">
+          <div class="row">
+            <span class="ri"><svg viewBox="0 0 24 24"><path d="M12 4.6l8.4 14.8H3.6z"/><path d="M12 10v4"/><path d="M12 16.8h.01"/></svg></span>
+            <div class="rt"><div class="rl">不具合の記録</div><div class="rd">落ちた・急に終わったときの記録（<span class="todo-mark">最新 9月1日 22:41</span>／30件まで）</div></div>
+            <div class="rr"><span class="num">3件</span><span class="chev-hole" aria-hidden="true"></span></div>
+          </div>
+          <div class="row">
+            <span class="ri"><svg viewBox="0 0 24 24"><path d="M3 12h4l2.5-6 4 13 2.5-7H21"/></svg></span>
+            <div class="rt"><div class="rl">動作のなめらかさ</div><div class="rd">画面ごとのカクつきの要約（<span class="todo-mark">直近 12 回ぶん</span>）</div></div>
+            <div class="rr"><span class="num">48KB</span><span class="chev-hole" aria-hidden="true"></span></div>
+          </div>
+        </div>
+        <div class="todo">⚠️ <b>宿題</b>: 上で網掛けした〈最新 9月1日 22:41〉〈直近 12 回ぶん〉は
+          <b>実装では省略</b>（2026-09-03）。出すには DiagnosticsStore に latestEventTime() /
+          jankSessionCount() の新設が要る——保管庫が返すのは件数（count）と全文（dumpAll／dumpJank）だけで、
+          DiagnosticEvent.format() の KDoc が「機械パースはしない」と明記しているため、既存 API から
+          近似で埋めると嘘の表示になる。<b>近似で埋めず省略した</b>のが現状で、文言は復活先として残す。</div>
+
+        <button class="pbtn">ファイルへ書き出す</button>
+        <p class="pnote">保存する場所はあなたが選びます。1つのテキストファイルにまとめます。</p>
+        <!-- 書き出しの結末（2026-09-03 追加・実装からの逆同期）。静止画なので成功側だけを出す。
+             失敗側の文言＝「書き出せませんでした。保存先を変えてもう一度お試しください。」（同じ .result）。
+             なぜ要るか: SAF で保存先を選んだ後に成否を出さないと、失敗が黙って消える＝握り潰しになる。
+             出るのは押した後だけ＝初回表示のこの面には無い1行。 -->
+        <p class="result">書き出しました。</p>
+
+        <div class="gh">書き出される内容</div>
+        <div class="note">
+          発生した日時／アプリの版／端末の機種と Android の版／そのとき開いていた画面の名前／メモリの空き／エラーの詳しい内容。<br>
+          <span class="strong">作品の題名・本文・アカウントの情報は含まれません。</span>
+        </div>
+
+        <div class="optional"><button class="tbtn">記録を消す</button></div>
+        <div class="todo">⚠️ <b>実装では落とした</b>（2026-09-03）: DiagnosticsStore に削除 API が無く、
+          この便は diagnostics/ を触らない所有権だったため。復活させるには保管庫側に clear()
+          （events/ の全削除＋jank.txt の切り詰め）の新設が要る。<b>任意要素としてこの行は生きている</b>
+          ＝落としたのは「今は出せない」からで、不要と裁定したわけではない。</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

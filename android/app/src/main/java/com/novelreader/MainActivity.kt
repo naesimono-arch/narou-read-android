@@ -7,7 +7,6 @@ import android.content.SharedPreferences
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
-import android.provider.Settings
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
@@ -21,13 +20,20 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.ui.graphics.Color
 import androidx.compose.runtime.*
+import androidx.compose.ui.semantics.hideFromAccessibility
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -57,6 +63,8 @@ import com.novelreader.ui.BookshelfScreen
 import com.novelreader.ui.ReadingErrorScreen
 import com.novelreader.ui.ReadingScreen
 import com.novelreader.ui.WardrobeScreen
+import com.novelreader.ui.components.ShioriDebugTip
+import com.novelreader.ui.components.shioriDebugTipFor
 import com.novelreader.ui.discovery.DiscoveryGenreScreen
 import com.novelreader.ui.discovery.DiscoveryHomeScreen
 import com.novelreader.ui.discovery.DiscoveryResultScreen
@@ -64,13 +72,21 @@ import com.novelreader.ui.discovery.DiscoverySearchScreen
 import com.novelreader.ui.discovery.NovelDetailScreen
 import com.novelreader.ui.discovery.PdfImportScreen
 import com.novelreader.ui.discovery.WebReaderScreen
+import com.novelreader.ui.diagnostics.DiagnosticsExportScreen
 import com.novelreader.ui.skins.k.KBottomNav
+import com.novelreader.ui.skins.k.LocalKTabSelect
 import com.novelreader.ui.skins.k.KTab
 import com.novelreader.ui.skins.k.SettingsScreenK
+import com.novelreader.ui.intro.IntroGroup
+import com.novelreader.ui.intro.IntroController
+import com.novelreader.ui.intro.IntroOverlayHost
+import com.novelreader.ui.intro.LocalIntroController
+import com.novelreader.ui.intro.PrefsIntroFlagStore
 import com.novelreader.ui.skins.m.LocalSkyParallax
 import com.novelreader.ui.skins.m.SkyBackdropM
 import com.novelreader.ui.skins.m.SkyParallaxController
 import com.novelreader.ui.skins.m.SkyParallaxFactor
+import com.novelreader.ui.theme.LocalReduceMotion
 import com.novelreader.ui.theme.MotionDurationKTabSwitch
 import com.novelreader.ui.theme.MotionDurationNavTransition
 import com.novelreader.ui.theme.MotionDurationSeizuFadeIn
@@ -81,6 +97,7 @@ import com.novelreader.ui.theme.ReadingTheme
 import com.novelreader.ui.theme.Skin
 import com.novelreader.ui.theme.skinFromName
 import com.novelreader.ui.theme.rememberReadingColors
+import com.novelreader.ui.theme.rememberReduceMotion
 import com.novelreader.viewmodel.BookshelfUiState
 import com.novelreader.viewmodel.BookshelfViewModel
 import com.novelreader.viewmodel.DiscoveryViewModel
@@ -138,6 +155,14 @@ class MainActivity : ComponentActivity() {
         if (!settingsPrefs.contains(PrefKeys.SETTINGS_SCHEMA_VERSION)) {
             settingsPrefs.edit().putInt(PrefKeys.SETTINGS_SCHEMA_VERSION, SETTINGS_SCHEMA_VERSION).apply()
         }
+
+        // 栞先端 tip の固定（debug 限定の観察器・2026-08-25）を prefs から復元する。
+        // なぜ setContent より前か: 復元をコンポジション内でやると初回フレームだけ固定なしで描かれ、
+        // 「起動直後の1枚」を見て裁定する実機観察でちらつきが混じるため。値の単一情報源は ShioriDebugTip 側
+        //（本棚の引数列を増やさない理由＝同ファイル冒頭）。release は shioriDebugTipFor(false, …)＝常に null。
+        ShioriDebugTip.set(
+            shioriDebugTipFor(BuildConfig.DEBUG, settingsPrefs.getInt(PrefKeys.SHIORI_DEBUG_TIP_INDEX, -1))
+        )
 
         // Edge-to-Edge 表示を有効化（ステータスバー・ナビバー領域までコンテンツを描画）
         // NovelReaderTheme 内で WindowCompat.getInsetsController を使うため、
@@ -210,6 +235,19 @@ class MainActivity : ComponentActivity() {
                 highLoadShioriK = on
                 prefs.edit().putBoolean(PrefKeys.SHIORI_HIGH_LOAD_K, on).apply()
             }
+            // 栞先端 tip の固定（debug 限定の観察器）。他の設定と違い状態を MainActivity に**持たない**のは、
+            // 値の読み手が描画側の ShioriCover（引数の届かない本棚グリッドの奥）だから＝単一情報源は ShioriDebugTip。
+            // ここは snapshot の読み（設定画面へ現在値を映すため）と、prefs への書き戻しだけを担う。
+            // release では fixedIndex が state を読まずに null を返す＝購読が張られず再コンポーズも起きない。
+            val shioriDebugTipIndex = ShioriDebugTip.fixedIndex
+            val onShioriDebugTipChange: (Int?) -> Unit = { index ->
+                ShioriDebugTip.set(index)
+                prefs.edit().apply {
+                    // 解除はキーごと削除（「未宣言＝固定しない」を保存形式でも表す＝reading_theme と同流儀）。
+                    if (index == null) remove(PrefKeys.SHIORI_DEBUG_TIP_INDEX)
+                    else putInt(PrefKeys.SHIORI_DEBUG_TIP_INDEX, index)
+                }.apply()
+            }
 
             // Material3 配色もテーマ3値（ライト/セピア/ダーク）へ追従させる。
             // 旧実装はセピア時にライト配色を流用しており、本棚・発見系で「ライトとセピアの
@@ -227,6 +265,8 @@ class MainActivity : ComponentActivity() {
                     onHighLoadSkyChange = onHighLoadSkyChange,
                     highLoadShioriK = highLoadShioriK,
                     onHighLoadShioriChange = onHighLoadShioriChange,
+                    shioriDebugTipIndex = shioriDebugTipIndex,
+                    onShioriDebugTipChange = onShioriDebugTipChange,
                     // .value の読み取りを composable 内で行うことで onNewIntent の更新が再コンポーズを誘発する。
                     deepLinkBookId = deepLinkBookId.value,
                     onDeepLinkConsumed = { deepLinkBookId.value = null },
@@ -328,6 +368,10 @@ private fun NovelReaderApp(
     // 栞アニメ高負荷（明快K・2026-08-06 裁定）: K 本棚の栞へ渡す現在値＋設定タブ開発節のトグルが呼ぶ更新。同上の debug 限定。
     highLoadShioriK: Boolean,
     onHighLoadShioriChange: (Boolean) -> Unit,
+    // 栞先端 tip の固定（debug 限定の観察器・2026-08-25）: 設定タブ開発節が映す現在値＋送りの受け口。
+    // 描画側（ShioriCover）は ShioriDebugTip から直接読むため、本棚へは渡さない（引数はここで止まる）。
+    shioriDebugTipIndex: Int?,
+    onShioriDebugTipChange: (Int?) -> Unit,
     deepLinkBookId: String?,
     onDeepLinkConsumed: () -> Unit,
     // P3 取込導線: 共有(SEND)/リンク(VIEW)からの Web 小説 URL（deepLinkBookId と同型・消費後に呼び元が null 戻し）。
@@ -344,6 +388,15 @@ private fun NovelReaderApp(
     val appContext = LocalContext.current.applicationContext
     val activityContext = LocalContext.current
     val viewModel: BookshelfViewModel = viewModel()
+    // 教示「はじめに」のセッション状態（正本モック tutorial-onboarding-K.html §8）。VM は持たない
+    // ＝静的テキストで、現在位置は永続しない（次に開いたときは常にその組の先頭から）。
+    // ここ 1 か所で持つ理由: カード列は本棚／本文／検索／設定のどの上にも重なる 1 コンポーネントで、
+    // 入口（4 つ）が増えても 2 つ目の画面も 2 つ目の列も作らない、という設計の要そのもの。
+    val introController = remember(appContext) {
+        IntroController(
+            PrefsIntroFlagStore(appContext.getSharedPreferences(PrefKeys.FILE_APP_PREFS, Context.MODE_PRIVATE)),
+        )
+    }
     // 発見系（ホーム/ジャンル/結果一覧）はクエリ文脈を画面間で受け渡すため単一VMを共有する。
     // ロードは ensureHomeLoaded の遅延型なので、ここで生成しても本棚起動時に通信は発生しない。
     val discoveryViewModel: DiscoveryViewModel = viewModel()
@@ -421,16 +474,19 @@ private fun NovelReaderApp(
     // 画面遷移では触らない＝スクロール視差が遷移でリセットされない。他スキンは backdrop 無し（controller=null）。
     val isSeizu = appSkin == Skin.SEIZU_M
     val density = LocalDensity.current
-    // reduce-motion（アニメーター無効設定/省電力）で視差・流星を止める（各 M 画面の脈動判定と同じ源）。
-    val reduceMotion = remember {
-        Settings.Global.getFloat(appContext.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f
-    }
+    // reduce-motion（アニメーター無効設定/省電力）で視差・流星を止める。判定源は theme/ReduceMotion.kt の単一情報源で、
+    // ここが**アプリ唯一の live 購読点**＝下の CompositionLocalProvider(LocalReduceMotion) で全画面へ配る。
+    // 旧実装は 8 箇所が個別にキー無し remember で読んでいて、設定 ON がプロセス再起動まで届かなかった（監査 C2）。
+    val reduceMotion = rememberReduceMotion()
     // トーラス周期の初期推定＝画面高（backdrop が onSizeChanged で実測補正）。旧 40dp クランプは撤廃（無限スクロール・裁定①）。
     val configuration = LocalConfiguration.current
     val initialTilePx = with(density) { configuration.screenHeightDp.dp.toPx() }
     val skyParallax = if (isSeizu) rememberSaveable(
         saver = SkyParallaxController.Saver(initialTilePx, SkyParallaxFactor, reduceMotion),
     ) { SkyParallaxController(0f, initialTilePx, SkyParallaxFactor, reduceMotion) } else null
+    // controller は rememberSaveable 所有＝設定変更では作り直されないため、live な判定をここで写す。
+    // これが無いと M の視差・流星はコンストラクタ束縛の旧値で走り続ける（監査 C2 の「二重の凍結」）。
+    SideEffect { skyParallax?.reduceMotion = reduceMotion }
 
     // 画面遷移: M はフェードスルー（退出 fadeOut 先行→進入 fadeIn。固定天球ゆえ slide だと空ごと動く＝ADR 0019 追記
     // 「M星図の例外」）＝コンテンツのみがシームレスに差し替わる。他スキンは横スライド push 不変（ADR 0019・方向で階層移動を伝える）。
@@ -480,7 +536,13 @@ private fun NovelReaderApp(
     val d = MotionDurationNavTransition
     Box(modifier = Modifier.fillMaxSize()) {
         if (skyParallax != null) SkyBackdropM(skyParallax, highLoadSkyM, Modifier.fillMaxSize())
-        CompositionLocalProvider(LocalSkyParallax provides skyParallax) {
+        // reduce-motion は root の 1 購読を全画面へ配る（各画面が個別に購読・凍結しない＝監査 C2 の真因対処）。
+        CompositionLocalProvider(
+            LocalSkyParallax provides skyParallax,
+            LocalReduceMotion provides reduceMotion,
+            // 入口（本棚が空／本文初回／検索初回／設定）はこの local 越しに 1 つの列へ話しかける。
+            LocalIntroController provides introController,
+        ) {
             // 画面ルートに Surface を敷いて LocalContentColor を配色へ接地する。素の Box/Column 直下では
             // 既定が黒のままで、明示色を持たない Text（K本棚タイトル等）が全テーマで黒く沈む＝2026-07-23
             // ユーザー指摘「ダークで本棚タイトルが見えない」の真因。M星図だけは常駐 backdrop（後ろの空）を
@@ -489,7 +551,42 @@ private fun NovelReaderApp(
                 color = if (isSeizu) Color.Transparent else MaterialTheme.colorScheme.background,
                 contentColor = if (isSeizu) LocalContentColor.current else MaterialTheme.colorScheme.onBackground,
             ) {
-            Column(Modifier.fillMaxSize()) {
+            // 横向きの恒常ナビを Rail へ切り替える唯一の結線（ADR 0034）。
+            // ここ1点で〈帯（KBottomNav）を出さない側〉と〈Rail を立てる側（BookshelfK/DiscoveryHomeK/
+            // SettingsScreenK）〉が同時に切り替わる（起動条件を1本に束ねる理由＝LocalKTabSelect の KDoc）。
+            // なぜ remember で包むか: LocalKTabSelect は関数を運ぶので、素の onSelectTab（毎コンポジション
+            // 新しいラムダ）をそのまま provide すると、この画面が再コンポーズするたび local の値が変わったと
+            // 見なされ、読み手（3タブ面すべて）が無駄に再コンポーズする。remember で同一性を固定して断つ。
+            // stale にならない根拠: onSelectTab が捕まえるのは tabScope（rememberCoroutineScope）と
+            // tabPagerState（rememberPagerState）だけ＝どちらも寿命を通じて同じインスタンスなので、
+            // 初回コンポジションの実体を持ち続けても常に最新のページャを動かす。
+            CompositionLocalProvider(
+                LocalKTabSelect provides remember { { tab: KTab -> onSelectTab(tab) } },
+            ) {
+            Column(
+                Modifier
+                    .fillMaxSize()
+                    // 横向きのカットアウト帯を全画面ぶん一括で避ける。onCreate の
+                    // layoutInDisplayCutoutMode=ALWAYS は「切り欠きの下まで描く」宣言＝その裏返しの
+                    // 義務（カットアウト inset を自前で処理する）を、宣言と同じ所有者であるここで果たす。
+                    // なぜ displayCutout 単独で、safeDrawing でも systemBars でもないか:
+                    //  ・systemBars（各画面の statusBarsPadding/navigationBarsPadding や読書画面の
+                    //    systemBarsIgnoringVisibility）には **カットアウトが含まれない**。横画面では
+                    //    切り欠きが左長辺に来て inset.left=126px が立つのに横方向の実効値が 0 になり、
+                    //    戻る矢印や下部バー最左のボタンが切り欠きの下へ潜り込んでいた（実測: 読書
+                    //    [12,96][138,222]／目次 [27,102]／本棚 [35,199]）。ここが真因。
+                    //  ・safeDrawing は ime と systemBars を巻き込むうえ **可視性に追従する**ため、
+                    //    バー出没のたびに window 幾何が動く＝ALWAYS を選んだ目的（没入トグルで
+                    //    レイアウトを跳ねさせない）を自ら壊す。displayCutout は出没しないので跳ねない。
+                    // Horizontal 限定の理由: 縦画面の切り欠きは上端でステータスバーと同じ帯を占め、
+                    // そこは各画面が statusBarsPadding で既に処理済み。縦方向も足すと二重に下がる。
+                    // 横方向は現状どの画面も未処理＝ここだけが唯一の担い手で、縦画面では値 0 の無効化。
+                    .windowInsetsPadding(WindowInsets.displayCutout.only(WindowInsetsSides.Horizontal))
+                    // 教示カードを出している間は配下をフォーカスから外す＝カードを「ダイアログとして
+                    // 読み上げる」ための片割れ（正本 §8 a11y）。semantics ブロックの state 読みは
+                    // セマンティクスの再収集だけを起こし、画面ツリーの再コンポーズは誘発しない。
+                    .semantics { if (introController.flow != null) hideFromAccessibility() },
+            ) {
     NavHost(
         navController = navController,
         startDestination = TAB_HOST_ROUTE,
@@ -538,6 +635,9 @@ private fun NovelReaderApp(
                     BookshelfScreen(
                 viewModel = viewModel,
                 deferHeavyContent = deferHeavyContent,
+                // 監査 B8: TabPagerHost は隣ページを常駐コンポーズするため、前面でない本棚の
+                // BackHandler が後着優先で勝って Back を1回食う。前面判定を渡して enabled に合流させる。
+                isFrontTab = tabPagerState.currentPage == KTab.BOOKSHELF.ordinal,
                 appTheme = appTheme,
                 onThemeChange = onThemeChange,
                 // 「システムに従う」の単一真実源を本棚⋮のテーマ4択へ素通し（読書設定シートへ渡すのと同じ状態＝
@@ -561,9 +661,10 @@ private fun NovelReaderApp(
                 onOpenWardrobe = {
                     navController.navigate("wardrobe") { launchSingleTop = true }
                 },
-                // (b) Web由来カードの「縦書きPDFを取り込む」→ 既存の取り込み画面ルートへ直行
-                // （詳細画面経由の onImportPdf と同じ着地＝ADR 0011 の WebView 取り込み）。
-                onImportWebNovel = { ncode ->
+                // なろう縦書きPDF取り込み画面へ直行（詳細画面経由の onImportPdf と同じ着地＝ADR 0011）。
+                // 呼び手は2つ＝(b) Web由来カードの「縦書きPDFを取り込む」／欠落本の再取込ダイアログの
+                // 「なろうで作り直す」（取込元PDFが端末に残っていない本の唯一の復旧導線＝ADR 0043）。
+                onOpenNarouPdfImport = { ncode ->
                     navController.navigate("discovery/detail/$ncode/import") { launchSingleTop = true }
                 },
                 // 機能②: Web カードの読書＝アプリ内 WebView（ADR 0012）。startEpisode 0=目次(初回)／>0=続きから。
@@ -602,12 +703,20 @@ private fun NovelReaderApp(
                         onFollowSystem = onFollowSystem,
                         currentSkin = appSkin,
                         onOpenWardrobe = { navController.navigate("wardrobe") { launchSingleTop = true } },
+                        // 診断の記録（設定「データ」節 → 専用画面へ push・正本モック案B）。
+                        // launchSingleTop: 二度押しで同じ画面が二重に積まれるのを防ぐ（全 push 共通の作法）。
+                        onOpenDiagnosticsExport = {
+                            navController.navigate(DIAGNOSTICS_EXPORT_ROUTE) { launchSingleTop = true }
+                        },
                         skinSwitchingEnabled = skinSwitchingEnabled,
                         // 栞アニメ高負荷（開発節・2026-08-06 裁定）。行の露出可否はここで BuildConfig を読んで供給
                         // ＝JVM テストが release 側（行が消える）を引数で固定できる（ADR 0027 決定4 と同じ理由）。
                         shioriHighLoadRowVisible = BuildConfig.DEBUG,
                         shioriHighLoadK = highLoadShioriK,
                         onShioriHighLoadChange = onHighLoadShioriChange,
+                        // 栞先端 tip の固定（同じ開発節に相乗り＝露出可否は上の shioriHighLoadRowVisible が兼ねる）。
+                        shioriDebugTipIndex = shioriDebugTipIndex,
+                        onShioriDebugTipChange = onShioriDebugTipChange,
                     )
                     },
                 ),
@@ -627,7 +736,38 @@ private fun NovelReaderApp(
             )
         }
 
+        // 診断の記録（端末内診断の書き出し・専用画面＝正本 skins/diagnostics-export-K.html 案B）。
+        // 階層 up 一本化（ADR 0026）: ← もシステム Back も一段上＝**設定タブ**へ。入口が設定「データ」節
+        // 1つだけなので上は常に設定ページで、素の pop でなく popToTab を通すのは
+        //   (a) 深い画面から復帰したとき Pager が他タブに居ると着地が化ける（popToTab の契約＝スナップ込み）
+        //   (b) pop 先をルート名リテラルで書かない（2026-07-27 のリテラル封鎖）
+        // の2つ。BackHandler を画面側でなくここへ置くのも ADR 0026 の規律（← と同じ up 関数の単一点）。
+        composable(DIAGNOSTICS_EXPORT_ROUTE) {
+            val upToSettings = { popToTab(navController, tabPagerState, KTab.SETTINGS) }
+            BackHandler { upToSettings() }
+            DiagnosticsExportScreen(onUp = upToSettings)
+        }
+
         composable("discovery/search") {
+            // 反転に依存しない Back（2026-08-14・result/detail と同じ born-enabled 形へ揃える）。
+            // なぜ要るか: この画面は自前の Back を持たず、受け口は NavController 内蔵コールバックだけだった。
+            // 内蔵は OnBackPressedCallback(false) で生まれ、バックスタック復元後の
+            // updateOnBackPressedCallbackEnabled で setEnabled(true) へ**反転**する。Activity 再生成
+            //（回転・ダークモード切替。この Activity は configChanges 未指定＝必ず再生成される）や
+            // プロセス death からこの画面へ復帰すると、内蔵は「無効のまま deque へ入り、その後で反転」する順序に
+            // なるため、Dispatcher 集約の false→true が**反転だけ**で起きる＝タブ層で実機終了を招いたのと同型
+            //（機序は TabPagerHost の Back 規則コメントが正本）。着地は内蔵と同じ popBackStack＝挙動は現状と
+            // 同一で、OS への割込み登録が「追加」経路で立つことだけが変わる。
+            BackHandler { navController.popBackStack() }
+            // 教示「はじめに」組C（1 枚）: **検索画面が描かれてから**出す（正本 §8「置きかた」）。
+            // push 遷移窓が閉じた（currentState まで Visible が届いた）ことを着地の合図に使う＝
+            // 本文側の deferHeavyContent と同じ離散2値で、毎フレーム recompose を増やさない。
+            val searchScreenSettled by remember {
+                derivedStateOf { transition.currentState == EnterExitState.Visible }
+            }
+            LaunchedEffect(searchScreenSettled) {
+                if (searchScreenSettled) introController.requestAuto(IntroGroup.SEARCH)
+            }
             DiscoverySearchScreen(
                 viewModel = discoveryViewModel,
                 onBack = { navController.popBackStack() },
@@ -636,6 +776,9 @@ private fun NovelReaderApp(
         }
 
         composable("discovery/genre") {
+            // 同上（自前 Back を持たず内蔵コールバックの反転だけが受け口だった最後の1画面）。
+            // 検索画面側のコメントが機序の正本。着地は内蔵と同じ popBackStack＝挙動は現状と同一。
+            BackHandler { navController.popBackStack() }
             DiscoveryGenreScreen(
                 onBack = { navController.popBackStack() },
                 onPickBiggenre = { code, label ->
@@ -717,6 +860,13 @@ private fun NovelReaderApp(
                 // 機能②: なろうをアプリ内 WebView で読む（ADR 0012）。目次(初回)＝0／続きから＝記録話 N を渡す。
                 onReadFromToc = { navController.navigate("web-reader/$ncode/0") { launchSingleTop = true } },
                 onResumeReading = { episode -> navController.navigate("web-reader/$ncode/$episode") { launchSingleTop = true } },
+                // 案A（2026-09-04 裁定）: 取込済みの主CTA＝手元の蔵書を読書画面で開く。
+                // 着地の規則は本棚から本を開く既存経路と同一（続きが在れば章・無ければ目次）。
+                // ⚠️ **ここで栞を引き直さない**＝startFile は主CTA の文言を決めたのと同じ ImportedBook から
+                // 来る。引き直すと源が2つに割れ、「未読の顔で続きから開く」食い違いが戻る（真因の再発）。
+                onOpenImportedBook = { bookId, startFile ->
+                    navController.navigate("reading/$bookId/$startFile") { launchSingleTop = true }
+                },
                 onUp = upFromDetail,
             )
         }
@@ -808,9 +958,13 @@ private fun NovelReaderApp(
                             onThemeChange = onThemeChange,
                             followingSystem = followingSystem,
                             onFollowSystem = onFollowSystem,
-                            // 目次→本棚の脱出。旧 popBackStack("bookshelf") はタブ化でルートが消え黙殺されていた
+                            // 章パース失敗のエラー画面「本棚に戻る」専用＝文言どおり本棚へ直行する。
+                            // 旧 popBackStack("bookshelf") はタブ化でルートが消え黙殺されていた
                             // （真因と2段構成の理由＝popToTab の KDoc）。
                             onNavigateToBookshelf = { popToTab(navController, tabPagerState, KTab.BOOKSHELF) },
+                            // 読書フローの終端（Back/← で内部スタックを使い切ったとき）＝入場元へ戻す。
+                            // 入場元が本棚と作品詳細の2種に増えたのに終端が本棚固定だったのが 2026-09-07 の是正点。
+                            onExitReading = { upFromReading(navController, tabPagerState) },
                             // push 遷移窓の骨差し替え（案A）。startFile が目次なら目次骨・章なら本文骨に
                             // ReadingScreen 側で振り分ける。
                             deferHeavyContent = deferHeavyContent,
@@ -840,8 +994,15 @@ private fun NovelReaderApp(
                 )
             }
             } // Column（NavHost ＋ K恒常ナビ）
+            } // CompositionLocalProvider（横向き Rail の結線）
             } // Surface（画面ルートの配色接地）
         } // CompositionLocalProvider(LocalSkyParallax)
+
+        // 教示カード列は NavHost へ足さず、呼び出し元の**上へ重ねる**（正本 §8「置きかた」）。
+        // Box の最後＝恒常ナビ（KBottomNav）も含めて覆う位置に置く。出す回が無いときは何も描かない。
+        CompositionLocalProvider(LocalIntroController provides introController) {
+            IntroOverlayHost()
+        }
     } // Box（backdrop ＋ NavHost）
 }
 
@@ -852,6 +1013,13 @@ private fun NovelReaderApp(
  * （2026-07-25 実機バグ・目次に幽閉）。pop 先とルート登録を同一定数で結び、リネーム時の取り残しを型で封じる。
  */
 internal const val TAB_HOST_ROUTE = "tabs"
+
+/**
+ * 診断の記録（書き出し）画面のルート名。
+ * 定数にするのは navigate 側（設定タブの行）と登録側を1つの正本で結び、改名で入口が宙に浮くのを防ぐため
+ *（pop 先は [popToTab] が持つので、ここはリテラル封鎖の対象ではなく「入口と登録の一致」だけを担う）。
+ */
+internal const val DIAGNOSTICS_EXPORT_ROUTE = "diagnostics/export"
 
 /**
  * 深い画面（読書・目次・発見の結果一覧/作品詳細）から「タブ層の特定タブへ階層 up する」単一実装。
@@ -870,6 +1038,34 @@ internal const val TAB_HOST_ROUTE = "tabs"
 internal fun popToTab(navController: NavController, tabPagerState: PagerState, tab: KTab) {
     tabPagerState.requestScrollToPage(tab.ordinal)
     navController.popBackStack(TAB_HOST_ROUTE, false)
+}
+
+/**
+ * 読書フローの終端＝目次より一つ上＝入場元へ戻る（← とシステム Back の共通実装）。
+ * 読書画面（目次/本文）の中の戻るは [ReadingBackStack.back] が**階層 up**（章→目次）として担い、
+ * 現在地が目次になった時点（back()==null）で初めてここへ来る。「読書フローの親」＝入場元で決まる:
+ *   ・本棚から（続きから／通知 deep link）… 直下がタブ層＝[popToTab] で本棚ページへ（Pager スナップ込み）
+ *   ・作品詳細の「アプリで読む」から … 1 pop でその詳細へ戻る
+ * なぜ「直下がタブ層か」で分けるか: 素の pop だけだと deep link 入場で Pager が他タブに居るとき着地が
+ * 化ける（[popToTab] の KDoc）。逆にタブ層でない直下（作品詳細）へは素の pop が正しく一段上になる。
+ * ⚠️ 入場元を nav 引数で持ち回さないこと: NavController のバックスタックが既に唯一の正本で、
+ * 引数に写すと「詳細から入場した後に本棚へ pop した」等でズレる状態が2つできる。
+ *
+ * この関数の存在が、2026-09-04 に「読書の親＝本棚」という**親の固定**が失効した件の解そのもの
+ * （作品詳細の「アプリで読む」で2つ目の入場元ができた）。ADR 0046 はそれを階層モデル自体の失効と読み違えて
+ * 戻り規則を履歴逆走へ倒したが、失効したのは親の固定だけで、親をここで引けば階層 up のまま解ける
+ * ＝ADR 0047 で階層 up へ復帰した根拠。∴ この関数を [popToTab] 固定へ戻さないこと。
+ *
+ * 発見の [upFromDiscoveryDetail] と同じ形だが1関数に束ねていない: 着地タブが違い（本棚／さがす）、
+ * それぞれ別の契約テスト（読書＝ReadingEscapeNavigationTest・発見＝DiscoveryUpNavigationTest／ADR 0026）が
+ * 固定している。共通化するなら両契約を同時に動かすこと。
+ */
+internal fun upFromReading(navController: NavController, tabPagerState: PagerState) {
+    if (navController.previousBackStackEntry?.destination?.route == TAB_HOST_ROUTE) {
+        popToTab(navController, tabPagerState, KTab.BOOKSHELF)
+    } else {
+        navController.popBackStack()
+    }
 }
 
 /**

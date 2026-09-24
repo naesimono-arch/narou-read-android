@@ -19,7 +19,7 @@
      新規に発明した値は「退避の較正値」のみ＝各案の alpha と遷移尺（下の PROPOSAL コメント）。 */
   :root{
     --bg:#FBFAF8;--ink:#1C1F26;--soft:#7C808B;--ruby:#616C77;--line:#ECEAE4;
-    --ai:#1C3D5A;--rule:#1C3D5A;--bar:#FBFAF8;--bar-line:#ECEAE4;
+    --ai:#1C3D5A;--rule:#1C3D5A;--bar:#FBFAF8;--bar-rgb:251,250,248;--bar-line:#ECEAE4;
     --info:#5C606D;/* 意味メタ（InfoTextLight 実値）。trailing 現在値＝正本 settings-D の 2026-08-06 案C裁定へ追従 */
     --mincho:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
     --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
@@ -42,8 +42,10 @@
   /* ---- 背後の読書画面（reading-D t-light の実値。本文はスライダーに実追従） ---- */
   .sb{height:34px;display:flex;align-items:center;justify-content:space-between;padding:0 24px;
     font-size:11px;color:var(--soft);font-family:var(--gothic);flex-shrink:0}
+  /* 上下バーの面は α.92（2026-09-04 裁定＝正本 reading-D.html の why を正とする。値だけ追従）。
+     システム帯（ステータス／ナビ inset）は不透明のまま＝面と帯の2段塗り。--bar-rgb は --bar と同値の RGB 三つ組。 */
   .topbar{position:relative;z-index:4;height:50px;display:flex;align-items:center;gap:4px;padding:0 16px;
-    background:var(--bar);border-bottom:1px solid var(--bar-line);flex-shrink:0}
+    background:rgba(var(--bar-rgb),.92);border-bottom:1px solid var(--bar-line);flex-shrink:0}
   .topbar .ib{width:38px;height:38px;border:none;background:transparent;border-radius:10px;display:grid;
     place-items:center;color:var(--ink)}
   .topbar .ib svg{width:21px;height:21px;stroke:currentColor;fill:none;stroke-width:1.6}
@@ -59,7 +61,7 @@
   .reader ruby rt{font-size:.5em;color:var(--ruby);font-weight:400;letter-spacing:.04em}
   .reader hr{border:none;height:1px;width:42%;margin:16px auto;background:var(--rule);opacity:.5}
   .bottombar{position:absolute;left:0;right:0;bottom:0;z-index:4;height:60px;display:flex;align-items:center;
-    background:var(--bar);border-top:1px solid var(--bar-line)}
+    background:rgba(var(--bar-rgb),.92);border-top:1px solid var(--bar-line)}
   .bottombar .bb{flex:1;height:100%;border:none;background:transparent;display:flex;flex-direction:column;
     align-items:center;justify-content:center;gap:4px;color:var(--ink)}
   .bottombar svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.5}
@@ -174,10 +176,11 @@
             <div class="lbl">テーマ</div>
             <div class="chips"><button class="chip">システムに従う</button><button class="chip on">ライト</button><button class="chip">セピア</button><button class="chip">ダーク</button></div>
           </div>
-          <!-- 節ラベル trailing に現在値（正本 settings-D の 2026-08-06 案C裁定へ追従。ここでは未選択＝横書き中） -->
+          <!-- 本文の向き＝2択タグ（正本 settings-D の 2026-09-04 裁定へ追従＝why はそちらが正本。
+               trailing 現在値はこの節だけ落とす。ここでは既定＝横書き中） -->
           <div class="sec">
-            <div class="row-lbl"><span class="lbl" style="margin:0">本文の向き</span><span class="val">横書き</span></div>
-            <div class="chips"><button class="chip">縦書き</button></div>
+            <div class="lbl">本文の向き</div>
+            <div class="chips"><button class="chip on">横書き</button><button class="chip">縦書き</button></div>
           </div>
           <div class="sec sl" data-k="fs">
             <div class="row-lbl"><span class="lbl" style="margin:0">文字サイズ</span><span class="val"></span></div>

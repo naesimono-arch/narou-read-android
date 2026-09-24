@@ -6,17 +6,17 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface BookDao {
 
-    // 二層の既定ソート（ADR 0016・2026-07-16 層反転・ShelfItems.recencyKeyOf と一致必須）:
-    //   第1層＝未読（lastReadAt=0）を常に上、第2層＝触った本（lastReadAt>0）を下に置く。
-    //   層内は 第1層＝addedAt / 第2層＝lastReadAt の降順、最後にタイトル昇順で安定化。
-    // なぜ未読が上（層反転・実使用フィードバック）: 旧版は読書中を上層にしていたが「取り込んだばかりの
-    // 未読が読みかけの下に埋もれて見つけにくい」不満が出た。ユーザー裁定で「取り込んだ本＝未読を最上位に」反転。
-    // CASE のソートキーは 未読→addedAt・触った本→lastReadAt を選び、tier は未読を大きく（先）にする。
+    // 単一タイムラインの既定ソート（ADR 0016・2026-09-01 改訂・ShelfItems.recencyKeyOf と一致必須）:
+    //   触った本（lastReadAt>0）は lastReadAt、未読/未接触は addedAt を並びキーとし、両者を区別せず
+    //   1本の時刻降順で並べる（最後にタイトル昇順で安定化）。
+    // なぜ二層でないか（2026-09-01・意図と記録のズレが判明）: 2026-07-16 改訂は「未読は既読本の動きと
+    // 無関係に常に最優先」という二層設計として記録・実装されていたが、ストア掲載文の文言確認の過程で、
+    // ユーザー本人の本来の意図（追加した瞬間は最上位・他の本を触ると都度落ちる＝単一タイムライン）と
+    // 最初からズレていたことが判明した。詳細は docs/decisions/0016 の改訂（2026-09-01）節。
     @Query(
         "SELECT b.* FROM books b " +
         "LEFT JOIN progress p ON b.id = p.bookId " +
-        "ORDER BY (CASE WHEN COALESCE(p.lastReadAt, 0) > 0 THEN 0 ELSE 1 END) DESC, " +
-        "(CASE WHEN COALESCE(p.lastReadAt, 0) > 0 THEN p.lastReadAt ELSE b.addedAt END) DESC, " +
+        "ORDER BY (CASE WHEN COALESCE(p.lastReadAt, 0) > 0 THEN p.lastReadAt ELSE b.addedAt END) DESC, " +
         "b.title ASC"
     )
     fun getAllBooks(): Flow<List<BookEntity>>

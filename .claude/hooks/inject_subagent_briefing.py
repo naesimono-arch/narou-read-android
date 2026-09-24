@@ -10,7 +10,9 @@
 
 設計上の注意:
   - agent_type はスクリプト側で判定する（matcher の対象仕様が非明確なため。
-    memory `hook-agent-type-confirmed` の実測で全 hook 入力に agent_type が来る）。
+    memory `hook-agent-type-confirmed` の実測で **SubagentStart の入力には** agent_type が来る）。
+    ⚠️ 旧記述「全 hook 入力に来る」は主語が広すぎた（2026-09-05 訂正）＝SubagentStop 側は
+    delegation-stats の記録で大半が空で、来ることを確かめた事実は無い（未確認であって否定ではない）。
   - 注入なし種別（claude-code-guide / statusline-setup / antigravity 系）は
     プロジェクト規律と無関係な外部調査・設定エージェントのため対象外。
   - stdout がモデルに届くのは additionalContext の JSON のみ（task_diary #28）。
@@ -76,19 +78,22 @@ def briefing_for(agent_type, project_dir):
     t = (agent_type or "").lower()
     if t in IMPLEMENTER_TYPES or t in DEVICE_TYPES:
         on_device = t in DEVICE_TYPES
-        # ゲートコマンドは worktree 間で可搬にするため project_dir から動的に組む
-        gate = (
-            f'cd {project_dir}/android && '
-            'export JAVA_HOME="$HOME/opt/jdk-17" && export ANDROID_HOME="$HOME/Android/Sdk" && '
-            'export PATH="$JAVA_HOME/bin:$PATH" && '
-            "java -cp gradle/wrapper/gradle-wrapper.jar org.gradle.wrapper.GradleWrapperMain testDebugUnitTest"
-        )
+        # ゲートコマンドは worktree 間で可搬にするため project_dir から動的に組む。
+        # ⚠️ java を直接叩かず tools/gwlock.sh 経由にしてある（2026-08-21 の実害）:
+        #   Gradle は「同じツリーに対する2本目のビルド」を自分では拒まない。ところが出力ルート・
+        #   プロジェクト直下の .gradle/・ソースツリーへの書き戻し（golden 等）は**どれもツリー単位で
+        #   しか分かれていない**ので、並列委譲で2本走ると片方が掃除した／掴んだファイルをもう片方が
+        #   書けず BUILD FAILED になる。このときテスト自体は全緑＝**偽の赤**で、
+        #   「ゲートが緑か」をサブが答えられなくなる（実際に 70 分待って何もコミットできない便が出た）。
+        #   gwlock.sh がツリー単位で直列化し、env 明示・sdk.dir 自己修復・canonical の
+        #   --init-script 付与（AAPT2 EPERM 回避）も内包する＝サブは1行覚えるだけでよい。
+        gate = f"bash {project_dir}/tools/gwlock.sh testDebugUnitTest"
         # androidTest は「コンパイルだけ」を条件付きで回す（CLAUDE.md 自己検証必須節と対応）。
         # 既定ゲートの testDebugUnitTest は androidTest をコンパイルしないため、本番の public
         # シグネチャ変更に追従しないまま壊れて潜伏する（実際に2回発生）。毎回回すと重いので条件付き。
         androidtest_gate = gate.replace(
-            "GradleWrapperMain testDebugUnitTest",
-            "GradleWrapperMain :app:assembleDebugAndroidTest")
+            "gwlock.sh testDebugUnitTest",
+            "gwlock.sh :app:assembleDebugAndroidTest")
         if on_device:
             # 実機系だけ文面を分ける理由: 共通規律は「adb/実機操作は監督が実施」だが、本種別は
             # それ自体が職務なので当たらない。他（コミット・push・正本モック）は実機系でも監督が持つ。
@@ -100,7 +105,8 @@ def briefing_for(agent_type, project_dir):
                 + FOREGROUND_RULE + "\n"
                 "- APK を作り直す必要があるときのゲート:\n"
                 f"  {gate}\n"
-                "  （./gradlew は Permission denied・非対話シェルは .bashrc を読まないため env 明示が必須）\n"
+                "  （env 明示・sdk.dir 修復・canonical の init スクリプトは gwlock.sh が内包。\n"
+            "   同じツリーで別の Gradle が走っていれば保持者を表示して待つ＝並列で回すなら worktree を使う）\n"
                 "- コード内コメントは日本語・自明でないロジックには「なぜ」を書く（what のみのコメント禁止）。\n"
                 "- 報告様式: 項目ごとに PASS / NG / 判定不能 / 人間裁定が要る の4値で。NG には真因と\n"
                 "  ファイル:行 を、判定不能には理由を、人間裁定には「何を見れば決まるか」を書く。\n"
@@ -114,7 +120,8 @@ def briefing_for(agent_type, project_dir):
             + FOREGROUND_RULE + "\n"
             "- Kotlin の src/main・src/test を変更したら必ずゲートを回す:\n"
             f"  {gate}\n"
-            "  （./gradlew は Permission denied・非対話シェルは .bashrc を読まないため env 明示が必須）\n"
+            "  （env 明示・sdk.dir 修復・canonical の init スクリプトは gwlock.sh が内包。\n"
+            "   同じツリーで別の Gradle が走っていれば保持者を表示して待つ＝並列で回すなら worktree を使う）\n"
             "- 本番の public シグネチャを変えたら androidTest のコンパイルも確認する:\n"
             f"  {androidtest_gate}\n"
             "- コード内コメントは日本語・自明でないロジックには「なぜ」を書く（what のみのコメント禁止）。\n"

@@ -17,6 +17,8 @@ plugins {
     // :app のみに適用する（未使用 import は全て :app 側。:macrobenchmark は実機計測専用の小モジュールで
     // 適用するにはルートの build.gradle を触る必要があり、本便の作業範囲外）。
     id 'org.jlleitschuh.gradle.ktlint'
+    // Baseline Profile の取り込み側（consumer）。生成側は :baselineprofile。
+    id 'androidx.baselineprofile'
 }
 
 // ktlint の設定。ルールの取捨はリポジトリ直下 .editorconfig が正本（ktlint 0.48+ では
@@ -175,6 +177,15 @@ android {
     }
     kotlinOptions {
         jvmTarget = '17'
+        // KT-73255 / KTLC-391: 注釈の既定 target 規則。Kotlin 2.4.0 で新規則（param に加え property〔不可なら
+        // field〕へも付く）が**既定 ON** になるため、2.2 のうちに先取りして黙った変化を避ける（2026-08-19 ユーザー裁定＝案B）。
+        // 本プロジェクトで影響を受けるのは NarouNovel.kt の @Json 付きコンストラクタ引数 30 件だけ。
+        // Moshi の @Json は @Target を持たない Java 注釈＝全 element 適用可なので、新規則では param+field に付く。
+        // 生成アダプタは不変（moshi-kotlin-codegen の KSP はキー名をソース側の宣言から読む）で、
+        // KotlinJsonAdapterFactory も未使用＝反射経路の影響も無い。差はバックフィールドに @Json が載ることだけ。
+        // ⚠ 退避するなら `first-only`（旧規則の凍結）へ1行変えるだけ。⚠ `@field:Json` へ寄せる案は採らないこと
+        // ——codegen のキー名解決が param/property 側なので JSON キーが Kotlin 名へ落ちて静かに壊れる。
+        freeCompilerArgs += ['-Xannotation-default-target=param-property']
     }
     buildFeatures {
         compose true
@@ -356,10 +367,25 @@ dependencies {
     // 導入時（2026-07-08）は strong skipping が無効で、これが skippable 化の唯一の手段だった。
     // その後 2026-07-11 に kotlinOptions で experimentalStrongSkipping=true を有効化しており（上記参照）、
     // 「strong skipping 無効の環境だから要る」という当初の理由は現在は成立しない＝旧コメントを 2026-07-30 に是正。
-    // なお strong skipping 有効下でも本依存は無害で、ImmutableList は「unstable 引数の等値比較に頼らず
-    // 安定と宣言できる」点で今も意味を持つ。要否の再判定（外せるか）は composeCompilerReports で
-    // skippable 状態を実測してから行うこと＝憶測で外すと LazyColumn の再コンポーズが静かに増える。
+    // 【2026-09-02 に反実仮想で再実測＝判定は「外せない」で確定】A+C・E 実装後の状態で取り直した。
+    // ⚠️ 2026-08-19 版のコメントは結論だけ正しく機序が誤っていたので訂正した（実測で否定された2点）:
+    //   ×「List へ戻すと StyledBlock が unstable に落ち sealed 階層ごと ChapterContent へ伝播する」
+    //     → 起きない。TextSegment の @Immutable（model/ChapterContent.kt）が推論の循環を断つので
+    //       StyledBlock は <runtime stability> = Stable のまま。unstable になるのは ChapterContent 自身で、
+    //       理由は伝播ではなく自分のフィールドが List インタフェースであること。
+    //   ×「外すなら TextSegment へ @Immutable を付けるのが前提条件」→ その注釈は既に付いている＝
+    //     前提は充足済みで、それでも外せない（「注釈さえ付ければ外せる」と読み違えないこと）。
+    // 実測した本当の理由: strong skipping 下で **skippable 数は依存の有無で1個も動かない**（390/390）。
+    // 効くのは比較の意味論（stable=equals() / unstable====）だけで、実害の出所は1点に絞れる——
+    // ChapterPeek（ChapterScreen.kt:493/503）が remember 無しで毎コンポジション新規生成される data class で、
+    // stable なら equals() で skip できるが unstable だと === が毎回失敗し、ChapterScreenContent と
+    // ChapterPeekPanel＝読書画面の内容全体が親の再コンポジションのたびに必ず再コンポーズされる。
+    // （段落リストは remember(content) で instance 固定なので === でも成立＝そちらは無害だった。）
+    // 外すなら ChapterPeek 側を remember 化するのが先。数値と再現手順＝
+    // docs/knowledge/compose-compiler-metrics-2026-09-02.md
     implementation 'org.jetbrains.kotlinx:kotlinx-collections-immutable:0.3.7'
+    // Baseline Profile の生成モジュールを consumer へ結線する
+    baselineProfile project(':baselineprofile')
 
     // PDF抽出 (PDFBox-Android / Tom Roush 版)。旧 Chaquopy(Python+pdfminer) から移植した唯一の抽出経路。
     // なぜ 2.0.x 系で固定: Android 版 PDFBox-Android は upstream apache-pdfbox 2.0.x をベースにしており、

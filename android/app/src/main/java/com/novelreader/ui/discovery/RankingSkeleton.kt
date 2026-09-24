@@ -13,8 +13,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.semantics.clearAndSetSemantics
-import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.novelreader.narou.model.DiscoveryQuery
@@ -63,31 +61,28 @@ private val RankingSkeletonTitleWidths =
     listOf(0.88f, 0.64f, 0.76f, 0.92f, 0.58f, 0.81f, 0.70f, 0.86f, 0.62f, 0.78f, 0.90f, 0.66f)
 
 /**
- * ランキング一覧の構造スケルトン（[rowCount] 行ぶん）。
+ * ランキング一覧の構造スケルトン **1行ぶん**（[index] 行目・0始まり）。
  *
  * 行の外形は [NovelListRow] の1行（順位カラム 34dp・縦 padding S16・題字/作者/メタの3行・下ヘアライン）に
  * 揃える＝実内容へ差し替わったとき区切り線と左端が跳ばない。順位数字・現在地などの内容依存要素は骨に出さない
  *（内容非依存の汎形に留める＝案A モックの note と同判断）。
+ *
+ * なぜ「1行単位」で公開するか（2026-08-06 平坦化）: 骨も実行も外側 LazyColumn の1 item として並べ、
+ * 可視行だけを合成させるため。旧 API は rowCount 行を1つの Column に抱いており、それ自体が
+ * 「画面外の行まで全数が合成・記録される」という遷移 jank の真因構造だった。
+ *
+ * セマンティクスはここで付けない＝呼び出し側の責務。骨は装飾なので TalkBack に行数ぶん読ませてはならず、
+ * 「領域としてひとこと名乗る」のは先頭行だけにしたい（[RankingSkeletonDescription]）が、どの行が先頭かは
+ * 並べる側しか知らないため。
  */
 @Composable
-internal fun RankingListSkeleton(
-    modifier: Modifier = Modifier,
-    rowCount: Int = RankingSkeletonRowCount,
-) {
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            // 骨は装飾＝TalkBack に空の箱を rowCount 個読ませない。領域としてひとこと名乗るだけにする
-            //（K の気分ゴースト格子が clearAndSetSemantics で幻のカードを読ませないのと同じ扱い）。
-            .clearAndSetSemantics { contentDescription = RankingSkeletonDescription },
-    ) {
-        repeat(rowCount) { index ->
-            RankingRowSkeleton(
-                titleWidthFraction = RankingSkeletonTitleWidths[index % RankingSkeletonTitleWidths.size],
-            )
-            // 実行と同じ区切り線（同色・同位置）＝差し替えでヘアラインが動かない。
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-        }
+internal fun RankingSkeletonRow(index: Int, modifier: Modifier = Modifier) {
+    Column(modifier = modifier.fillMaxWidth()) {
+        RankingRowSkeleton(
+            titleWidthFraction = RankingSkeletonTitleWidths[index % RankingSkeletonTitleWidths.size],
+        )
+        // 実行と同じ区切り線（同色・同位置）＝差し替えでヘアラインが動かない。
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
     }
 }
 

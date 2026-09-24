@@ -25,7 +25,15 @@ enum class EnginePhase { LOAD, PROCESS }
  */
 internal interface PdfHandle : Closeable {
     fun extractMeta(): BookMeta
-    fun runEngine(onProgress: (phase: EnginePhase, current: Int, total: Int) -> Unit): List<String>
+
+    /**
+     * 本文を段落列へ起こす。[blockStarts] には「新しいブロックが始まる段落の添字」が書き込まれる
+     * （出力段落列には影響しない副産物。使い道は [ChapterProcessor.splitIntoChapters] の KDoc）。
+     */
+    fun runEngine(
+        blockStarts: MutableSet<Int>,
+        onProgress: (phase: EnginePhase, current: Int, total: Int) -> Unit,
+    ): List<String>
 }
 
 /** PDF を開くエンジン。 */
@@ -45,9 +53,14 @@ internal object PdfBoxEngine : PdfEngine {
         return object : PdfHandle {
             override fun extractMeta(): BookMeta = PdfExtractor.extractBookMeta(doc)
 
-            override fun runEngine(onProgress: (EnginePhase, Int, Int) -> Unit): List<String> =
+            override fun runEngine(
+                blockStarts: MutableSet<Int>,
+                onProgress: (EnginePhase, Int, Int) -> Unit,
+            ): List<String> =
                 // runFinalEngine が LOAD/PROCESS を phase 付きで通知する。facade がそれを重み合成する。
-                PdfExtractor.runFinalEngine(doc, onProgress)
+                // pdfFile を渡すのは load フェーズの並列化に各スレッドぶんの PDDocument を開く元が要るため
+                // （並列するか＝K はヒープ上限と文書規模から PdfExtractor が決める。余裕が無ければ単一経路）。
+                PdfExtractor.runFinalEngine(doc, pdfFile, blockStarts, onProgress)
 
             override fun close() = doc.close()
         }
@@ -98,6 +111,9 @@ object PdfBookExtractor {
         // 判明済みタイトル。step0 で確定するまでは空（UI の「変換中タイトル」表示用）。
         // クロージャは参照時に読むため、meta 確定後の代入が後続 step へ反映される（app.py current_title と同挙動）。
         var currentTitle = ""
+        // 「新しいブロックが始まる段落の添字」。単話の前書きの終端を決めるためだけに使う
+        // （判断の所在と、なぜここまで運ぶのかは ChapterProcessor.splitIntoChapters の KDoc）。
+        val blockStarts = mutableSetOf<Int>()
         return try {
             engine.open(pdfFile).use { handle ->
                 onProgress(0, 0f, "タイトルを読み取っています…", currentTitle)
@@ -116,7 +132,7 @@ object PdfBookExtractor {
                 // 全て同期実行（runEngine 内に suspend 境界は無い）ため begin/end は同一スレッドで閉じ、
                 // TraceSectionMetric が単一の slice として拾える。進捗コールバックの意味は不変。
                 val paragraphs = Sections.trace("Extract#engine") {
-                    handle.runEngine { phase, current, total ->
+                    handle.runEngine(blockStarts) { phase, current, total ->
                     // step-1 local: LOAD(読み込み)中 0→LOAD_WEIGHT、PROCESS(整形)中 LOAD_WEIGHT→1.0 と単調前進。
                     // load を重み大に＝超長編では全ページ getText が支配的コストで、以前は load 中バーが 0f で固まって見えた。
                     // % 計算は一切変えない。フェーズ語だけをここで切り替える（副表示の巻き戻り錯覚回避）。
@@ -136,15 +152,21 @@ object PdfBookExtractor {
                 }
 
                 onProgress(2, 0f, "章を分割しています…", currentTitle)
-                // 単話（【題名】マーカー皆無）では嘘見出し「作品情報・プロローグ」の代わりに
+                // 単話（実在の章見出しが皆無）では嘘見出し「作品情報・プロローグ」の代わりに
                 // 表紙由来の作品タイトル meta.title を単一章タイトルへ流用する（裁定済み仕様）。
+                // ⚠️ 旧記述「【題名】マーカー皆無」は誤り＝単話でも前書き/後書きの見出しは付く
+                // （判定条件は ChapterProcessor.isRealChapterHeading が正本・2026-09-04 訂正）。
                 // trace 区間: 章分割（段落列→章構造への分解）。
                 val chaptersData = Sections.trace("Extract#splitChapters") {
-                    ChapterProcessor.splitIntoChapters(paragraphs, meta.title)
+                    ChapterProcessor.splitIntoChapters(paragraphs, meta.title, blockStarts)
                 }
 
                 onProgress(2, 1f, "前書き・後書きを処理しています…", currentTitle)
-                val finalChapters = ChapterProcessor.processForewordAfterword(chaptersData)
+                // 出自を明示する（既定値と同じだが、Web 経路との対比をコード上で読めるようにする）。
+                // 章タイトルは PDF 生成器の Bold 見出し＝末尾に「（前書き）」「（後書き）」が付きうる機械生成物。
+                val finalChapters = ChapterProcessor.processForewordAfterword(
+                    chaptersData, ChapterTitleSource.PDF_GENERATED,
+                )
 
                 onProgress(3, 0f, "HTMLを生成しています…", currentTitle)
                 // trace 区間: HTML 書き出し（章ごとの chap_N.html／index.html 生成）。

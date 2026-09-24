@@ -40,6 +40,7 @@ import com.novelreader.repository.BookRepository
 import com.novelreader.repository.NarouPdfCache
 import com.novelreader.repository.PdfTreeScanner
 import com.novelreader.repository.SourceDeleteOutcome
+import com.novelreader.repository.WebImportInFlightException
 import com.novelreader.scrape.ScrapeStructureException
 import com.novelreader.scrape.SiteAdapterRegistry
 import java.io.File
@@ -99,7 +100,7 @@ sealed interface BookshelfUiState {
         val webNovels: List<WebNovelEntity> = emptyList(),
         // 機能②: ncode(正規化済み大文字)→最後に開いた話。Web カードの「続きから読む 第N話」に使う（未記録は 0＝未読）。
         val webReadingProgress: Map<String, Int> = emptyMap(),
-        // ncode(正規化済み大文字)→web 読書の最終接触時刻。web カードの並びキー＝触った web は接触時刻・未記録は addedAt で並ぶ（ShelfItems.webRecencyKeyOf）。
+        // ncode(正規化済み大文字)→web 読書の最終接触時刻。web カードの並びキー＝触った web は接触時刻・未記録は addedAt で並ぶ（ShelfItems.recencyKeyOf）。
         val webLastReadAt: Map<String, Long> = emptyMap(),
     ) : BookshelfUiState
 }
@@ -861,7 +862,13 @@ class BookshelfViewModel @JvmOverloads constructor(
     // 実行中 Web 取込の本数（Main 限定で増減）。最後の1本が終わるまで WEB スロットを畳まないための計数。
     // webImportJobs.count { isActive } で代用しない理由: finally 実行時点の自ジョブは
     // 「まだ completed でない」ため自分を数えてしまい、最後の1本の判定が不能になる。
-    private var activeWebImports = 0
+    // StateFlow で持つ理由（監査 A2 の UI ガード）: 再取得ダイアログの確定ボタンが「実行中は押せない」を
+    // 購読するため。processingState（表示合成）で代用しない＝あちらは PDF 優先の合成で、PDF 変換と並走中は
+    // WEB の実行中が表示から隠れてガードが素通りする（正確な信号は WEB 専用のこの計数だけが持つ）。
+    private val _activeWebImports = MutableStateFlow(0)
+
+    /** 実行中 Web 取込の本数（読み取り専用・0=なし）。UI の再取得ボタン実行中ガードが購読する。 */
+    val activeWebImports: StateFlow<Int> = _activeWebImports.asStateFlow()
 
     /** Web 取込の全停止。PDF の ACTION_STOP と同じ意味論に合わせる:
      *  即時に「停止しています…」を出し（停止ボタンも同フラグで消える＝連打防止）、実中断は次の章境界
@@ -943,7 +950,7 @@ class BookshelfViewModel @JvmOverloads constructor(
         // run{} は移設した旧 launch 本体の字下げを不変に保つための無操作スコープ（diff を最小化し
         // ProcessingStateHub 配線ロジックへの実質変更が無いことをレビューで確認しやすくする）。
         run {
-            activeWebImports++
+            _activeWebImports.value++
             // 取込中バナーの初期状態。source=WEB でステッパー（PDF 4段の器）は出さず、章進捗（phase）へ
             // 一本化する（裁定②＝Web で「ステップ 1/4」が凍結表示されていた問題の解消。出し分けは
             // ProcessingBanner 側が source で行う＝新しい意匠は発明しない）。
@@ -989,17 +996,29 @@ class BookshelfViewModel @JvmOverloads constructor(
                         }
                     },
                     onFailure = { e ->
-                        // 真因はログに残す（握り潰さない）。Blocked/Unsupported は呼び出し前ゲートで除外済みのため、
-                        // ここに来るのは取得/解析/構造疑い等の失敗。失敗系は従来どおり「閉じる」付きで残置（transient なし）。
-                        android.util.Log.e(TAG, "Web取込失敗", e)
-                        // 破損監視（層2）: サイト構造変更の疑い（ScrapeStructureException＝ScrapeException 派生）だけは
-                        // 「公式サイトで読む」逃げ道を添える（作品URLを外部ブラウザで開く＝U3 Blocked と同じ ACTION_VIEW 流儀）。
-                        // 逃げ道が保険の実体（脆さ織り込み）。それ以外の一過性失敗は従来どおり平易な失敗通知のみ
-                        // （リトライ＝ユーザーの再共有操作＝確定事項）。
-                        if (e is ScrapeStructureException) {
-                            app.emitError("取得に失敗しました。サイト構造が変わった可能性があります", openUrl = url)
-                        } else {
-                            emitSnackbar("取り込みに失敗しました")
+                        // in-flight 遮断（監査 A2）: 同一作品の取得が既に走っている＝失敗ではなく「待てば済む」
+                        // 情報通知。専用型で判別し（WebImportInFlightException の why 参照）、深刻な失敗文言や
+                        // 「公式サイトで読む」逃げ道を出さない。transient=true は取込完了通知と同じ一過性の扱い。
+                        when {
+                            e is WebImportInFlightException -> {
+                                // エラーでなく期待どおりの遮断のためログも情報レベル（例外全文は冗長＝事象名で足りる）。
+                                android.util.Log.i(TAG, "Web取込スキップ: 同一作品が取得中")
+                                emitSnackbar("この作品はすでに取得中です。完了までお待ちください", transient = true)
+                            }
+                            // 破損監視（層2）: サイト構造変更の疑い（ScrapeStructureException＝ScrapeException 派生）だけは
+                            // 「公式サイトで読む」逃げ道を添える（作品URLを外部ブラウザで開く＝U3 Blocked と同じ ACTION_VIEW 流儀）。
+                            // 逃げ道が保険の実体（脆さ織り込み）。
+                            // 真因はログに残す（握り潰さない）。Blocked/Unsupported は呼び出し前ゲートで除外済みのため、
+                            // ここに来るのは取得/解析/構造疑い等の失敗。失敗系は従来どおり「閉じる」付きで残置（transient なし）。
+                            e is ScrapeStructureException -> {
+                                android.util.Log.e(TAG, "Web取込失敗", e)
+                                app.emitError("取得に失敗しました。サイト構造が変わった可能性があります", openUrl = url)
+                            }
+                            // それ以外の一過性失敗は従来どおり平易な失敗通知のみ（リトライ＝ユーザーの再共有操作＝確定事項）。
+                            else -> {
+                                android.util.Log.e(TAG, "Web取込失敗", e)
+                                emitSnackbar("取り込みに失敗しました")
+                            }
                         }
                     },
                 )
@@ -1008,8 +1027,8 @@ class BookshelfViewModel @JvmOverloads constructor(
                 // updateProcessingState は非 suspend の値代入のためキャンセル巻き戻し中でも確実に完了する。
                 // 並行 Web 取込がまだ生きている間は畳まない: 先に終わった側の null 書きが後続の表示を
                 // 潰す（裁定③と同型の Web/Web 版）を最後の1本の判定で防ぐ。
-                activeWebImports--
-                if (activeWebImports == 0) app.updateProcessingState(null, ProcessingSource.WEB)
+                _activeWebImports.value--
+                if (_activeWebImports.value == 0) app.updateProcessingState(null, ProcessingSource.WEB)
             }
         }
     }
@@ -1032,9 +1051,19 @@ class BookshelfViewModel @JvmOverloads constructor(
                 if (repository.deleteBook(it, deleteSource) == SourceDeleteOutcome.Failed) failed++
             }
             // 取込元PDFの削除に失敗した本があれば Snackbar で知らせる（本削除自体は成立済み＝handover 提起③）。
-            // 既に移動/削除済み・権限失効・削除非対応プロバイダなど、アプリでは救えない外部要因が主因のため通知に留める。
+            // アプリでは救えない外部要因が主因のため通知に留める。
+            // 【文言の是正（ADR 0043）】旧文は「移動/削除済みか、削除に対応しない保存先の**可能性**」と
+            // 推測形で並べていたが、当時の支配的な失敗要因はそこに挙がっていない〈取込時に永続 URI 権限を
+            // 即時解放していたため、アプリを閉じた後は必ず権限失効で失敗する〉だった＝要因の推測が実態と
+            // 食い違ったまま、ユーザーには自分の保存先が悪いように読める文になっていた。0043 でその真因
+            // 自体を消したので、残る要因は〈実体が既に移動/削除された〉〈削除に対応しないプロバイダ〉の
+            // 2つに絞られる。ここでの変更は**真因の書き換えではなく表現の是正**＝推測形をやめて、
+            // 残った2要因を断定形で並べる（LibraryDeleter.deleteBook の失敗要因コメントが正本）。
             if (failed > 0) {
-                app.emitError("取込元PDFの削除に失敗しました（${failed}件・移動/削除済みか、削除に対応しない保存先の可能性）")
+                app.emitError(
+                    "取込元PDFを削除できませんでした（${failed}件・ファイルが移動/削除済みか、" +
+                        "この保存先が削除に対応していません）",
+                )
             }
         }
     }

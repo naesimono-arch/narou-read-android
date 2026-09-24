@@ -1,0 +1,445 @@
+<!-- @dsCard group="UI-n / 一時ドラフト（裁定用）" name="K 未取込の青磁破線 — 弱める案の比較（2026-08-25）" -->
+<!--
+  ⚠️ 一時ドラフト（複数案比較）＝正本ではない。裁定が付いたら採用案だけを正本
+     docs/design-candidates/skins/bookshelf-K.html（グリッド `.cv.narou`）と
+     docs/design-candidates/skins/bookshelf-list-K.html（一覧 `.lc.web`）へ差分反映し、本ファイルと
+     bookshelf-K-narou-frame-in-context.html を削除する（/visual-language「複数案比較のみ一時ドラフト」）。
+
+  【何を決めるための紙か】
+  2026-08-21 実機ツアーで FAIL。評＝「目立ちすぎ。書庫に入っているのは同じなのに存在しないように見える」
+  ＝線が強すぎて〈在る本〉まで〈不在の枠〉に見える。**弱める方向で確定（消すのではない）**。
+  症状は「強さ」だけでなく「破線の枠＝不在の記号と紛らわしい」という**意味**の問題でもあるため、
+  案を〈強さを弱める〉と〈記号そのものを変える〉の二系統で並べてある。
+  ⚠️ dash 4/3dp・紙地沈め alpha 0.05 は前回で決着済みの値＝再提案しない（＝下敷き①がその値そのもの）。
+
+  【下敷きを描く前に BookshelfK.kt でコード確認した「実装の実描画」】
+  ・narouDashedOutline = 線幅 1.5dp・dash 4dp / gap 3dp・色 colorScheme.secondary（SecondaryLight #9CB3A8）。
+    角丸はグリッド書影 3dp／一覧行 6dp。グリッドと一覧で1定義を共有している。
+  ・紙地沈め = onSurface #1C1F26 の 5% かぶせ（焼き込み #F0EFEE）。
+    ⚠️ グリッドは ShioriCover の**上**に重ねる＝栞棒と縦題字も 5% くすむ。
+       一覧は Row の background＝内容の**下**＝文字はくすまない。重ね順が2箇所で違う。
+  ・未取込には影を付けない（在る本だけ影を持つ）。
+
+  【正本モックとのズレ（＝下敷きを2枚描き分けた理由。コードで確認した結果）】
+  ① 色: 正本 --seiji-ink #50685C（濃青磁）／実装 secondary #9CB3A8（淡青磁）＝awaiting-human §3-2 の既知乖離。
+  ② 破線の刻み: 正本は CSS `border:1.5px dashed`＝**刻みはブラウザ任せ**で、実装の 4/3dp とは別物。
+     つまり正本モックは実装の破線リズムを一度も画面に出していない。この紙の下敷き①は SVG で 4/3 を明示的に描く。
+  ③ 沈めの重ね順: 正本グリッドは background を --field へ差し替え（栞棒・題字はくすまない）／実装は上から veil。
+  ④ 一覧のメタ文字色: 正本 `.lc.web .m` は --seiji-ink／実装 KWebListBookCard は seiji（淡）のまま。
+     2026-08-21 の AA 是正はグリッドのキャプション（unreadLabel）だけに入り、**一覧行は取り残されている**。
+     文字なので装飾ではなく AA 対象＝枠の色と同じ答えにする必要はない（§色 の枠に併記した）。
+-->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>K 未取込の青磁破線 — 弱める案の比較</title>
+<style>
+  :root{
+    --base:#FBFAF8; --ink:#1C1F26; --ink-soft:#7C808B; --info:#5C606D; --line:#ECEAE4;
+    --ai:#1C3D5A; --seiji:#9CB3A8; --seiji-ink:#50685C; --field:#F0EFEE; --paper:#FBFAF8;
+    --mincho:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
+    --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#E4E3DD;font-family:var(--gothic);-webkit-font-smoothing:antialiased;color:#2A2C28;padding:28px}
+
+  .pg{max-width:1180px;margin:0 auto 26px}
+  .pg h1{font-size:21px;letter-spacing:.03em}
+  .pg p{font-size:12.5px;line-height:1.8;margin-top:10px;max-width:80ch;color:#4A4C48}
+  .pg b{color:#2A2C28}
+  .pg .warn{color:#A2372F}
+  .sec{max-width:1180px;margin:0 auto 30px}
+  .sec>h2{font-size:14px;letter-spacing:.04em;padding:8px 0 4px;border-bottom:1px solid #C9C8C1}
+  .sec>.lead{font-size:12px;line-height:1.75;color:#4A4C48;margin:8px 0 14px;max-width:80ch}
+  .cases{display:flex;flex-wrap:wrap;gap:18px;margin-top:14px}
+
+  .case{width:388px;background:#F7F6F2;border-radius:14px;padding:14px;box-shadow:0 6px 18px rgba(0,0,0,.13)}
+  .case .hd{display:flex;align-items:baseline;gap:8px;margin-bottom:4px}
+  .case .hd .id{font-size:15px;font-weight:700;letter-spacing:.04em}
+  .case .hd .ax{font-size:11px;color:#6A6C66;letter-spacing:.03em}
+  .case .nm{font-size:12.5px;font-weight:700;color:#2A2C28;margin-bottom:10px}
+  .case .val{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:10.5px;color:#5A5C57;
+    background:#EDECE6;border-radius:6px;padding:5px 8px;margin-bottom:10px;letter-spacing:.01em}
+  .case .note{font-size:11.5px;line-height:1.75;color:#4A4C48;margin-top:10px}
+  .case .note b{color:#2A2C28}
+  .case .note .w{color:#A2372F}
+  .case.ctl{background:#EFEDE6;outline:2px dashed #B9B7AE;outline-offset:-6px}
+  .case .badge{font-size:10px;font-weight:700;letter-spacing:.05em;padding:2px 7px;border-radius:999px;
+    background:#D9D7CE;color:#5A5C57}
+  .case .badge.s{background:#DCE4EA;color:#2C4C66}
+  .case .badge.m{background:#DDE6DE;color:#3A5A46}
+  .case .badge.c{background:#E6DCD9;color:#7A4038}
+
+  /* ===== 実寸の断片（幅360＝実機実効 360dp。栞書影・行は正本 bookshelf-K / bookshelf-list-K の写し） ===== */
+  .demo{width:360px;background:var(--base);border-radius:10px;overflow:hidden;padding:14px 0 4px}
+  .demo .lab{font-size:10.5px;color:#8A8C86;letter-spacing:.06em;padding:0 24px 6px}
+  .gwrap{padding:0 24px 14px}
+  .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:16px 24px}
+  .cv{position:relative;aspect-ratio:3/4;border-radius:3px;overflow:hidden;background:var(--paper);
+    box-shadow:0 3px 10px rgba(0,0,0,.14)}
+  .cv .bar{position:absolute;top:0;left:var(--barx,26%);width:2.5px;height:var(--barlen,46%);
+    background:var(--band,var(--ink-soft))}
+  .cv .bar::after{content:"";position:absolute;left:50%;top:100%;transform:translate(-50%,-1px);
+    width:7px;height:7px;border-radius:50%;background:var(--band,var(--ink-soft))}
+  .cv .vt{position:absolute;top:14px;right:12px;bottom:14px;max-width:66%;overflow:hidden;
+    writing-mode:vertical-rl;font-family:var(--mincho);font-size:12px;font-weight:600;
+    color:var(--ink);line-height:1.6;letter-spacing:.05em}
+  .cv.narou{box-shadow:none}
+  /* 紙地沈め＝実装は「上から」かぶせる（栞棒・題字もくすむ）。正本モックだけ background 差し替え */
+  .cv .veil{position:absolute;inset:0;pointer-events:none}
+  .cap{display:flex;align-items:flex-start;justify-content:space-between;gap:6px;margin-top:8px}
+  .cap .t{flex:1;min-width:0;font-family:var(--mincho);font-size:12px;color:var(--ink);line-height:1.4;
+    display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden}
+  .cap .dots{width:32px;height:32px;flex-shrink:0;border:none;background:transparent;color:var(--ink-soft);
+    display:grid;place-items:center;margin-top:-2px}
+  .cap .dots svg{width:18px;height:18px;fill:currentColor}
+  .st{margin-top:4px;font-size:10.5px;color:var(--info);letter-spacing:.03em;
+    display:flex;align-items:center;gap:5px;min-height:14px}
+  .st .dot{width:6px;height:6px;border-radius:50%;background:var(--ai);flex-shrink:0}
+  .st.narou{color:var(--seiji-ink)}
+
+  .lwrap{padding:0 20px 10px}
+  .lc{position:relative;display:flex;align-items:center;gap:12px;border-bottom:1px solid var(--line);
+    padding:12px 4px 12px 16px}
+  .lc::before{content:"";position:absolute;left:0;top:12px;bottom:12px;width:4px;border-radius:2px;
+    background:var(--band,var(--ink-soft))}
+  .lc .bd{flex:1;min-width:0}
+  .lc .t{font-family:var(--mincho);font-size:16px;color:var(--ink);line-height:1.5;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .lc .m{font-family:var(--gothic);font-size:13px;color:var(--info);margin-top:4px;line-height:1.4}
+  .lc .dots{width:32px;height:32px;flex-shrink:0;border:none;background:transparent;color:var(--ink-soft);
+    display:grid;place-items:center}
+  .lc .dots svg{width:18px;height:18px;fill:currentColor}
+  .lc.web{border-radius:6px;border-bottom-color:transparent}
+  .lc.web.hair{border-bottom-color:var(--line)}  /* 線ゼロ案では行区切りが消えるので hairline を戻す */
+  .lc.web::before{left:6px}
+
+  .fr{position:absolute;inset:0;pointer-events:none}
+  .fr svg{display:block}
+</style>
+</head>
+<body>
+<header class="pg">
+  <h1>K 本棚「なろう・未取込」の青磁破線 — 弱める案の比較</h1>
+  <p>2026-08-21 実機 FAIL の評＝<b>「目立ちすぎ。書庫に入っているのは同じなのに存在しないように見える」</b>。
+    症状は強さの問題であると同時に、<b>破線の枠が「不在（＝中身のない枠）」の記号に読める</b>という意味の問題でもある。
+    そこで案を<b>〈強さを弱める〉4件</b>と<b>〈記号そのものを変える〉3件</b>＋<b>対照1件</b>に分けて並べた。
+    各枠は<b>実寸 360dp 幅</b>で、<b>グリッド書影（在る本＋未取込が横に隣接）</b>と
+    <b>一覧行（蔵書行に未取込行が挟まれる）</b>の両方を同じ条件で描いている
+    ——症状は「隣り合ったとき区別がつかない」ことなので、単体では判定できない。</p>
+  <p class="warn">⚠️ dash 4/3dp・沈め alpha 0.05 は前回で決着済み＝下敷き①がその値そのもの（再提案ではない）。
+    ⚠️ この紙は案を並べるだけで、推奨は書いていない。</p>
+</header>
+
+<section class="sec" id="s-base">
+  <h2>下敷き — 現状の見え（実装／正本モックの2枚。ここがズレている）</h2>
+  <p class="lead">①は BookshelfK.kt の実描画を SVG で忠実に再現したもの＝<b>実機で FAIL したのはこの見え</b>。
+    ②は正本 bookshelf-K.html が今出している見え。<b>色（淡／濃）</b>と<b>破線の刻み（4-3／ブラウザ任せ）</b>が違うので、
+    正本モックだけを見て「弱める／強める」を判断すると実機とずれる。</p>
+  <div class="cases"></div>
+</section>
+
+<section class="sec" id="s-strength">
+  <h2>強さ側 — 破線の枠という記号は保ったまま、圧だけ落とす（4件）</h2>
+  <p class="lead">「不在の枠に見える」の<b>強さ</b>にだけ効く系統。記号（四辺を破線で囲う）は変えないので、
+    「在る本が不在に見える」の<b>意味</b>の問題が残るかどうかがここでの見どころ。</p>
+  <div class="cases"></div>
+</section>
+
+<section class="sec" id="s-mark">
+  <h2>記号側 — 「四辺を破線で囲う」のをやめる（3件）＋ 対照1件</h2>
+  <p class="lead">囲いを外すと「中身のない枠」という読みが成立しなくなる系統。
+    代わりに<b>破線の語彙</b>や<b>輪郭の完全性</b>を手放す。E は線を持たない案＝
+    「消すのではない」という確定との関係は人間の裁定事項（この紙では判断しない）。</p>
+  <div class="cases"></div>
+</section>
+
+<section class="sec" id="s-color">
+  <h2>色の乖離（awaiting-human §3-2）— 実装（淡）と正本モック（濃）を並べる</h2>
+  <p class="lead">強さは<b>両方とも下敷き①と同値（1.5dp・dash 4-3）</b>に固定し、色だけを振ってある＝
+    「実装をモックへ寄せる／モックを実装へ逆同期する」のどちらを選ぶかの材料。
+    <b class="warn">⚠️ 濃青磁へ寄せる＝今回の「弱める」とは逆向きに振れる</b>ので、この2枚は上の案と直交ではない
+    （採用案の色をどちらにするかは、上で強さの案を決めたあとにもう一度この枠で見るのが確実）。
+    <b>一覧のメタ文字（著者・なろう・未取込）の色も併せて振ってある</b>——実装 KWebListBookCard は今も淡 seiji で、
+    グリッド側だけ 2026-08-21 に濃青磁へ是正された。<b>文字は装飾でなく AA 対象</b>＝枠と同じ答えにする必要はない。</p>
+  <div class="cases"></div>
+</section>
+
+<script>
+"use strict";
+/* 破線は CSS の `border:dashed`（＝刻みがブラウザ任せ）ではなく SVG で明示的に描く。
+   実装 narouDashedOutline は dash 4dp / gap 3dp を明示指定しており、CSS dashed では再現できないため
+   （このズレ自体が正本モックの既知の不正確さ＝冒頭コメント②）。 */
+var NS="http://www.w3.org/2000/svg";
+function num(v,d){var n=parseFloat(v);return isNaN(n)?d:n;}
+
+function drawFrame(el){
+  var host=el.parentElement, R=host.getBoundingClientRect();
+  var W=Math.round(R.width), H=Math.round(R.height);
+  if(!W||!H){return;}
+  var w=num(el.dataset.w,1.5), r=num(el.dataset.r,3), L=num(el.dataset.len,12);
+  var color=el.dataset.color||"#50685C", dash=el.dataset.dash||"", mode=el.dataset.mode||"all";
+  el.textContent="";
+  var svg=document.createElementNS(NS,"svg");
+  svg.setAttribute("width",W); svg.setAttribute("height",H);
+  svg.setAttribute("viewBox","0 0 "+W+" "+H);
+  function pen(tag,cap){
+    var n=document.createElementNS(NS,tag);
+    n.setAttribute("fill","none"); n.setAttribute("stroke",color);
+    n.setAttribute("stroke-width",w);
+    if(dash){n.setAttribute("stroke-dasharray",dash);}
+    n.setAttribute("stroke-linecap",cap||"butt");
+    return n;
+  }
+  var i=w/2;
+  if(mode==="all"){
+    var rc=pen("rect");
+    rc.setAttribute("x",i); rc.setAttribute("y",i);
+    rc.setAttribute("width",W-w); rc.setAttribute("height",H-w); rc.setAttribute("rx",r);
+    svg.appendChild(rc);
+  }else if(mode==="bottom"){
+    var p=pen("path");
+    p.setAttribute("d","M "+r+" "+(H-i)+" L "+(W-r)+" "+(H-i));
+    svg.appendChild(p);
+  }else if(mode==="corners"){
+    var ds=[
+      "M "+i+" "+(i+L)+" L "+i+" "+(i+r)+" A "+r+" "+r+" 0 0 1 "+(i+r)+" "+i+" L "+(i+L)+" "+i,
+      "M "+(W-i-L)+" "+i+" L "+(W-i-r)+" "+i+" A "+r+" "+r+" 0 0 1 "+(W-i)+" "+(i+r)+" L "+(W-i)+" "+(i+L),
+      "M "+(W-i)+" "+(H-i-L)+" L "+(W-i)+" "+(H-i-r)+" A "+r+" "+r+" 0 0 1 "+(W-i-r)+" "+(H-i)+" L "+(W-i-L)+" "+(H-i),
+      "M "+(i+L)+" "+(H-i)+" L "+(i+r)+" "+(H-i)+" A "+r+" "+r+" 0 0 1 "+i+" "+(H-i-r)+" L "+i+" "+(H-i-L)
+    ];
+    ds.forEach(function(d){var p=pen("path","round"); p.setAttribute("d",d); svg.appendChild(p);});
+  }
+  el.appendChild(svg);
+}
+function redraw(){ document.querySelectorAll(".fr").forEach(drawFrame); }
+
+/* --- 実データの色域を模したプレースホルダ（正本 bookshelf-K / bookshelf-list-K の題名・色相をそのまま使う） --- */
+var HAVE_A={h:210,barx:"26%",barlen:"46%",t:"追放された万能薬師、辺境でスローライフを始める",w:"霧島あおい",st:"第127/205話"};
+var NAROU ={h:190,barx:"30%",barlen:"44%",t:"最果てのダンジョンで細々と暮らすことにした",w:"浅葱まこと",st:"なろう・未取込"};
+var HAVE_B={h:280,barx:"34%",barlen:"42%",t:"黒の魔王と契約した俺、気づけば最強の従者に",w:"夜灯すばる",st:"第43/150話"};
+var DOTS='<svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg>';
+
+function frAttrs(f){
+  if(!f){return "";}
+  return '<span class="fr" data-w="'+f.w+'" data-r="'+f.r+'" data-color="'+f.color+'"'+
+         (f.dash?' data-dash="'+f.dash+'"':'')+' data-mode="'+(f.mode||"all")+'"'+
+         (f.len?' data-len="'+f.len+'"':'')+'></span>';
+}
+function cover(b,c,narou){
+  var st=narou?'<div class="st narou">'+b.st+'</div>'
+              :'<div class="st">'+b.st+'</div>';
+  var bg="";
+  var veil="";
+  var fr="";
+  if(narou){
+    if(c.ground.mode==="replace"){ bg=";background:"+c.ground.color; }
+    else { veil='<span class="veil" style="background:rgba(28,31,38,'+c.ground.a+')"></span>'; }
+    fr=frAttrs(c.gridFrame);
+  }
+  return '<div class="bk">'+
+    '<div class="cv'+(narou?" narou":"")+'" style="--band:hsl('+b.h+' 48% 52%);--barx:'+b.barx+';--barlen:'+b.barlen+bg+'">'+
+      '<span class="bar"></span><span class="vt">'+b.t+'</span>'+veil+fr+
+    '</div>'+
+    '<div class="cap"><span class="t">'+b.t+'</span><button class="dots" aria-label="メニュー">'+DOTS+'</button></div>'+
+    st+'</div>';
+}
+function row(b,c,narou){
+  var cls="lc", style='--band:hsl('+b.h+' 48% 52%)', fr="", m='color:var(--info)';
+  if(narou){
+    cls+=" web"+(c.listHair?" hair":"");
+    style+=";background:"+c.ground.list;
+    m="color:"+(c.metaColor||"var(--seiji-ink)");
+    fr=frAttrs(c.listFrame);
+  }
+  return '<div class="'+cls+'" style="'+style+'">'+
+    '<div class="bd"><div class="t">'+b.t+'</div>'+
+    '<div class="m" style="'+m+'"><span>'+b.w+'</span>・<span>'+b.st+'</span></div></div>'+
+    '<button class="dots" aria-label="メニュー">'+DOTS+'</button>'+fr+'</div>';
+}
+function tile(c){
+  var el=document.createElement("div");
+  el.className="case"+(c.control?" ctl":"");
+  el.innerHTML=
+    '<div class="hd"><span class="id">'+c.id+'</span><span class="badge '+c.badgeClass+'">'+c.badge+'</span>'+
+      '<span class="ax">'+c.axis+'</span></div>'+
+    '<div class="nm">'+c.name+'</div>'+
+    '<div class="val">'+c.val+'</div>'+
+    '<div class="demo">'+
+      '<div class="lab">グリッド（左＝在る本／右＝未取込）</div>'+
+      '<div class="gwrap"><div class="grid">'+cover(HAVE_A,c,false)+cover(NAROU,c,true)+'</div></div>'+
+      '<div class="lab">一覧（未取込行が蔵書行に挟まれる）</div>'+
+      '<div class="lwrap">'+row(HAVE_A,c,false)+row(NAROU,c,true)+row(HAVE_B,c,false)+'</div>'+
+    '</div>'+
+    '<div class="note">'+c.note+'</div>';
+  return el;
+}
+
+var G5={mode:"veil",a:.05,list:"#F0EFEE"};      /* 実装の現状＝onSurface 5%（焼き込み #F0EFEE） */
+var G3={mode:"veil",a:.03,list:"#F4F3F2"};   /* 2026-08-26 裁定の沈め＝3% */
+var G7={mode:"veil",a:.07,list:"#EBEBE9"};
+var G10={mode:"veil",a:.10,list:"#E5E4E3"};
+
+var SEIJI="#9CB3A8", INK="#50685C", PALE="#CAD4CF"; /* PALE＝淡青磁を field 上へ 45% 焼き込んだ値 */
+
+var CASES=[
+/* ---------- 下敷き ---------- */
+{sec:"s-base",id:"①",badge:"下敷き",badgeClass:"",axis:"実装の実描画",
+ name:"現状（BookshelfK.kt をコードどおりに再現）— 実機で FAIL したのはこの見え",
+ val:'stroke 1.5dp / dash 4-3 / color secondary #9CB3A8 / 沈め onSurface 5%（上から） / 角丸 3・6',
+ ground:G5, gridFrame:{w:1.5,r:3,color:SEIJI,dash:"4 3"}, listFrame:{w:1.5,r:6,color:SEIJI,dash:"4 3"},
+ note:'<b>症状の再現</b>: dash 4-3 は「切れ目の方が短い」＝遠目では<b>ほぼ実線の枠</b>に見え、四辺を等しく囲うので'+
+      '「中身のない枠」と読める。一覧では蔵書行の hairline より枠の方が強く、<b>未取込行だけが浮いて数えられる</b>。'},
+
+{sec:"s-base",id:"②",badge:"下敷き",badgeClass:"",axis:"正本モックの現在値",
+ name:"正本 bookshelf-K.html / bookshelf-list-K.html が今出している見え",
+ val:'CSS `border:1.5px dashed` (刻みはブラウザ任せ) / color --seiji-ink #50685C / 沈め＝背景差し替え #F0EFEE',
+ ground:{mode:"replace",color:"#F0EFEE",list:"#F0EFEE"}, gridFrame:null, listFrame:null, cssDash:INK,
+ note:'<b class="w">実装と3点ズレている</b>: (a) 色が濃青磁＝実装より濃い、(b) 刻みがブラウザ任せ＝実装の 4-3 を'+
+      '一度も表示していない、(c) 沈めが背景差し替え＝<b>栞棒と縦題字がくすまない</b>（実装は上からかぶせるのでくすむ）。'+
+      '①と見比べると、<b>正本だけ見て弱め具合を測ると外す</b>ことが分かる。'},
+
+/* ---------- 強さ側 ---------- */
+{sec:"s-strength",id:"A",badge:"強さ",badgeClass:"s",axis:"軸＝線の濃さ",
+ name:"線を淡くする（記号・幅・刻みは現状のまま）",
+ val:'stroke 1.5dp / dash 4-3 / color '+PALE+'（淡青磁を紙地へ 45% 焼き込み）/ 沈め 5%',
+ ground:G5, gridFrame:{w:1.5,r:3,color:PALE,dash:"4 3"}, listFrame:{w:1.5,r:6,color:PALE,dash:"4 3"},
+ note:'<b>守る</b>＝破線の語彙・四辺の囲い・寸法（実装は色定数の差し替えだけで済む）。<br>'+
+      '<b>捨てる</b>＝線の存在感そのもの。淡くするほど「未取込である」ことにも気づかれにくくなる＝'+
+      '<b>弱めと見落としが同じつまみ</b>。<b class="w">枠であることは変わらない</b>ので「不在に見える」意味の問題は残る。'},
+
+{sec:"s-strength",id:"B",badge:"強さ",badgeClass:"s",axis:"軸＝線幅",
+ name:"線を細くする（色と刻みは現状のまま）",
+ val:'stroke 0.75dp / dash 4-3 / color secondary #9CB3A8 / 沈め 5%',
+ ground:G5, gridFrame:{w:.75,r:3,color:SEIJI,dash:"4 3"}, listFrame:{w:.75,r:6,color:SEIJI,dash:"4 3"},
+ note:'<b>守る</b>＝色（青磁＝未取込の署名）と破線のリズム。<br>'+
+      '<b>捨てる</b>＝線の実在感。<b class="w">⚠️ 0.75dp は端末密度で 1〜2px に落ちる</b>＝'+
+      'PGEM10（density 2.75）では 2px 相当だが、低密度機では 1px に丸められて掠れうる＝実機での二段検分が要る軸。'},
+
+{sec:"s-strength",id:"C",badge:"強さ",badgeClass:"s",axis:"軸＝破線の間隔",
+ name:"刻みを粗くして点線へ寄せる（濃さと幅は現状のまま）",
+ val:'stroke 1.5dp / dash 1.5-5（現状 4-3 の逆＝切れ目が長い）/ color secondary #9CB3A8 / 沈め 5%',
+ ground:G5, gridFrame:{w:1.5,r:3,color:SEIJI,dash:"1.5 5"}, listFrame:{w:1.5,r:6,color:SEIJI,dash:"1.5 5"},
+ note:'<b>守る</b>＝色と幅（1本1本の線は現状と同じ濃さ）。<br>'+
+      '<b>捨てる</b>＝「連続した枠」であること。点の連なりは囲いとしての結束が弱く、'+
+      '<b>強さ側の案でありながら記号側の効き方も少し混ざる</b>（＝A・B とは質が違う）。'+
+      '半面「切り取り線」の連想が出るので、そこが許容できるかが分かれ目。'},
+
+{sec:"s-strength",id:"H",badge:"強さ",badgeClass:"s",axis:"軸＝濃さ×幅の分離",
+ name:"濃青磁のまま極細にする（意味は濃さで、圧は細さで受け持つ）",
+ val:'stroke 0.75dp / dash 3-4 / color --seiji-ink #50685C / 沈め 5%',
+ ground:G5, gridFrame:{w:.75,r:3,color:INK,dash:"3 4"}, listFrame:{w:.75,r:6,color:INK,dash:"3 4"},
+ note:'<b>守る</b>＝正本モックの色（§色 の乖離を「モックへ寄せる」と決めた場合と両立する唯一の強さ案）・'+
+      '一目で「他と違う」と分かる識別力。<br>'+
+      '<b>捨てる</b>＝線の太さ。<b class="w">B と同じ 0.75dp の端末密度リスク</b>を負う。'},
+
+/* ---------- 記号側 ---------- */
+{sec:"s-mark",id:"D",badge:"記号",badgeClass:"m",axis:"軸＝輪郭でなく角だけ",
+ name:"四隅のコーナーマーカーだけにする（囲わない）",
+ val:'stroke 1.5dp / 実線 / 長さ 12dp（一覧 14dp）/ color --seiji-ink #50685C / 沈め 5%',
+ ground:G5, gridFrame:{w:1.5,r:3,color:INK,mode:"corners",len:12},
+ listFrame:{w:1.5,r:6,color:INK,mode:"corners",len:14},
+ note:'<b>守る</b>＝「まだ確定していない一冊」の比喩と一目の識別。四辺で囲わないので'+
+      '<b>「中身のない枠」という読みが成立しない</b>＝評の核心（在る本が不在に見える）に直接効く系統。<br>'+
+      '<b>捨てる</b>＝四辺の囲い・破線という語彙（実線になる）。'+
+      '<b class="w">⚠️ 右上マーカーは選択モードの KSelectionCheck と場所が重なる</b>＝選択中の見えを別途確認する必要。'},
+
+{sec:"s-mark",id:"E",badge:"記号",badgeClass:"m",axis:"軸＝線でなく面で示す",
+ name:"線を持たず、紙地の沈みだけで語る（沈めを 5%→10% へ）",
+ val:'線なし / 沈め onSurface 10%（焼き込み #E5E4E3・一覧も同値）/ 一覧は hairline を戻す',
+ ground:G10, gridFrame:null, listFrame:null, listHair:true,
+ note:'<b>守る</b>＝在／不在の区別（地の濃度差）。囲いが無いので<b>枠の誤読が原理的に起きない</b>。<br>'+
+      '<b>捨てる</b>＝破線という語彙そのもの。<b class="w">⚠️「消すのではない」という確定との関係は人間の裁定事項</b>。<br>'+
+      '<b>副作用</b>＝一覧は破線フレームが行区切りを兼ねていたので、線を外すと<b>hairline を戻さないと行が溶ける</b>'+
+      '（この枠は戻した状態で描いてある）。'},
+
+{sec:"s-mark",id:"F",badge:"記号",badgeClass:"m",axis:"軸＝囲わず1辺だけ",
+ name:"下辺だけ破線にする（枠でなく「未完の下線」）",
+ val:'stroke 1.5dp / dash 4-3 / 下辺1本のみ / color --seiji-ink #50685C / 沈め 5%',
+ ground:G5, gridFrame:{w:1.5,r:3,color:INK,dash:"4 3",mode:"bottom"},
+ listFrame:{w:1.5,r:6,color:INK,dash:"4 3",mode:"bottom"},
+ note:'<b>守る</b>＝破線の語彙と青磁の署名色。囲わないので不在の枠には読めない。<br>'+
+      '<b>捨てる</b>＝輪郭。<b>グリッドと一覧で効き方が真逆</b>＝一覧は<b>蔵書行の hairline がそのまま破線に化ける</b>だけで'+
+      '極めて自然に収まるが、グリッドは書影の下端に線が1本入るのみ＝'+
+      '<b class="w">キャプションの「なろう・未取込」との二重表示に見えないか</b>が判定どころ。'},
+
+{sec:"s-mark",id:"G",badge:"対照",badgeClass:"c",axis:"目盛り（採用対象外）",control:true,
+ name:"線をゼロにし、沈めも現状 5% のまま＝「どこまで線が要るか」の下限",
+ val:'線なし / 沈め onSurface 5%（現状値のまま）/ 一覧は hairline を戻す',
+ ground:G5, gridFrame:null, listFrame:null, listHair:true,
+ note:'<b class="w">⚠️ 案ではない。</b>「消すのではない」という確定があるので採用対象から外してある。'+
+      '置いてある理由＝<b>線を全部外したとき何が失われるかの目盛り</b>がないと、A〜H の「弱め具合」が'+
+      '強すぎるのか足りないのかを測れないため。E との差は沈めの深さだけ（5% vs 10%）。'},
+
+/* ---------- 色の乖離 ---------- */
+/* ---------- 四隅マーカー（採用D）の詰め＝2026-08-26 ユーザー裁定「沈め3%・マーカーをより目立たなく」---------- */
+{sec:"s-mark",id:"D0",badge:"詰め",badgeClass:"m",axis:"沈めだけ 5%→3%（基準）",
+ name:"沈め3% ＋ マーカーは D のまま（1.5dp・濃青磁・12dp）",
+ val:'stroke 1.5dp / 実線 / 長さ 12dp（一覧 14dp）/ color --seiji-ink #50685C / 沈め 3%',
+ ground:G3, gridFrame:{w:1.5,r:3,color:INK,mode:"corners",len:12},
+ listFrame:{w:1.5,r:6,color:INK,mode:"corners",len:14},
+ note:'<b>基準</b>＝沈めだけ裁定どおり 3% へ落とし、マーカーは触らない。下の3案が「どれだけ控えめにするか」の振り幅で、'+
+      'この枚と見比べて<b>どこまで落とすかを決める</b>ためのもの。'},
+
+{sec:"s-mark",id:"D1",badge:"詰め",badgeClass:"m",axis:"色だけ弱める",
+ name:"沈め3% ＋ マーカーを淡青磁へ（1.5dp・#9CB3A8・12dp）",
+ val:'stroke 1.5dp / 実線 / 長さ 12dp（一覧 14dp）/ color secondary #9CB3A8 / 沈め 3%',
+ ground:G3, gridFrame:{w:1.5,r:3,color:SEIJI,mode:"corners",len:12},
+ listFrame:{w:1.5,r:6,color:SEIJI,mode:"corners",len:14},
+ note:'太さと長さは基準のまま、<b>色だけ</b>を実装既存の淡青磁へ。角の存在は残るが主張が落ちる。'},
+
+{sec:"s-mark",id:"D2",badge:"詰め",badgeClass:"m",axis:"太さだけ弱める",
+ name:"沈め3% ＋ マーカーを 1.0dp へ細く（濃青磁のまま・12dp）",
+ val:'stroke 1.0dp / 実線 / 長さ 12dp（一覧 14dp）/ color --seiji-ink #50685C / 沈め 3%',
+ ground:G3, gridFrame:{w:1.0,r:3,color:INK,mode:"corners",len:12},
+ listFrame:{w:1.0,r:6,color:INK,mode:"corners",len:14},
+ note:'色と長さは基準のまま、<b>太さだけ</b>を落とす。濃さが残るので遠目の識別は保ちやすい。'},
+
+{sec:"s-mark",id:"D3",badge:"詰め",badgeClass:"m",axis:"三重に弱める（下限側）",
+ name:"沈め3% ＋ 淡青磁・1.0dp・長さ 8dp（一覧 10dp）",
+ val:'stroke 1.0dp / 実線 / 長さ 8dp（一覧 10dp）/ color secondary #9CB3A8 / 沈め 3%',
+ ground:G3, gridFrame:{w:1.0,r:3,color:SEIJI,mode:"corners",len:8},
+ listFrame:{w:1.0,r:6,color:SEIJI,mode:"corners",len:10},
+ note:'色・太さ・長さを同時に落とした<b>下限側</b>。⚠️ ここまで落とすと「一目で未取込と分かる」識別の方が先に死ぬ恐れ＝'+
+      '沈め3%の面と合わせて、まだ気づけるかで見る。'},
+
+{sec:"s-color",id:"色①",badge:"実装",badgeClass:"",axis:"BookshelfK の現在値",
+ name:"淡青磁 secondary #9CB3A8（枠・一覧メタ文字とも）",
+ val:'枠 color secondary #9CB3A8 / 一覧メタ文字 secondary #9CB3A8（＝実装の現状）',
+ ground:G5, gridFrame:{w:1.5,r:3,color:SEIJI,dash:"4 3"}, listFrame:{w:1.5,r:6,color:SEIJI,dash:"4 3"},
+ metaColor:SEIJI,
+ note:'<b>枠</b>＝装飾＝WCAG 対象外。<br><b class="w">一覧のメタ文字は AA 対象</b>＝紙地 2.14:1 で未達。'+
+      'グリッドのキャプションは 2026-08-21 に濃青磁へ是正済みだが、'+
+      '<b>一覧行（KWebListBookCard）は淡いまま取り残されている</b>＝この枠で初めて可視化した乖離。'},
+
+{sec:"s-color",id:"色②",badge:"正本",badgeClass:"",axis:"bookshelf-K.html の現在値",
+ name:"濃青磁 --seiji-ink #50685C（枠・一覧メタ文字とも）",
+ val:'枠 color --seiji-ink #50685C / 一覧メタ文字 --seiji-ink #50685C（＝正本モックの現状）',
+ ground:G5, gridFrame:{w:1.5,r:3,color:INK,dash:"4 3"}, listFrame:{w:1.5,r:6,color:INK,dash:"4 3"},
+ metaColor:INK,
+ note:'<b>枠</b>＝濃いぶん<b class="w">今回の「弱める」とは逆向きに振れる</b>。<br>'+
+      '<b>一覧のメタ文字</b>＝AA を満たす側。<b>枠と文字は別々に決めてよい</b>'+
+      '（例: 枠は淡いまま／文字だけ濃青磁へ、という組み合わせも成立する）。'}
+];
+
+CASES.forEach(function(c){
+  if(!c.ground.list){c.ground.list="#F0EFEE";}
+  var host=document.querySelector("#"+c.sec+" .cases");
+  var el=tile(c);
+  host.appendChild(el);
+  if(c.cssDash){
+    /* 下敷き② だけは CSS の dashed をそのまま使う（＝正本が実際に出している刻みを見せるため） */
+    el.querySelectorAll(".cv.narou,.lc.web").forEach(function(n){
+      n.style.border="1.5px dashed "+c.cssDash;
+      if(n.classList.contains("lc")){n.style.borderBottomStyle="dashed";}
+    });
+  }
+});
+redraw();
+if(document.fonts&&document.fonts.ready){document.fonts.ready.then(redraw);}
+window.addEventListener("resize",function(){clearTimeout(window.__t);window.__t=setTimeout(redraw,120);});
+</script>
+</body>
+</html>

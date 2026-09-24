@@ -30,6 +30,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
+import org.robolectric.annotation.GraphicsMode
 
 /**
  * 2列グリッドの状態行が1行に収まることの回帰（D 共通描画 と 明快K の両方）。
@@ -53,6 +54,11 @@ import org.robolectric.annotation.Config
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34], qualifiers = "w360dp-h640dp-xhdpi")
+// ⚠️ [GraphicsMode] NATIVE 必須。この試験の判定（状態行が1行に収まるか）は**文字の実測幅が
+// 折り返し条件そのもの**。既定の LEGACY は文字幅を字数（＝十数 px）で返すので、どんな文言でも
+// カード幅に余裕で収まり lineCount は常に 1＝アサートが自明に真になり検出力が消える
+// （docs/knowledge/robolectric-legacy-graphicsmode-text-width-is-char-count.md）。
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
 class GridStatusLineWrapTest {
 
     @get:Rule

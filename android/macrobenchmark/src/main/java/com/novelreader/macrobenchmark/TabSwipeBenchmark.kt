@@ -4,10 +4,8 @@ import androidx.benchmark.macro.FrameTimingMetric
 import androidx.benchmark.macro.MacrobenchmarkScope
 import androidx.benchmark.macro.junit4.MacrobenchmarkRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.uiautomator.By
 import androidx.test.uiautomator.BySelector
-import androidx.test.uiautomator.UiDevice
 import androidx.test.uiautomator.Until
 import org.junit.Assert.fail
 import org.junit.Rule
@@ -35,9 +33,10 @@ import org.junit.runner.RunWith
  * 予算 assert は 2026-08-06 に実機較正済み（[TabSwipeBudget] の既定定数と由来コメント参照。
  * [ScrollBudget] / [FlipBudget] が辿った「まず実測→由来付きで定数化」の順序と同じ）。
  *
- * COLD 性・シード配達・前面ガード・注入方式の各作法は [BookshelfScrollBenchmark] / [ChapterFlipBenchmark]
- * と同一の根拠（ColorOS の broadcast 沈黙不達／COLD の force-stop 仕様／launcher も scrollable を持つ／
- * shell `input swipe` の実証）に基づく。機序の詳細は両クラスの KDoc を参照。
+ * COLD 性・前面ガード・注入方式の各作法は [BookshelfScrollBenchmark] / [ChapterFlipBenchmark] と同一の
+ * 根拠（COLD の force-stop 仕様／launcher も scrollable を持つ／shell `input swipe` の実証）に基づく。
+ * シード配達は 2026-08-06 の修理形＝[clearAndSeedLibrary]（前面生存プロセスへ＋resultData 実在検証＋
+ * 全消し前置き。機序の一次情報＝docs/knowledge/coloros-broadcast-silent-drop.md）。
  */
 @RunWith(AndroidJUnit4::class)
 class TabSwipeBenchmark {
@@ -70,8 +69,22 @@ class TabSwipeBenchmark {
             setupBlock = {
                 // (1) 蔵書を投入する。2テストで同一シード（100冊＋実HTML 50章の1冊）にするのは、
                 //     「遷移あり／なし」の差分がそのまま遷移窓の上乗せ分になるようにするため
-                //     （データが違うと2本の数字が比較できなくなる）。
-                seedLibrary()
+                //     （データが違うと2本の数字が比較できなくなる）。配達・検証は修理形＝
+                //     [clearAndSeedLibrary]（前面生存プロセスへ＋resultData 実在検証＋全消し前置き）。
+                //     gridMode=true は既存実測との値の連続性を保つため（測る面が変わると比較できなく
+                //     なる。2026-08-05 是正で実際に効くようになった指定＝経緯は
+                //     [BookshelfScrollBenchmark.scrollList] のコメント）。chapterCount は
+                //     [ChapterFlipBenchmark] と同値＝「章送り計測の書」の実HTML と progress=chap_1 を作る。
+                //     verticalMode=false（横書き）も明示する: 書字方向は端末に残った prefs がそのまま効き、
+                //     縦書きだと描画経路（自前組版＋Canvas）ごと変わって遷移窓の原価が別物になるうえ、
+                //     本文が text ノードを持たなくなり下の着地判定が原理的に空振りする（2026-08-19 の
+                //     iter000 fail の真因）。既定値だが「面の指定」なので gridMode と並べて明示する。
+                clearAndSeedLibrary(
+                    count = SEED_COUNT,
+                    gridMode = true,
+                    chapterCount = CHAPTER_COUNT,
+                    verticalMode = false,
+                )
 
                 // (2) コールド起動して前面ガード。launcher 自身も scrollable を持つため scrollable 待ちでは
                 //     未起動を検知できない＝By.pkg で対象アプリの前面化を必ず検証する。
@@ -81,6 +94,10 @@ class TabSwipeBenchmark {
                 if (!device.wait(Until.hasObject(By.pkg(TARGET_PACKAGE)), 10_000)) {
                     fail("対象アプリが前面に来なかった（ホーム画面のまま計測しない）")
                 }
+
+                // (2') シード副作用の UI 検証: 冊数ヘッダの厳密値（全消し前置きで総数は決定論の 100冊）。
+                //      why の詳細は [verifySeededShelfCount]。
+                verifySeededShelfCount(SEED_COUNT)
 
                 // (3) 本棚（page 0）への着地を確認してから測る。着地前に注入すると1反復目だけ
                 //     ページ実体化の窓を外して測ることになり、反復間で意味の違う数字が混ざる。
@@ -136,8 +153,21 @@ class TabSwipeBenchmark {
             fail("本棚に『$MEASURE_BOOK_TITLE』が現れなかった（シード契約違反 or 本棚未表示の疑い）")
         }
         book!!.click()
-        if (!device.wait(Until.hasObject(By.textStartsWith("第1章")), 10_000)) {
-            fail("chap_1 本文（第1章）に着地しなかった（目次着地＝progress リセット未反映の疑い）")
+        if (!device.wait(Until.hasObject(CHAPTER1_BODY_MARKER), 10_000)) {
+            // 空振りの切り分けを fail 文言に載せる（2026-08-19 の全5走行 iter000 fail は、旧文言が
+            // 疑っていた「progress リセット未反映」ではなく**書字方向が縦書きのまま**だった）:
+            // 縦書き本文は clearAndSetSemantics で text を持たず contentDescription にだけ出るため、
+            // By.text 系は着地していても必ず空振りする。desc 側に居るかを見て両者を区別する。
+            val verticalLanded = device.hasObject(By.descContains("第1章"))
+            fail(
+                if (verticalLanded) {
+                    "第1章 本文へは着地しているが縦書き（text ノード不在・desc のみ）＝" +
+                        "シードの verticalMode 指定が効いていない。横書き面で測る契約が壊れている"
+                } else {
+                    "chap_1 本文（第1章）に着地しなかった（本が開いていない／目次着地＝" +
+                        "progress リセット未反映／章見出しの意匠変更 のいずれか）"
+                }
+            )
         }
         // pop は2段（2026-08-06 実機確定）: progress 付きで本を開くと NavHost のスタックは
         // 本棚→目次→本文 と積まれ、本文からの Back は**目次画面**に着地する（「本棚に戻る」ボタンと
@@ -202,36 +232,9 @@ class TabSwipeBenchmark {
         )
     }
 
-    /**
-     * LibrarySeedReceiver へ shell `am broadcast` を送り、100冊＋実HTML 50章の計測用の書を投入して完了を待つ。
-     * 作法（force-stop で dead 化してから shell 経由）と根拠は ChapterFlipBenchmark.seedChapterBook と同一
-     * （ColorOS の broadcast 沈黙不達＝docs/knowledge/coloros-broadcast-silent-drop.md）。
-     *
-     * `gridMode true` を渡す理由（2026-08-05・旧値 false から変更）: シーダーが K の `k_grid_view` も書く
-     * ようになり gridMode が**実際に効くようになった**（それ以前は D の `is_grid_view` しか書かず、
-     * ADR 0027 のゲートで明快K へクランプされる benchmark ビルドでは1つも効いていなかった）。
-     * 本ベンチは面の徴と題名の掴み方を両対応にしてあるのでどちらでも成立するが、これまで実測してきたのは
-     * K の既定＝**グリッド**なので、値の連続性を保つため明示的に true を渡す（false にすると測る面が
-     * 変わり、既存の実測値と比較できなくなる）。
-     */
-    private fun seedLibrary() {
-        val device = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
-        device.executeShellCommand("am force-stop $TARGET_PACKAGE")
-        val out = device.executeShellCommand(
-            "am broadcast --include-stopped-packages" +
-                " -n $TARGET_PACKAGE/$RECEIVER_CLASS -a $ACTION_SEED" +
-                " --ei count $SEED_COUNT --ei chapterCount $CHAPTER_COUNT --ez gridMode true"
-        )
-        val result = Regex("""result=(-?\d+)""").find(out)?.groupValues?.get(1)?.toIntOrNull()
-        if (result != SEED_COUNT) {
-            fail("シード結果 result=$result（期待 $SEED_COUNT）。am broadcast 出力: $out")
-        }
-    }
-
     private companion object {
         val TARGET_PACKAGE = BenchmarkTargets.TARGET_PACKAGE
-        const val RECEIVER_CLASS = "com.novelreader.bench.LibrarySeedReceiver"
-        const val ACTION_SEED = "com.novelreader.benchmark.action.SEED_LIBRARY"
+        // シード配達の宛先・action は共通ヘルパ（LibrarySeeding.kt）側の契約値に集約した。
         const val SEED_COUNT = 100
         const val CHAPTER_COUNT = 50
         const val MEASURE_BOOK_TITLE = "章送り計測の書"
@@ -252,6 +255,15 @@ class TabSwipeBenchmark {
 
         /** 設定＝設定カードの行見出し（きせかえ行は公開ゲートで消えるため、常に在る行を選ぶ）。 */
         val SETTINGS_MARKER: BySelector = By.text("文字と組版")
+
+        /**
+         * 本文（chap_1）着地の徴＝章見出しの題テキスト。横書き [com.novelreader.ui.ChapterContent] の
+         * ChapterHeader が `splitChapterTitle` の**題側**を Compose Text で描くため、シードが書く
+         * `<h1>第1章</h1>` はそのまま text ノードとして出る（2026-08-06 の話数ラベル2要素化で足された
+         * `第 一 話` はラベル側の別ノード＝題側の前方一致は壊れない）。
+         * 縦書きでは text ノードが存在しない＝この徴は使えないため、書字方向はシードで固定する契約。
+         */
+        val CHAPTER1_BODY_MARKER: BySelector = By.textStartsWith("第1章")
 
         /**
          * 目次画面の徴＝「本棚に戻る」ボタンの contentDescription（2026-08-06 実機 dump で確認）。

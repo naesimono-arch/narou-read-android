@@ -41,60 +41,84 @@ internal class PendingJobStore(
     // この insert が全消しの後に着地し、破棄済みジョブが復活する（フィールド pendingJobMutex の why 参照）。
     suspend fun add(uri: String, displayName: String) = withContext(Dispatchers.IO) {
         pendingJobMutex.withLock {
-            pendingJobDao.insert(PendingJobEntity(uri, displayName, System.currentTimeMillis()))
+            // ⚠️ 再開回数（attempts）は必ず引き継ぐ。REPLACE は行ごと差し替えるので、素直に
+            // 新しい Entity を入れると **再起動ループの止め金がゼロに戻る**——リカバリは再投入時に
+            // Service の ACTION_START を通し、そこが同じ URI を再記帳するため、毎回 0 にリセットされて
+            // カウンタが永遠に上限へ届かない（＝防御が無いのと同じ）。読み出しも同じ Mutex 内なので
+            // 「読んでから書くまでに他が割り込む」窓は無い。
+            val carriedAttempts = pendingJobDao.findByUri(uri)?.attempts ?: 0
+            pendingJobDao.insert(
+                PendingJobEntity(uri, displayName, System.currentTimeMillis(), carriedAttempts),
+            )
         }
+    }
+
+    /**
+     * 起動時リカバリが「これから再開する」ことを行へ刻む（再投入の**前**に呼ぶ）。
+     *
+     * なぜ再投入の前か: 目的はプロセスが死んでも残る証跡を残すこと。後に加算する形だと、
+     * 再開した取込が同じ地点でプロセスごと落ちた場合に加算が実行されず、次回起動も同じ値を見て
+     * 同じことを繰り返す＝止め金が一度も進まない。先に加算しておけば「死んだ回数」が必ず残る。
+     */
+    suspend fun markResumeAttempt(uri: String) = withContext(Dispatchers.IO) {
+        pendingJobMutex.withLock { pendingJobDao.incrementAttempts(uri) }
     }
 
     /** 未完了ジョブ一覧（enqueue 順）。起動時リカバリの検出用。 */
     suspend fun getAll(): List<PendingJobEntity> =
         withContext(Dispatchers.IO) { pendingJobDao.getAll() }
 
-    /** 再開不能と判明したジョブの除去（権限喪失時など）。永続権限も返す。 */
-    // pending_jobs 書き込みは pendingJobMutex で一律直列化する（settlePendingJob 自体はロックを持たないため
-    // 呼び出し側で取る＝Mutex は非再入なので二重取得によるデッドロックを避ける設計）。
+    /** 再開不能と判明したジョブの除去（権限喪失・再開回数の打ち切り）。永続 URI 権限は解放しない
+     *  （理由は [settleJob] の why＝ADR 0043）。 */
+    // pending_jobs 書き込みは pendingJobMutex で一律直列化する（Mutex は非再入なので、ロックを取るのは
+    // 各 public メソッドの1箇所だけに保つ＝二重取得によるデッドロックを避ける設計）。
     suspend fun remove(uri: String) = withContext(Dispatchers.IO) {
-        pendingJobMutex.withLock { settlePendingJob(Uri.parse(uri)) }
+        pendingJobMutex.withLock { pendingJobDao.deleteByUri(uri) }
     }
 
-    /** 全ジョブの除去（ユーザーの明示停止＝「再開してほしくない」意思の反映）。 */
+    /** 全ジョブの除去（ユーザーの明示停止＝「再開してほしくない」意思の反映）。永続 URI 権限は解放しない。
+     *  なぜ解放しないか（ADR 0043・[settleJob] の why に加えてこの経路固有の理由）: 停止されたジョブの URI が
+     *  「生きている本の取込元」でもあることがある（欠落本の一括再取込は books.sourceUri をそのまま再投入する
+     *  ＝BookshelfViewModel.submitAutoReimports の①経路）。ここで返すと、停止操作が無関係な蔵書の
+     *  取込元PDF削除まで巻き添えで壊す。 */
     suspend fun clearAll() = withContext(Dispatchers.IO) {
         // pendingJobMutex で enqueue の記帳(addPendingJob)と直列化する。これが無いと「追加直後に停止」で
         // insert が deleteAll をすり抜けて後着し、破棄済みジョブが復活する（フィールド pendingJobMutex の why 参照）。
-        pendingJobMutex.withLock {
-            // deleteAll の前に各行の永続権限を返す（行を先に消すと解放対象の URI が分からなくなる）
-            pendingJobDao.getAll().forEach { releasePersistedPermission(context, Uri.parse(it.uri)) }
-            pendingJobDao.deleteAll()
-        }
+        pendingJobMutex.withLock { pendingJobDao.deleteAll() }
     }
 
-    /** 変換の成否確定（成功/重複）時の確定処理＝記帳削除＋永続権限の返却（ロックはここで取る）。
-     *  なぜ withContext(Dispatchers.IO) を付けないか: 呼び出し側（PdfBookImporter.addBook）は既に
-     *  IO/NonCancellable 上で走っており、余計な再ディスパッチを挟まない＝分割前の呼び出し形と同一に保つ。 */
+    /**
+     * 変換の成否が確定した（成功／重複／失敗）ジョブの記帳削除。**永続 URI 権限は保持したままにする**。
+     *
+     * なぜ即時解放しないか（ADR 0043・2026-09-03 裁定）: 取込元PDF の削除（本削除時のオプトイン）は
+     * DocumentsContract.deleteDocument に永続権限を要する。旧実装がここで解放していたため、取込元 URI の
+     * 権限は「取り込んだアクティビティが生きている間だけ」の一時 grant でしか保たれず、アプリを閉じると
+     * 以後は必ず失効した＝取込元PDF削除がその後は必ず失敗し、しかも DB 行だけ消えて実体が残る形で失敗した
+     * （エミュ実測＝docs/verification-shots/source-pdf-delete-2026-09-02/）。
+     *
+     * なぜ「この層では判定できない」か（解放を一箇所へ寄せた理由）: PendingJobStore は books を見ないため、
+     * 確定した URI が「生きている本の取込元（books.sourceUri）」かどうかを原理的に判定できない。判定できるのは
+     * keepUris（pending_jobs ∪ books.sourceUri）を組み立てられる [releaseOrphanedPermissions] だけなので、
+     * 解放の意思決定はそこと「本の死」（LibraryDeleter.deleteBook）の2点に集約する。
+     *
+     * なぜ withContext(Dispatchers.IO) を付けないか: 呼び出し側（PdfBookImporter.addBook）は既に
+     * IO/NonCancellable 上で走っており、余計な再ディスパッチを挟まない＝分割前の呼び出し形と同一に保つ。
+     */
     suspend fun settleJob(pdfUri: Uri) {
-        pendingJobMutex.withLock { settlePendingJob(pdfUri) }
-    }
-
-    /** 取込失敗時の記帳削除（永続権限は意図的に残す）。なぜ settle でないか＝M7 再試行の成立
-     *  （PdfBookImporter.addBook の失敗経路コメント参照）。withContext を付けない理由は [settleJob] と同じ。 */
-    suspend fun deleteRowKeepingPermission(uriString: String) {
-        pendingJobMutex.withLock { pendingJobDao.deleteByUri(uriString) }
-    }
-
-    /** pending_jobs の記帳を消し、再開用に取得した永続 URI 権限も返す。
-     *  変換の成否が確定した時点（成功=Room 登録済み／失敗=エラー通知確定）で呼ぶ。 */
-    private suspend fun settlePendingJob(pdfUri: Uri) {
-        pendingJobDao.deleteByUri(pdfUri.toString())
-        releasePersistedPermission(context, pdfUri)
+        pendingJobMutex.withLock { pendingJobDao.deleteByUri(pdfUri.toString()) }
     }
 
     /**
      * 起動時クリーンアップ: keepUris に紐付かない「孤児」の永続 URI 権限を解放する（恒久リーク回収）。
      *
-     * なぜこれが必要か（root cause）: 取込失敗時は M7 の「再試行」を成立させるため、addBook の失敗経路が
-     * settlePendingJob（権限解放込み）ではなく pending_jobs 行の削除のみを行い、永続 URI 権限を意図的に
-     * 残す。しかし再試行 Snackbar はプロセス生存中にしか出せないため、再試行されないまま終わった失敗分の
-     * 権限は「どの経路でも解放されない」恒久リークになり、端末上限(128件)へ向けて溜まり続ける。そこで
-     * 次回アプリ起動時に「keepUris 非紐付けの永続権限＝もう誰も要さない置き土産」として回収する。
+     * なぜこれが必要か（root cause）: ADR 0043 以降、取込経路は成否によらず永続 URI 権限を解放しない
+     * （[settleJob] の why＝この層は「生きている本の取込元か」を判定できない）。よって解放の判定を一手に
+     * 引き受けるのがここになる。回収対象の典型は ①取込に失敗し再試行もされずに終わった URI（再試行
+     * Snackbar はプロセス生存中しか出せない）②重複と判定されて本にならなかった URI ③明示停止(clearAll)で
+     * 捨てられた URI ④書込権限を取れず books.sourceUri に採られなかった URI。いずれも「どの本も
+     * どの pending も名乗らない置き土産」で、放置すると端末上限(128件)へ向けて溜まり続ける。
+     * ⚠ 代償: 解放が次回起動まで遅れる（ADR 0043 が受け入れた代償。上限に当たる兆候が出たら
+     * 「古い本から解放する」等の追い出し規則を別途要する）。
      *
      * ⚠ keepUris の構成（呼び出し側 NovelReaderApplication が union して渡す）:
      *   ① 現在の pending_jobs が保持する URI（＝処理中・再開対象の取込。取込1経路の永続権限）
@@ -135,8 +159,11 @@ internal class PendingJobStore(
  *  なるので防御する（返せなくても実害は上限消費のみ）。
  *  READ|WRITE を指定するのは、取込元PDF削除を可能にする本が WRITE 権限も保持しているため
  *  （両方まとめて返す）。保持していない flag の解放は無害な no-op＝READ のみ保持の再開ジョブ URI にも安全。
- *  なぜトップレベル関数か: pending_jobs の確定処理（本ファイル）と本削除（LibraryDeleter.deleteBook）の
- *  両方が使う共有ロジックのため、どちらかのクラスに私有させず同パッケージの共通関数に置く。 */
+ *  ⚠ 呼んでよいのは2箇所だけ（ADR 0043）＝「本の死」(LibraryDeleter.deleteBook) と
+ *  起動時の孤児回収 ([PendingJobStore.releaseOrphanedPermissions])。取込の確定経路からは呼ばない
+ *  （呼ぶと本の生存中に取込元PDF削除の権限を失う＝0043 が塞いだ当の不具合が戻る）。
+ *  なぜトップレベル関数か: 上記2箇所が別クラスに分かれているため、どちらかに私有させず
+ *  同パッケージの共通関数に置く。 */
 internal fun releasePersistedPermission(context: Context, pdfUri: Uri) {
     runCatching {
         context.contentResolver.releasePersistableUriPermission(
@@ -148,8 +175,9 @@ internal fun releasePersistedPermission(context: Context, pdfUri: Uri) {
 
 /**
  * 起動時に解放すべき「孤児」の永続 URI 権限を判定する純関数（テスト対象）。
- * 持続化された読み取り権限のうち pending_jobs 非紐付けのもの＝もう再試行され得ない失敗取込の
- * 置き土産を差集合で選ぶ。UI・contentResolver 非依存で回収ロジックの中核を単体テストするため分離する
+ * 持続化された読み取り権限のうち keepUris（＝処理中/再開待ちの pending_jobs ∪ 生きている本の
+ * books.sourceUri）に紐付かないもの＝もう誰も要さない置き土産を差集合で選ぶ。
+ * UI・contentResolver 非依存で回収ロジックの中核を単体テストするため分離する
  * （releaseOrphanedPermissions が persistedUriPermissions 取得と実解放の副作用を担い、判定はここ）。
  */
 internal fun orphanedPermissionUris(

@@ -24,7 +24,7 @@ import java.io.File
  * テスト自身が assert するのは疎通（index.html/chap_1.html が生成される）まで。
  * **リーダー目視関門**（plan Task9 ③：ふりがな位置・章送り・前後書き囲み・シーン区切り）は人間が行う：
  * `-Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true` でアプリを残し、
- * テスト後に本棚へ並ぶ3冊を開いて目視する（[[workflow-notify-each-step-visual-check]]）。
+ * テスト後に本棚へ並ぶ3冊を開いて目視する（`/device-verify`「人間の関門」）。
  *
  * 実PDF資産は gitignore（bring-your-own）。正本は sample_pdfs/ と ab-review/golden_regression/。
  */

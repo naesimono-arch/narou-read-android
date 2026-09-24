@@ -1,4 +1,4 @@
-<!-- @dsCard group="UI-n / 着せ替え" name="D. 装いの間 — スキンカルーセル（入口は本棚のみ）" -->
+<!-- @dsCard group="UI-n / 着せ替え" name="D. 装いの間 — スキンカルーセル（ミニチュア＝全スキン実画面縮図）" -->
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -7,14 +7,32 @@
 <title>UI-n D 装いの間 — スキンカルーセル</title>
 <style>
   /*==harness==*/
-  /* D案 装いの間: 本棚から入る専用の着せ替え画面。スキンの UI 全体プレビューをコーバーフローで並べ、
-     スワイプで回し、中央に来た装いを「装着」でアプリ全体へ適用する。並び順は 和モダン→夜行→今後追加
-     で固定（今後追加は常に末尾＝右端）。カルーセルは静的モック＝スワイプは「見切れ・scale・インジケータ」
-     の構図で示す（実装は横スクロールのスナップ想定）。
-     ● 設計意図: 入口は本棚のみ＝読書中に着せ替えの選択肢を持ち込まない（ユーザー裁定 2026-07-17・
-       意図的設計。読書画面に他の選択肢が入るのを避ける）。カード=本棚ミニチュアを採用し、
-       読書画面ミニチュア案は却下（着せ替えの舞台＝本棚に構図を寄せ、読書へ意識を散らさないため）。
-     色は D=settings-D/bookshelf-D の変数・C=収蔵 C モック(reading-C/bookshelf-C)変数のみ（新色発明なし）。
+  /* D案 装いの間: 設定タブ「きせかえ」から入る専用の着せ替え画面。スキンの UI 全体プレビューをコーバーフローで
+     並べ、スワイプで回し、中央に来た装いを「装着」でアプリ全体へ適用する。並び順は実装 Skin.entries が正本＝
+     明快K→和モダンD→夜行C→星図M→カートリッジP→ポータルJ→今後追加（今後追加は常に末尾＝右端）。
+     カルーセルは静的モック＝スワイプは「見切れ・scale・インジケータ」の構図で示す（実装は HorizontalPager）。
+
+     ● 設計意図: カード=本棚ミニチュアを採用し、読書画面ミニチュア案は却下（着せ替えの舞台＝本棚に構図を寄せ、
+       読書へ意識を散らさないため）。
+
+     ● ミニチュアの描き方＝**案E「全スキン実画面縮図」**（2026-08-26 裁定・比較ドラフト
+       wardrobe-miniature-compare.html の A〜E から採択）。6枚を**各スキンの署名構造**で描く:
+         明快K   … 2列グリッド（6冊）＋塗りチップ＋FAB          ゴシック太字の見出し
+         和モダンD … ゆとりの2列グリッド（4冊・書影を大きく）＋枠チップ＋FAB   明朝の見出し
+         夜行C   … 見出しもチップも持たない極小クローム＋大きな「続きから」ヒーロー＋2行の目録
+         星図M   … 見出し＋星座配置（星と結線と作品名）
+         カートリッジP … 見出し＋緑LCD帯（NOW PLAYING）＋単列カセット3本
+         ポータルJ … 見出し＋扉の peek（中央の大扉と両脇の小扉）
+       **なぜ「共通1レイアウト＋色替え」を捨てたか**: 旧案（案A）は全スキンが同じ抽象縮図で、替わるのは色だけ
+       だった。明快K は `SkinK : SkinTokens by SkinD` でトークンを D へ全委譲しており**2枚が完全に同じ絵**になる
+       ＝名前を読むまで区別がつかない。スキンは「全く別のアプリ」級（2026-07-17 最上位原則）であり、装いの間は
+       課金要素＝ここで手を抜かない、というユーザー方針で案E を採った。代償（恒久負債）は「本棚の意匠を変える
+       たび縮図も追う」ことで、これは承知のうえの採択。
+
+     ● **ボトムナビ3タブは全スキン共通**（MainActivity が全スキンへ KBottomNav を搭載・モックも 2026-07-29 の
+       K形伝播で D/M/P/J すべて tabbar あり）。ゆえにナビは6枚**すべて**に描く（K の縮図にだけ描くのは嘘になる）。
+
+     色は実装トークンの実値のみ（新色の発明なし）。値の出どころは下の :root 群のコメントを参照。
      署名: 藍のヘアライン体系・明朝見出し・大胆な余白。夜行装着後はクローム自体が深炭面へ即時反映。 */
   :root{
     --base:#FBFAF8;--ink:#1C1F26;--soft:#7C808B;--line:#ECEAE4;
@@ -25,7 +43,7 @@
   *{box-sizing:border-box;margin:0;padding:0}
   body{background:#E4E3DD;display:flex;flex-direction:column;align-items:center;min-height:100vh;
     padding:26px;font-family:var(--gothic)}
-  .cap{color:#5A5C57;font-size:13px;margin-bottom:18px;text-align:center;line-height:1.6;max-width:720px}
+  .cap{color:#5A5C57;font-size:13px;margin-bottom:18px;text-align:center;line-height:1.6;max-width:820px}
   .cap b{color:#2A2C28}
   .rail{display:flex;flex-wrap:wrap;gap:32px;justify-content:center;align-items:flex-start}
   .col{display:flex;flex-direction:column;align-items:center}
@@ -36,6 +54,23 @@
   /* 夜行を装着した直後＝クローム自体が深炭面へ即時反映。settings-D 変数名に C 実値を写像
      （--ai 藍→--slate 月光スレート#8E99B0・muted→text-dim#8B8A84・線→C line#2C303A）。 */
   .phone.night{--base:#16181D;--ink:#D8D1C5;--soft:#8B8A84;--line:#2C303A;--ai:#8E99B0;--seiji-ink:#8B8A84}
+  /* 一覧（全6枚＋今後追加を等倍で並べる検分面。実機には無い＝モック専用の点検レール） */
+  .allwrap{margin-top:44px;padding-top:28px;border-top:1px solid #CFCEC7;width:100%;max-width:1560px}
+  .alltitle{font-family:var(--mincho);font-size:18px;letter-spacing:.06em;color:#1F211E;text-align:center}
+  .allsub{font-size:12px;color:#5A5C57;text-align:center;margin-top:8px;line-height:1.7}
+  .allrail{display:flex;gap:24px;align-items:flex-start;width:max-content;margin:22px auto 0}
+  .allscroll{overflow-x:auto;padding-bottom:14px}
+  .cell{width:180px;text-align:center}
+  .cell .nm{font-family:var(--mincho);font-size:14px;color:#1F211E;margin-top:12px}
+  .cell .tg{font-size:10px;color:#6A6C66;margin-top:4px;line-height:1.4}
+  .cell.hi .nm{color:#1C3D5A;font-weight:600}
+  .cell.hi::after{content:"既定";display:block;margin:6px auto 0;font-size:9px;letter-spacing:.12em;
+    color:#1C3D5A;border:1px solid #1C3D5A;border-radius:999px;padding:1px 8px;width:max-content}
+  .gap{max-width:1000px;margin:26px auto 0;padding:14px 16px;background:#FBFAF8;border-left:3px solid #8A3A32;
+    border-radius:0 6px 6px 0;font-size:11.5px;line-height:1.75;color:#4A4C48}
+  .gap h3{font-family:var(--mincho);font-size:13px;color:#1F211E;font-weight:500;margin-bottom:6px}
+  .gap b{color:#8A3A32}
+  .gap li{margin-left:18px}
   /*==/harness==*/
 
   /* 共有クローム（bookshelf-D 写経: sb） */
@@ -59,41 +94,110 @@
   .cname{font-family:var(--mincho);font-size:16px;color:var(--ink);text-align:center;margin-top:16px}
   .cone{font-family:var(--gothic);font-size:10.5px;color:var(--soft);text-align:center;margin-top:4px}
 
-  /* カード中身: 本棚ミニチュア（内部スケールは自由＝縮図表現） */
-  .mshelf{width:180px;height:300px;border-radius:14px;overflow:hidden;padding:16px 14px;box-shadow:0 14px 34px rgba(0,0,0,.24)}
-  .mshelf.add{background:transparent;border:1px dashed var(--soft);display:grid;place-items:center;box-shadow:none}
-  .mshelf.add .plus{font-size:34px;color:var(--soft);line-height:1;text-align:center}
-  .mshelf.add .plus small{display:block;font-size:10px;margin-top:8px;letter-spacing:.08em}
-  .m-h1{font-family:var(--mincho);font-size:14px;letter-spacing:.14em;margin-bottom:12px}
-  .m-hero{display:flex;gap:10px;border-radius:8px;padding:10px;margin-bottom:14px}
-  .m-cover{width:34px;height:50px;border-radius:3px;flex-shrink:0}
-  .m-lines{flex:1;padding-top:2px}
-  .m-lines i{display:block;height:5px;border-radius:2px;margin-bottom:6px}
-  .m-li{display:flex;gap:10px;align-items:center;padding:8px 0;border-top:1px solid}
-  .m-c{width:22px;height:32px;border-radius:2px;flex-shrink:0}
-  .m-ls{flex:1}
-  .m-ls i{display:block;height:4px;border-radius:2px;margin-bottom:5px}
-  /* 和モダン皮膚 */
-  .msD{background:#FBFAF8}
-  .msD .m-h1{color:#1C1F26}
-  /* D のヒーローは面を塗らない（正本 bookshelf-fusion-D＝素地×ヘアラインのみ。#F3F2EE は発明色だったため排除） */
-  .msD .m-hero{background:transparent;border:1px solid #ECEAE4}
-  .msD .m-cover{background:linear-gradient(160deg,#3A4F63,#28323E)}
-  .msD .m-lines i{background:rgba(28,31,38,.20)}
-  .msD .m-lines i.acc{background:#1C3D5A}
-  .msD .m-li{border-color:#ECEAE4}
-  .msD .m-c{background:linear-gradient(160deg,#5E4A5C,#3B2F3A)}
-  .msD .m-ls i{background:rgba(28,31,38,.16)}
-  /* 夜行皮膚（収蔵 C モック値） */
-  .msC{background:#16181D}
-  .msC .m-h1{color:#D8D1C5}
-  .msC .m-hero{background:linear-gradient(135deg,#252932,#1E2128);border:1px solid #2C303A}
-  .msC .m-cover{background:#3A4150}
-  .msC .m-lines i{background:rgba(216,209,197,.18)}
-  .msC .m-lines i.acc{background:#C79A6A}
-  .msC .m-li{border-color:#2C303A}
-  .msC .m-c{background:#3A4150}
-  .msC .m-ls i{background:rgba(216,209,197,.14)}
+  /* ============================================================
+     ミニチュア（案E）。カード 180x300・角丸14。内部の寸法は px 直値＝縮図の内部スケールは自由。
+     色は各カードの style に流し込む CSS 変数（スキンのトークン実値）で受ける:
+       --bg  背景          = material.background
+       --ink 主文字        = material.onBackground
+       --soft 補助文字/装飾 = material.onSurfaceVariant
+       --hair 本棚の罫     = ShelfColors.hairline （D/K は #E4E2DB＝outlineVariant #ECEAE4 とは別値）
+       --navline ナビ上罫  = material.outlineVariant （KBottomNav の実装が outlineVariant を引くため）
+       --cont コンテナ面   = material.surfaceContainer
+       --pri  クローム署名 = material.primary （FAB・チップ塗り・ナビ選択＝実装が primary を引く箇所）
+       --acc  スキン署名色 = SkinTokens.signatureAccent （進捗線・星・扉の敷居＝本棚本体の意匠）
+       --onpri 塗りの上の字 = material.onPrimary （塗りチップ・FAB の字。K/D のみ使用）
+       --tint ナビ選択ピル = primary @10%（KBottomNav の実装値）
+       --cover 書影チップ  = lerp(primary, onBackground, .35)（実装 SkinMiniature の導出そのまま）
+       --hl/--ll 抽象文字線 = onBackground @20% / @16%
+     ============================================================ */
+  .mini{width:180px;height:300px;border-radius:14px;overflow:hidden;position:relative;
+    box-shadow:0 14px 34px rgba(0,0,0,.24);background:var(--bg);display:flex;flex-direction:column}
+  .mini.add{background:transparent;border:1px dashed #7C808B;box-shadow:none;display:grid;place-items:center}
+  .mini.add .plus{font-size:34px;color:#7C808B;line-height:1;text-align:center}
+  .mini.add .plus small{display:block;font-size:10px;margin-top:8px;letter-spacing:.08em}
+
+  /* 共有パーツ1: 画面上部の見出し（本棚 + 冊数 + 表示切替）。夜行C だけ持たない＝極小クロームが C の署名。 */
+  .s-head{padding:11px 11px 0;display:flex;align-items:baseline;justify-content:space-between}
+  .s-head .t{display:flex;align-items:baseline;gap:5px}
+  .s-head h4{font-size:12px;color:var(--ink);letter-spacing:.03em}
+  .s-head h4.gt{font-family:var(--gothic);font-weight:700}
+  .s-head h4.mn{font-family:var(--mincho);font-weight:500;letter-spacing:.1em}
+  .s-head em{font-size:8.5px;font-style:normal;font-weight:600;color:var(--soft)}
+  .s-head .v{width:12px;height:12px;border-radius:2px;border:1px solid var(--soft);opacity:.7}
+  /* 共有パーツ2: 状態チップ行（K=塗り／D=枠）。塗り分けが K と D の別れ目のひとつ。 */
+  .s-chips{display:flex;gap:4px;padding:7px 11px 0}
+  .s-chips b{font-size:7px;font-weight:400;padding:2px 6px;border-radius:999px;
+    border:1px solid var(--hair);color:var(--soft)}
+  .s-chips b.fill{background:var(--pri);border-color:var(--pri);color:var(--onpri);font-weight:700}
+  .s-chips b.out{border-color:var(--pri);color:var(--pri);font-weight:600}
+  /* 共有パーツ3: 書影グリッド（K=6冊・小／D=4冊・大＝ゆとり）。u は栞の背表紙。 */
+  .s-grid{padding:9px 11px 0;display:grid;grid-template-columns:1fr 1fr}
+  .s-grid.k{gap:7px 8px}
+  .s-grid.d{gap:12px 14px}
+  .s-grid .bk .cv{border-radius:3px;background:var(--cover);position:relative;overflow:hidden}
+  .s-grid.k .bk .cv{height:50px}
+  .s-grid.d .bk .cv{height:60px}
+  .s-grid .bk .cv u{position:absolute;left:4px;top:4px;width:2px;height:14px;background:var(--acc);
+    border-radius:1px;text-decoration:none}
+  .s-grid .bk i{display:block;height:3px;border-radius:2px;background:var(--ll);margin-top:4px}
+  /* 共有パーツ4: FAB（＋PDF）。K と D だけが持つ＝取り込み動線を前面に出す2スキンの署名。 */
+  .s-fab{position:absolute;right:9px;bottom:44px;height:17px;padding:0 8px;border-radius:9px;
+    background:var(--pri);color:var(--onpri);font-size:7px;font-weight:700;display:grid;place-items:center;
+    box-shadow:0 3px 8px rgba(0,0,0,.25)}
+  /* 共有パーツ5: 恒常ボトムナビ（全6枚に載る＝アプリ共通の事実）。 */
+  .s-nav{margin-top:auto;height:34px;border-top:1px solid var(--navline);display:flex;background:var(--bg)}
+  .s-nav a{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;
+    color:var(--soft);text-decoration:none;position:relative}
+  .s-nav a.on{color:var(--pri)}
+  .s-nav .ic{position:relative;width:26px;height:14px;display:grid;place-items:center}
+  .s-nav a.on .ic::before{content:"";position:absolute;inset:0;border-radius:7px;background:var(--tint)}
+  .s-nav svg{position:relative;width:12px;height:12px;fill:none;stroke:currentColor;stroke-width:1.7;
+    stroke-linecap:round;stroke-linejoin:round}
+  .s-nav .lb{font-size:6.5px;letter-spacing:.02em}
+  .s-nav a.on .lb{font-weight:700}
+
+  /* 夜行C の署名: 見出しを持たず「続きから」ヒーローを大きく置き、下に目録2行だけ。 */
+  .e-hero{margin:14px 11px 0;border-radius:6px;padding:9px;background:var(--cont);border:1px solid var(--hair)}
+  .e-hero .k{font-size:7.5px;letter-spacing:.14em;color:var(--acc);font-weight:700}
+  .e-hero .r{display:flex;gap:9px;margin-top:6px;align-items:center}
+  .e-hero .r .cv{width:30px;height:44px;border-radius:2px;background:var(--cover);flex:none}
+  .e-hero .r .tx{flex:1;display:flex;flex-direction:column;gap:5px}
+  .e-hero .r .tx i{display:block;height:4px;border-radius:2px;background:var(--hl)}
+  .e-hero .r .tx i.acc{background:var(--acc);height:3px}
+  .e-list{margin:10px 11px 0}
+  .e-list .li{display:flex;gap:8px;align-items:center;padding:6px 0;border-top:1px solid var(--hair)}
+  .e-list .li .c{width:16px;height:23px;border-radius:2px;background:var(--cover);flex:none}
+  .e-list .li .ls{flex:1;display:flex;flex-direction:column;gap:3px}
+  .e-list .li .ls i{display:block;height:3px;border-radius:2px;background:var(--ll)}
+
+  /* 星図M の署名: 作品が星座として夜天に散り、結線で束ねられる（グリッドを持たない）。 */
+  .e-sky{position:relative;flex:1;margin:6px 0 0}
+  .e-sky .cst{position:absolute}
+  .e-sky .cst b{position:absolute;border-radius:50%;background:var(--acc);display:block}
+  .e-sky .cst u{position:absolute;height:1px;background:var(--acc);opacity:.5;transform-origin:0 0;display:block}
+  .e-sky .cst em{position:absolute;font-style:normal;font-size:6.5px;color:var(--ink);white-space:nowrap;letter-spacing:.06em}
+
+  /* カートリッジP の署名: 緑LCD の再生表示 + 単列に挿さるカセット（＝棚でなく機械の面）。 */
+  .e-lcd{margin:9px 11px 0;border-radius:3px;background:var(--acc);color:var(--lcdink);padding:6px 8px;
+    border:1px solid var(--hair)}
+  .e-lcd .k{font-size:6.5px;letter-spacing:.16em;font-weight:700}
+  .e-lcd .t{font-size:8px;font-weight:700;margin-top:3px}
+  .e-cas{margin:8px 11px 0;display:flex;flex-direction:column;gap:6px}
+  .e-cas .cs{height:30px;border-radius:3px;background:var(--panel);border:1px solid var(--hair);
+    display:flex;align-items:center;gap:6px;padding:0 6px}
+  .e-cas .cs .lb{width:20px;height:18px;border-radius:1px;background:var(--cover)}
+  .e-cas .cs .rb{flex:1;display:flex;gap:2px}
+  .e-cas .cs .rb i{display:block;flex:1;height:12px;background:var(--hair);border-radius:1px}
+
+  /* ポータルJ の署名: 作品が「扉」として立ち、中央の一枚が大きく、両脇が覗く（金の敷居）。 */
+  .e-doors{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:8px 8px 0}
+  .e-doors .dr{border-radius:4px 4px 0 0;background:var(--cont);border:1px solid var(--hair);
+    border-bottom:2px solid var(--acc);position:relative}
+  .e-doors .dr.mid{width:74px;height:106px}
+  .e-doors .dr.side{width:34px;height:82px;opacity:.55}
+  .e-doors .dr em{position:absolute;inset:0;display:grid;place-items:center;font-style:normal;
+    font-family:var(--mincho);font-size:22px;color:var(--acc);opacity:.9}
+  .e-doors .dr.side em{font-size:13px}
 
   /* フッタ: ページインジケータ＋CTA */
   .wfoot{margin-top:auto;padding-bottom:8px}
@@ -113,157 +217,188 @@
 </style>
 </head>
 <body>
-  <p class="cap"><b>D. 装いの間 — スキンカルーセル</b> ／ 本棚から入る専用の着せ替え画面。コーバーフロー（中央=前面・両脇が覗く）をスワイプで回し、中央の装いを「装着」でアプリ全体へ適用。並び順は 和モダン→夜行→今後追加（末尾固定）。<b>入口は本棚のみ＝読書中に着せ替えの選択肢を持ち込まない（意図的設計）</b>。左から〈D装着中〉〈C中央=これを装着〉〈C装着直後＝クロームが深炭面へ即時反映〉。</p>
+  <p class="cap"><b>D. 装いの間 — スキンカルーセル</b> ／ 設定タブ「きせかえ」から入る専用の着せ替え画面。コーバーフロー（中央=前面・両脇が覗く）をスワイプで回し、中央の装いを「装着」でアプリ全体へ適用。並び順は 明快K→和モダンD→夜行C→星図M→カートリッジP→ポータルJ→今後追加（末尾固定）。<b>ミニチュアは案E＝6枚を各スキンの署名構造で描く（共通1レイアウトの色替えではない）</b>。上段は実機の見え方3態〈K装着中〉〈C中央=これを装着〉〈C装着直後＝クロームが深炭面へ即時反映〉、下段は全6枚＋今後追加の等倍一覧。</p>
 
-  <div class="rail">
+  <div class="rail" id="phones"></div>
 
-    <!-- ============ 装いの間: 和モダン中央・装着中 ============ -->
-    <div class="col">
-      <p class="pcap"><b>装着中</b>／和モダン中央（右に夜行が覗く）</p>
-      <div class="phone">
-        <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
-        <div class="wbody">
-          <div class="whead">
-            <button class="ib" aria-label="戻る"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
-            <span class="wtitle">着せ替え</span>
-          </div>
-          <p class="wsub">装いはアプリ全体に適用されます</p>
+  <div class="allwrap">
+    <p class="alltitle">ミニチュア一覧（案E・カルーセルの並び順）</p>
+    <p class="allsub">6枚すべてが各スキンの署名構造で描かれる。<b>恒常ボトムナビ3タブは全スキン共通</b>（MainActivity が全スキンへ搭載）なので6枚すべてに載る。<br>K と D はトークンを共有する（<code>SkinK : SkinTokens by SkinD</code>）ため色では割れない＝<b>見出しの字体（ゴシック太字／明朝）・チップの塗り（塗り／枠）・グリッドの密度（6冊小／4冊大）</b>の3点で描き分ける。</p>
+    <div class="allscroll"><div class="allrail" id="all"></div></div>
 
-          <div class="stage2">
-            <!-- 並び順は 和モダン→夜行→今後追加 で固定。中央=和モダン(先頭)ゆえ左脇は無し・右脇に夜行が覗く -->
-            <div class="slot center">
-              <div class="mshelf msD">
-                <div class="m-h1">本棚</div>
-                <div class="m-hero"><div class="m-cover"></div><div class="m-lines"><i style="width:82%"></i><i style="width:58%"></i><i class="acc" style="width:40%"></i></div></div>
-                <div class="m-li"><div class="m-c"></div><div class="m-ls"><i style="width:88%"></i><i style="width:50%"></i></div></div>
-                <div class="m-li"><div class="m-c"></div><div class="m-ls"><i style="width:74%"></i><i style="width:44%"></i></div></div>
-              </div>
-              <div class="cname">和モダン</div>
-              <!-- tagline は実装 Skin.kt WAMODERN_D が正本（「標準の装い」は明快K の襲名で余白へ改称・2026-08-06 逆同期） -->
-              <div class="cone">白と藍・余白の装い</div>
-            </div>
-            <!-- 右に夜行が覗く（今後追加は順序末尾＝この配置では見切れ外） -->
-            <div class="slot right">
-              <div class="mshelf msC">
-                <div class="m-h1">本棚</div>
-                <div class="m-hero"><div class="m-cover"></div><div class="m-lines"><i style="width:82%"></i><i style="width:58%"></i><i class="acc" style="width:40%"></i></div></div>
-                <div class="m-li"><div class="m-c"></div><div class="m-ls"><i style="width:88%"></i><i style="width:50%"></i></div></div>
-                <div class="m-li"><div class="m-c"></div><div class="m-ls"><i style="width:74%"></i><i style="width:44%"></i></div></div>
-              </div>
-              <div class="cname">夜行</div>
-            </div>
-          </div>
-
-          <div class="wfoot">
-            <div class="dots"><span class="dot on"></span><span class="dot"></span><span class="dot"></span></div>
-            <div class="ctawrap">
-              <button class="cta installed"><svg viewBox="0 0 24 24"><polyline points="4 12 10 18 20 6"/></svg>装着中</button>
-            </div>
-          </div>
-        </div>
-      </div>
+    <!-- 恒久ルール（/visual-language）: コード先行／モック先行の差は「逆同期」か「未反映注記」をセットで置く。
+         案E の6枚は各スキンの**正本モック**（bookshelf-{K,D,C,M,P,J}.html）に従って描いている。
+         2026-08-26 に実装（ui/skins/**）と突き合わせた結果、正本モックと実装が食い違う点が下記あり、
+         いずれも本件（縮図の描き分け）より前から在る drift なのでここでは解消せず記録だけ残す。 -->
+    <div class="gap">
+      <h3>未反映メモ — 縮図が従っているのは各スキンの正本モックであって実装ではない箇所</h3>
+      <ul>
+        <li><b>夜行C の「続きから」ヒーロー</b>／実装の C は和モダンD と<b>同一描画</b>（<code>ui/BookshelfScreen.kt</code> 共通・既定は単列リスト）でヒーローを持たない。ヒーローは C の正本モック <code>bookshelf-C.html</code>（K形伝播より前）にだけ在る＝<b>モックが先行</b>。</li>
+        <li><b>和モダンD の2列グリッド</b>／実装の D/C は既定が<b>単列リスト</b>（<code>IS_GRID_VIEW</code> 既定 false・グリッドは切替先）。2列グリッドは <code>bookshelf-D.html</code> 正本の姿。既定グリッドは明快K だけ。</li>
+        <li><b>カートリッジP の「本棚／12冊」見出し</b>／実装の上部は「▶ POCKET NOVEL」ブランド行＋「CARTRIDGE LIBRARY／05 本」で、この見出しを持たない。見出しは K形伝播ドラフト <code>bookshelf-P.html</code> の姿＝<b>モックが先行</b>。</li>
+        <li><b>ポータルJ の「本棚／12冊」見出し</b>／実装の扉面は 1作=1扉の横スワイプで、上部は「n / N」のみ。<code>bookshelf-J.html</code> は<b>副次面（グリッド）</b>の正本であって扉面の正本ではない。</li>
+        <li><b>星図M の星座配置</b>／実装は「1作=1星座セル」の<b>縦スクロール</b>（銘は左右交互）。縮図の3星座散布は<b>要約表現</b>＝画面レイアウトの1:1写しではない（M・P・J に FAB が無いのは実装と一致）。</li>
+      </ul>
     </div>
-
-    <!-- ============ 装いの間: 夜行中央・未装着 ============ -->
-    <div class="col">
-      <p class="pcap"><b>これを装着</b>／夜行中央（左に和モダン・右に今後追加が覗く）</p>
-      <div class="phone">
-        <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
-        <div class="wbody">
-          <div class="whead">
-            <button class="ib" aria-label="戻る"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
-            <span class="wtitle">着せ替え</span>
-          </div>
-          <p class="wsub">装いはアプリ全体に適用されます</p>
-
-          <div class="stage2">
-            <!-- 並び順 和モダン→夜行→今後追加。中央=夜行ゆえ左脇=和モダン・右脇=今後追加 -->
-            <div class="slot left">
-              <div class="mshelf msD">
-                <div class="m-h1">本棚</div>
-                <div class="m-hero"><div class="m-cover"></div><div class="m-lines"><i style="width:82%"></i><i style="width:58%"></i><i class="acc" style="width:40%"></i></div></div>
-                <div class="m-li"><div class="m-c"></div><div class="m-ls"><i style="width:88%"></i><i style="width:50%"></i></div></div>
-                <div class="m-li"><div class="m-c"></div><div class="m-ls"><i style="width:74%"></i><i style="width:44%"></i></div></div>
-              </div>
-              <div class="cname">和モダン</div>
-            </div>
-            <div class="slot center">
-              <div class="mshelf msC">
-                <div class="m-h1">本棚</div>
-                <div class="m-hero"><div class="m-cover"></div><div class="m-lines"><i style="width:82%"></i><i style="width:58%"></i><i class="acc" style="width:40%"></i></div></div>
-                <div class="m-li"><div class="m-c"></div><div class="m-ls"><i style="width:88%"></i><i style="width:50%"></i></div></div>
-                <div class="m-li"><div class="m-c"></div><div class="m-ls"><i style="width:74%"></i><i style="width:44%"></i></div></div>
-              </div>
-              <div class="cname">夜行</div>
-              <div class="cone">深炭と温白・夜の没入</div>
-            </div>
-            <!-- 今後追加は順序末尾＝常に右端 -->
-            <div class="slot right">
-              <div class="mshelf add"><span class="plus">＋<small>今後追加</small></span></div>
-              <div class="cname">&nbsp;</div>
-            </div>
-          </div>
-
-          <div class="wfoot">
-            <div class="dots"><span class="dot"></span><span class="dot on"></span><span class="dot"></span></div>
-            <div class="ctawrap">
-              <button class="cta primary"><svg viewBox="0 0 24 24"><polygon points="7 4 20 12 7 20" fill="#fff" stroke="none"/></svg>これを装着</button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- ============ 夜行を装着した直後: クローム自体が深炭面へ ============ -->
-    <div class="col">
-      <p class="pcap"><b>装着直後</b>／夜行を装着＝クローム自体が深炭面へ即時反映</p>
-      <div class="phone night">
-        <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
-        <div class="wbody">
-          <div class="whead">
-            <button class="ib" aria-label="戻る"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
-            <span class="wtitle">着せ替え</span>
-          </div>
-          <p class="wsub">装いはアプリ全体に適用されます</p>
-
-          <div class="stage2">
-            <!-- 並び順 和モダン→夜行→今後追加。中央=夜行・左=和モダン・右=今後追加 -->
-            <div class="slot left">
-              <div class="mshelf msD">
-                <div class="m-h1">本棚</div>
-                <div class="m-hero"><div class="m-cover"></div><div class="m-lines"><i style="width:82%"></i><i style="width:58%"></i><i class="acc" style="width:40%"></i></div></div>
-                <div class="m-li"><div class="m-c"></div><div class="m-ls"><i style="width:88%"></i><i style="width:50%"></i></div></div>
-                <div class="m-li"><div class="m-c"></div><div class="m-ls"><i style="width:74%"></i><i style="width:44%"></i></div></div>
-              </div>
-              <div class="cname">和モダン</div>
-            </div>
-            <div class="slot center">
-              <div class="mshelf msC">
-                <div class="m-h1">本棚</div>
-                <div class="m-hero"><div class="m-cover"></div><div class="m-lines"><i style="width:82%"></i><i style="width:58%"></i><i class="acc" style="width:40%"></i></div></div>
-                <div class="m-li"><div class="m-c"></div><div class="m-ls"><i style="width:88%"></i><i style="width:50%"></i></div></div>
-                <div class="m-li"><div class="m-c"></div><div class="m-ls"><i style="width:74%"></i><i style="width:44%"></i></div></div>
-              </div>
-              <div class="cname">夜行</div>
-              <div class="cone">深炭と温白・夜の没入</div>
-            </div>
-            <div class="slot right">
-              <div class="mshelf add"><span class="plus">＋<small>今後追加</small></span></div>
-              <div class="cname">&nbsp;</div>
-            </div>
-          </div>
-
-          <div class="wfoot">
-            <div class="dots"><span class="dot"></span><span class="dot on"></span><span class="dot"></span></div>
-            <div class="ctawrap">
-              <!-- night クローム: installed の枠=C line・チェック=slate（--ai の写像）。深炭面への即時反映を見せる -->
-              <button class="cta installed"><svg viewBox="0 0 24 24"><polyline points="4 12 10 18 20 6"/></svg>装着中</button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
   </div>
+
+<script>
+/* ===== スキンのトークン実値（実装 theme/skins/*.kt から抽出・新色の発明なし） =====
+   pri  = material.primary        acc = SkinTokens.signatureAccent
+   hair = ShelfColors.hairline    navline = material.outlineVariant（KBottomNav の上罫）
+   cover = lerp(primary, onBackground, .35)（実装 SkinMiniature の導出）
+   tint  = primary @10%（KBottomNav の選択ピル実装値）
+   ⚠️ P だけ pri(退色レッド #B5564E) と acc(液晶グリーン #A4AF80) が別値＝LCD 帯が acc を専有するため、
+      FAB/ナビ選択には CTA 色の pri を使う（緑を二重取りすると LCD の署名性が消える）。 */
+const SK = [
+  {id:'K', nm:'明快', tg:'迷わない・標準の装い', hi:true,
+   v:{bg:'#FBFAF8',ink:'#1C1F26',soft:'#7C808B',hair:'#E4E2DB',navline:'#ECEAE4',cont:'#EFEEE9',
+      pri:'#1C3D5A',onpri:'#FFFFFF',acc:'#1C3D5A',cover:'#1C3248',tint:'rgba(28,61,90,.10)',
+      hl:'rgba(28,31,38,.20)',ll:'rgba(28,31,38,.16)'}},
+  {id:'D', nm:'和モダン', tg:'白と藍・余白の装い',
+   v:{bg:'#FBFAF8',ink:'#1C1F26',soft:'#7C808B',hair:'#E4E2DB',navline:'#ECEAE4',cont:'#EFEEE9',
+      pri:'#1C3D5A',onpri:'#FFFFFF',acc:'#1C3D5A',cover:'#1C3248',tint:'rgba(28,61,90,.10)',
+      hl:'rgba(28,31,38,.20)',ll:'rgba(28,31,38,.16)'}},
+  /* 夜行の書影 #A8ADB7 は lerp(slate #8E99B0, text #D8D1C5, .35)＝実装の実値。
+     2026-08-26 に旧値 #3A4150（コード先行の変更が逆同期されず残っていた深炭グレー）から是正。 */
+  {id:'C', nm:'夜行', tg:'深炭と温白・夜の没入',
+   v:{bg:'#16181D',ink:'#D8D1C5',soft:'#8B8A84',hair:'#2C303A',navline:'#2C303A',cont:'#252932',
+      pri:'#8E99B0',acc:'#C79A6A',cover:'#A8ADB7',tint:'rgba(142,153,176,.10)',
+      hl:'rgba(216,209,197,.20)',ll:'rgba(216,209,197,.16)'}},
+  {id:'M', nm:'星図', tg:'群青の夜天・金の結線',
+   v:{bg:'#0B1330',ink:'#DCE3F2',soft:'#8791AD',hair:'#273151',navline:'#273151',cont:'#0C1432',
+      pri:'#E9DDB4',acc:'#E9DDB4',cover:'#E4DFCA',tint:'rgba(233,221,180,.10)',
+      hl:'rgba(220,227,242,.20)',ll:'rgba(220,227,242,.16)'}},
+  {id:'P', nm:'カートリッジ', tg:'退色プラスチックと緑のLCD',
+   v:{bg:'#DBD6C8',ink:'#2C2B26',soft:'#79766B',hair:'#BDB9A9',navline:'#C9C5B6',cont:'#E9E5DA',
+      pri:'#B5564E',acc:'#A4AF80',cover:'#854740',tint:'rgba(181,86,78,.10)',
+      hl:'rgba(44,43,38,.20)',ll:'rgba(44,43,38,.16)',
+      panel:'#CFCABB',lcdink:'#2B3616'}},   /* panel=surfaceVariant（カセット筐体）・lcdink=onTertiary */
+  {id:'J', nm:'ポータル', tg:'物語への扉・金の敷居',
+   v:{bg:'#0C0E0B',ink:'#F1F4EC',soft:'#959A92',hair:'#2B2E29',navline:'#2B2E29',cont:'#16211A',
+      pri:'#E2C878',acc:'#E2C878',cover:'#E7D7A1',tint:'rgba(226,200,120,.10)',
+      hl:'rgba(241,244,236,.20)',ll:'rgba(241,244,236,.16)'}},
+];
+const byId = Object.fromEntries(SK.map(s=>[s.id,s]));
+const vars = s => Object.entries(s.v).map(([k,x])=>`--${k}:${x}`).join(';');
+
+/* --- 共有パーツ（クロームは全スキン共通の事実＝ここで1回だけ定義する） --- */
+const IC_BOOK = `<svg viewBox="0 0 24 24"><path d="M6 4h11a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/><path d="M4 18a2 2 0 0 1 2-2h12"/></svg>`;
+const IC_SRCH = `<svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.4 4.4"/></svg>`;
+const IC_GEAR = `<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.4"/><circle cx="12" cy="12" r="8.6"/></svg>`;
+/* 恒常ボトムナビ（本棚が選択）＝全6枚に載る。ラベル常時表示は明快K の自明性規則がアプリ共通に伝播したもの。 */
+const NAV = `<nav class="s-nav">
+  <a class="on"><span class="ic">${IC_BOOK}</span><span class="lb">本棚</span></a>
+  <a><span class="ic">${IC_SRCH}</span><span class="lb">さがす</span></a>
+  <a><span class="ic">${IC_GEAR}</span><span class="lb">設定</span></a></nav>`;
+const HEAD = face => `<div class="s-head"><div class="t"><h4 class="${face}">本棚</h4><em>12冊</em></div>
+  <span class="v"></span></div>`;
+const FAB = `<div class="s-fab">＋PDF</div>`;
+
+/* --- 6つの署名構造。共有パーツを組み合わせ、違うところだけを各関数が持つ --- */
+/* 明快K: 2列×3段の書影グリッド（6冊）＋塗りチップ。情報量を出して「これが標準」を示す。 */
+const shelfK = s => `<div class="mini" style="${vars(s)}">
+  ${HEAD('gt')}
+  <div class="s-chips"><b class="fill">すべて</b><b>よみかけ</b><b>未読</b></div>
+  <div class="s-grid k">${[0,1,2,3,4,5].map(()=>`<div class="bk"><div class="cv"><u></u></div>
+    <i style="width:86%"></i><i style="width:52%"></i></div>`).join('')}</div>
+  ${FAB}${NAV}</div>`;
+/* 和モダンD: 同じ2列でも4冊・書影を大きく・行間を広く＝余白が署名。見出しは明朝・チップは枠。 */
+const shelfD = s => `<div class="mini" style="${vars(s)}">
+  ${HEAD('mn')}
+  <div class="s-chips"><b class="out">すべて</b><b>よみかけ</b><b>未読</b></div>
+  <div class="s-grid d">${[0,1,2,3].map(()=>`<div class="bk">
+    <div class="cv"><u></u></div><i style="width:80%"></i></div>`).join('')}</div>
+  ${FAB}${NAV}</div>`;
+/* 夜行C: 見出しもチップも FAB も持たない（クロームを極小に）。代わりに「続きから」を大きく1枚。 */
+const shelfC = s => `<div class="mini" style="${vars(s)}">
+  <div class="e-hero"><div class="k">続きから</div>
+    <div class="r"><div class="cv"></div><div class="tx">
+      <i style="width:88%"></i><i style="width:60%"></i><i class="acc" style="width:38%"></i></div></div></div>
+  <div class="e-list">${[[88,50],[74,44]].map(([a,b])=>`<div class="li"><div class="c"></div>
+    <div class="ls"><i style="width:${a}%"></i><i style="width:${b}%"></i></div></div>`).join('')}</div>
+  ${NAV}</div>`;
+/* 星図M: 3つの星座（星3つ＋結線2本＋作品名）が夜天に散る。グリッドも罫線も持たないのが署名。 */
+const shelfM = s => {
+  const star=(x,y,r)=>`<b style="left:${x}px;top:${y}px;width:${r}px;height:${r}px;margin:-${r/2}px 0 0 -${r/2}px"></b>`;
+  const link=(x,y,l,a)=>`<u style="left:${x}px;top:${y}px;width:${l}px;transform:rotate(${a}deg)"></u>`;
+  return `<div class="mini" style="${vars(s)}">
+  ${HEAD('mn')}
+  <div class="e-sky">
+    <div class="cst" style="left:16px;top:14px">${link(0,0,34,26)}${link(30,15,26,-38)}
+      ${star(0,0,4)}${star(30,15,3)}${star(50,-1,5)}<em style="left:-2px;top:12px">星の継承者</em></div>
+    <div class="cst" style="left:96px;top:76px">${link(0,0,30,44)}${link(21,21,24,-20)}
+      ${star(0,0,3)}${star(21,21,4.5)}${star(44,13,3)}<em style="left:-6px;top:32px">辺境の魔導</em></div>
+    <div class="cst" style="left:24px;top:120px">${link(0,0,40,-14)}${link(39,-10,22,52)}
+      ${star(0,0,4)}${star(39,-10,3)}${star(52,7,4)}<em style="left:-2px;top:16px">夜天の書庫</em></div>
+  </div>${NAV}</div>`;
+};
+/* カートリッジP: 緑LCD の再生表示＋単列に挿さるカセット3本。棚でなく「機械の面」が署名。 */
+const shelfP = s => `<div class="mini" style="${vars(s)}">
+  ${HEAD('gt')}
+  <div class="e-lcd"><div class="k">NOW PLAYING</div><div class="t">辺境の魔導 12/48</div></div>
+  <div class="e-cas">${[0,1,2].map(()=>`<div class="cs"><div class="lb"></div>
+    <div class="rb"><i></i><i></i><i></i><i></i><i></i></div></div>`).join('')}</div>
+  ${NAV}</div>`;
+/* ポータルJ: 作品が扉として立つ。中央の大扉と両脇の覗き＝金の敷居（border-bottom）が署名。 */
+const shelfJ = s => `<div class="mini" style="${vars(s)}">
+  ${HEAD('mn')}
+  <div class="e-doors">
+    <div class="dr side"><em>閉</em></div>
+    <div class="dr mid"><em>物</em></div>
+    <div class="dr side"><em>扉</em></div>
+  </div>${NAV}</div>`;
+const MINI = {K:shelfK, D:shelfD, C:shelfC, M:shelfM, P:shelfP, J:shelfJ};
+const mini = id => MINI[id](byId[id]);
+const ADD = `<div class="mini add"><span class="plus">＋<small>今後追加</small></span></div>`;
+
+/* ===== 実機3態 ===== */
+const CHECK = `<svg viewBox="0 0 24 24"><polyline points="4 12 10 18 20 6"/></svg>`;
+const PLAY  = `<svg viewBox="0 0 24 24"><polygon points="7 4 20 12 7 20" fill="#fff" stroke="none"/></svg>`;
+const slot = (pos, id, withOne) => {
+  const s = id === 'add' ? null : byId[id];
+  return `<div class="slot ${pos}">${s ? mini(id) : ADD}
+    <div class="cname">${s ? s.nm : '&nbsp;'}</div>
+    ${s && withOne ? `<div class="cone">${s.tg}</div>` : ''}</div>`;
+};
+const dots = on => `<div class="dots">${[0,1,2,3,4,5,6]
+  .map(i=>`<span class="dot${i===on?' on':''}"></span>`).join('')}</div>`;
+function phone({cap, night, left, center, right, on, cta}) {
+  return `<div class="col"><p class="pcap">${cap}</p>
+  <div class="phone${night?' night':''}">
+    <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+    <div class="wbody">
+      <div class="whead">
+        <button class="ib" aria-label="戻る"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+        <span class="wtitle">着せ替え</span>
+      </div>
+      <p class="wsub">装いはアプリ全体に適用されます</p>
+      <div class="stage2">
+        ${left ? slot('left', left, false) : ''}
+        ${slot('center', center, true)}
+        ${right ? slot('right', right, false) : ''}
+      </div>
+      <div class="wfoot">${dots(on)}
+        <div class="ctawrap">${cta === 'installed'
+          ? `<button class="cta installed">${CHECK}装着中</button>`
+          : `<button class="cta primary">${PLAY}これを装着</button>`}</div>
+      </div>
+    </div>
+  </div></div>`;
+}
+document.getElementById('phones').innerHTML = [
+  /* 既定＝明快K が先頭ページ。左脇は無し（先頭のため）・右脇に和モダンD が覗く。 */
+  {cap:'<b>装着中</b>／明快K 中央（右に和モダンDが覗く）', center:'K', right:'D', on:0, cta:'installed'},
+  /* 夜行C は3ページ目＝左に和モダンD・右に星図M が覗く。 */
+  {cap:'<b>これを装着</b>／夜行C 中央（左に和モダンD・右に星図M）', left:'D', center:'C', right:'M', on:2, cta:'primary'},
+  {cap:'<b>装着直後</b>／夜行を装着＝クローム自体が深炭面へ即時反映', night:true,
+   left:'D', center:'C', right:'M', on:2, cta:'installed'},
+].map(phone).join('');
+
+/* ===== 全6枚＋今後追加の等倍一覧 ===== */
+document.getElementById('all').innerHTML = SK.map(s=>`<div class="cell${s.hi?' hi':''}">${mini(s.id)}
+  <div class="nm">${s.nm}</div><div class="tg">${s.tg}</div></div>`).join('')
+  + `<div class="cell">${ADD}<div class="nm">&nbsp;</div></div>`;
+</script>
 </body>
 </html>
